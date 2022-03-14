@@ -76,6 +76,10 @@ impl Pipeline {
         self.config.ops.push(op);
     }
 
+    pub fn is_match<P: AsRef<str>>(&self, asset: P) -> bool {
+        self.state.re.is_match(asset.as_ref())
+    }
+
     pub fn run<P: AsRef<Path>>(&mut self, asset: P) {
         let asset = asset.as_ref();
         let mut input_path = self.dirs.abs_src_asset(asset);
