@@ -1,6 +1,6 @@
 use crate::Directories;
 use regex::Regex;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
