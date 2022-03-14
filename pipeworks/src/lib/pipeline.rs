@@ -82,6 +82,7 @@ impl Pipeline {
 
     pub fn run<P: AsRef<Path>>(&mut self, asset: P) {
         let asset = asset.as_ref();
+        let mut tmp_files = vec![];
         let mut input_path = self.dirs.abs_src_asset(asset);
         let output_path = self.dirs.abs_target_asset(asset);
         for op in self.config.ops.iter() {
@@ -93,7 +94,9 @@ impl Pipeline {
                 Operation::Shell(command) => {
                     let artifact_path = {
                         if command.has_output() {
-                            crate::gen_temp_file().path().to_path_buf()
+                            let tmp = crate::gen_temp_file().path().to_path_buf();
+                            tmp_files.push(tmp.clone());
+                            tmp
                         } else {
                             output_path.clone()
                         }
@@ -122,6 +125,9 @@ impl Pipeline {
                     input_path = artifact_path;
                 }
             }
+        }
+        for f in tmp_files {
+            std::fs::remove_file(f).expect("failed to clean up temp file");
         }
     }
 }

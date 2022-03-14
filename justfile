@@ -1,3 +1,2 @@
-run:
-  cargo build
-  ./target/debug/main
+clean:
+  rm test/public/*
