@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use pipeworks::pipeline::{AutorunTrigger, Glob, Operation, Pipeline, ShellCommand};
 use pipeworks::Directories;
 
