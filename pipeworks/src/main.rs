@@ -1,7 +1,13 @@
 use pipeworks::pipeline::{AutorunTrigger, Glob, Operation, Pipeline, ShellCommand};
 use pipeworks::Directories;
 
-fn main() {
+fn run_get_all_html_paths() {
+    use pipeworks::discover::get_all_html_paths;
+
+    dbg!(get_all_html_paths("test"));
+}
+
+fn run_find_assets() {
     let sample_html = r#"
         <!DOCTYPE html>
         <meta charset="utf-8">
@@ -20,10 +26,11 @@ fn main() {
         </body>
         </html>
     "#;
-
     let assets = pipeworks::discover::find_assets(sample_html);
     dbg!(assets);
-    let dirs = Directories::new("test/src", "test/public");
+}
+
+fn run_pipeline(dirs: Directories) {
     // let mut copy_pipeline = Pipeline::new(dirs, Glob("*.txt".into()), AutorunTrigger::TargetGlob);
     // copy_pipeline.push_op(Operation::Copy);
     // copy_pipeline.run("sample.txt");
@@ -34,4 +41,10 @@ fn main() {
     )));
     sed_pipeline.push_op(Operation::Copy);
     sed_pipeline.run("sample.txt");
+}
+
+fn main() {
+    let dirs = Directories::new("test/src", "test/public");
+
+    run_get_all_html_paths();
 }
