@@ -1,4 +1,7 @@
+pub mod discover;
 pub mod pipeline;
+pub use pipeline::Pipeline;
+
 use regex::Regex;
 use std::fs::File;
 use std::io::{Read, Write};
