@@ -12,4 +12,4 @@ path = "src/lib/pipeworks.rs"
 [dependencies]
 tempfile = "3.3.0"
 regex = "1.5.5"
-xshell = "0.2.0"
+scraper = "0.12.0"
