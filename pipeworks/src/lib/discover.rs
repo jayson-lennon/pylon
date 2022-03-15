@@ -30,22 +30,23 @@ pub fn find_assets<T: AsRef<str>>(html: T) -> Vec<String> {
     assets
 }
 
-pub fn get_all_html_paths<P: AsRef<Path>>(dir: P) -> io::Result<Vec<PathBuf>> {
+pub fn get_all_paths<P: AsRef<Path>>(
+    dir: P,
+    condition: &dyn Fn(&Path) -> bool,
+) -> io::Result<Vec<PathBuf>> {
     let dir = dir.as_ref();
-    let mut html_paths = vec![];
+    let mut paths = vec![];
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
             let path = entry?.path();
             if path.is_dir() {
-                html_paths.append(&mut get_all_html_paths(path)?);
+                paths.append(&mut get_all_paths(path, condition)?);
             } else {
-                if let Some(ext) = path.extension() {
-                    if ext == "html" {
-                        html_paths.push(path);
-                    }
+                if condition(path.as_ref()) {
+                    paths.push(path);
                 }
             }
         }
     }
-    Ok(html_paths)
+    Ok(paths)
 }

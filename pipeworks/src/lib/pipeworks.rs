@@ -1,12 +1,71 @@
 pub mod discover;
 pub mod pipeline;
+pub mod render;
 pub use pipeline::Pipeline;
 
 use regex::Regex;
-use std::fs::File;
-use std::io::{Read, Write};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum FrontMatterError {
+    #[error("parse error: {0}")]
+    Error(#[from] toml::de::Error),
+}
+
+#[derive(Clone, Debug)]
+pub struct RenderedMarkdown(pub String);
+
+#[derive(Clone, Debug)]
+pub struct RawMarkdown(pub String);
+
+impl AsRef<str> for RawMarkdown {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl RawMarkdown {
+    pub fn new<M: AsRef<str>>(markdown: M) -> Self {
+        Self(markdown.as_ref().to_string())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RawFrontMatter(pub String);
+
+impl AsRef<str> for RawFrontMatter {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl TryInto<FrontMatter> for RawFrontMatter {
+    type Error = FrontMatterError;
+    fn try_into(self) -> Result<FrontMatter, Self::Error> {
+        Ok(toml::from_str(&self.0)?)
+    }
+}
+
+impl RawFrontMatter {
+    pub fn new<F: AsRef<str>>(frontmatter: F) -> Self {
+        Self(frontmatter.as_ref().to_string())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FrontMatter {
+    title: String,
+    template: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct Page {
+    content: RawMarkdown,
+    frontmatter: FrontMatter,
+}
 
 #[derive(Clone, Debug)]
 pub struct Directories {
