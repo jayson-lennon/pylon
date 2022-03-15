@@ -1,11 +1,14 @@
-use std::path::Path;
-
+use clap::Parser;
 use pipeworks::pipeline::{AutorunTrigger, Glob, Operation, Pipeline, ShellCommand};
 use pipeworks::render::html::HtmlRenderer;
 use pipeworks::Directories;
+use std::path::{Path, PathBuf};
 
-fn run_render_markdown(dirs: Directories) {
-    let renderer = pipeworks::render::html::TeraRenderer::new("test/templates/**/*");
+fn run_render_markdown(dirs: Directories, template_dir: &Path) {
+    let mut template_dir = PathBuf::from(template_dir);
+    template_dir.push("**/*.tera.html");
+
+    let renderer = pipeworks::render::html::TeraRenderer::new(template_dir);
     let markdown_files =
         pipeworks::discover::get_all_paths(dirs.abs_src_dir(), &|path: &Path| -> bool {
             path.extension()
@@ -71,9 +74,17 @@ fn run_pipeline(dirs: Directories) {
     sed_pipeline.run("sample.txt");
 }
 
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long, default_value = "test/templates")]
+    template_dir: std::path::PathBuf,
+}
+
 fn main() {
     let dirs = Directories::new("test/src", "test/public");
+    let args = Args::parse();
 
     // run_get_all_html_paths();
-    run_render_markdown(dirs);
+    run_render_markdown(dirs, args.template_dir.as_path());
 }
