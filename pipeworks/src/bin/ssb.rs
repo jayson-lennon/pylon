@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 fn run_render_markdown(dirs: Directories, template_dir: &Path) {
     let mut template_dir = PathBuf::from(template_dir);
-    template_dir.push("**/*.tera.html");
+    template_dir.push("**/*.tera");
 
     let renderer = pipeworks::render::html::TeraRenderer::new(template_dir);
     let markdown_files =
@@ -22,7 +22,7 @@ fn run_render_markdown(dirs: Directories, template_dir: &Path) {
         let html_content = pipeworks::render::markdown::render(&markdown);
         let mut context = tera::Context::new();
         context.insert("content", &html_content);
-        dbg!(renderer.render("blog/single.tera.html", &context));
+        dbg!(renderer.render("blog/single.tera", &context));
     }
 }
 
