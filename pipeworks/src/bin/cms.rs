@@ -84,8 +84,14 @@ struct Args {
 fn run_all() {
     let dirs = Directories::new("test/src", "test/public");
     let args = Args::parse();
+
+    // ****************************************************************
+    // get pages section
+    // ****************************************************************
+
     let mut pages = cmslib::generate_pages(dirs.clone());
     for page in pages.iter_mut() {
+        // template discovery
         if page.frontmatter.template_path.is_none() {
             let paths = cmslib::discover::template_paths_from_content_path(
                 page.path.parent().unwrap(),
@@ -102,6 +108,10 @@ fn run_all() {
         }
     }
     dbg!(pages);
+
+    // ****************************************************************
+    // end get pages section
+    // ****************************************************************
 }
 
 fn main() {
