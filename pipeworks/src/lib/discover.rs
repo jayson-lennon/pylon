@@ -51,11 +51,15 @@ pub fn get_all_paths<P: AsRef<Path>>(
     Ok(paths)
 }
 
-pub fn get_template_paths_for_content_path<P: AsRef<Path>, S: AsRef<str>>(
+pub fn get_template_paths_for_content_path<P, S>(
     content_path: P,
     template_root: P,
     template_name: S,
-) -> Vec<PathBuf> {
+) -> Vec<PathBuf>
+where
+    P: AsRef<Path>,
+    S: AsRef<str>,
+{
     let content_path = content_path.as_ref();
     let template_root = template_root.as_ref();
     let template_name = template_name.as_ref();
