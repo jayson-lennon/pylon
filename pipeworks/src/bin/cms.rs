@@ -87,15 +87,16 @@ fn run_all() {
     let mut pages = cmslib::generate_pages(dirs.clone());
     for page in pages.iter_mut() {
         if page.frontmatter.template_path.is_none() {
-            let paths = cmslib::discover::get_template_paths_for_content_path(
+            let paths = cmslib::discover::template_paths_from_content_path(
                 page.path.parent().unwrap(),
-                "test/templates".as_ref(),
+                "test/src".as_ref(),
                 "single.tera",
             );
             for p in paths {
-                dbg!("check if path exists", &p);
-                if p.exists() {
-                    page.frontmatter.template_path = Some(p);
+                let mut template_path = PathBuf::from("test/templates");
+                template_path.push(p);
+                if template_path.exists() {
+                    page.frontmatter.template_path = Some(template_path);
                 }
             }
         }
