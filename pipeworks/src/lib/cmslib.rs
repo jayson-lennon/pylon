@@ -42,10 +42,10 @@ impl AsRef<str> for RawFrontMatter {
     }
 }
 
-impl TryInto<FrontMatter> for RawFrontMatter {
+impl TryFrom<RawFrontMatter> for FrontMatter {
     type Error = FrontMatterError;
-    fn try_into(self) -> Result<FrontMatter, Self::Error> {
-        Ok(toml::from_str(&self.0)?)
+    fn try_from(raw: RawFrontMatter) -> Result<Self, Self::Error> {
+        Ok(toml::from_str(&raw.0)?)
     }
 }
 
@@ -57,14 +57,36 @@ impl RawFrontMatter {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FrontMatter {
-    title: String,
-    template: String,
+    pub title: String,
+    pub template_path: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Page {
-    content: RawMarkdown,
-    frontmatter: FrontMatter,
+    pub content: RawMarkdown,
+    pub frontmatter: FrontMatter,
+    pub path: PathBuf,
+}
+
+pub fn generate_pages(dirs: Directories) -> Vec<Page> {
+    let markdown_files = discover::get_all_paths(dirs.abs_src_dir(), &|path: &Path| -> bool {
+        path.extension()
+            .map(|ext| ext == "md")
+            .unwrap_or_else(|| false)
+    })
+    .unwrap();
+    let mut pages = vec![];
+    for path in markdown_files.iter() {
+        let doc = std::fs::read_to_string(path).unwrap();
+        let (frontmatter, markdown) = split_document(doc).unwrap();
+        let frontmatter = FrontMatter::try_from(frontmatter).unwrap();
+        pages.push(Page {
+            content: markdown,
+            frontmatter,
+            path: path.to_owned(),
+        })
+    }
+    pages
 }
 
 #[derive(Clone, Debug)]
@@ -94,7 +116,7 @@ impl Directories {
     ///
     /// ```
     /// use std::path::Path;
-    /// use pipeworks::Directories;
+    /// use cmslib::Directories;
     ///
     /// let dirs = Directories::new(Path::new("content"), Path::new("public"));
     /// let header = Path::new("blog/header.png");
@@ -114,7 +136,7 @@ impl Directories {
     ///
     /// ```
     /// use std::path::Path;
-    /// use pipeworks::Directories;
+    /// use cmslib::Directories;
     ///
     /// let dirs = Directories::new(Path::new("content"), Path::new("public"));
     /// let header = Path::new("blog/header.png");
@@ -162,4 +184,62 @@ pub fn glob_to_re<T: AsRef<str>>(glob: T) -> Regex {
         re_str = re_str.replace(r.0, r.0);
     }
     Regex::new(&re_str).expect("failed to convert glob to regex")
+}
+
+macro_rules! regex {
+    ($re:literal $(,)?) => {{
+        static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
+        RE.get_or_init(|| regex::Regex::new($re).unwrap())
+    }};
+}
+
+pub fn split_document<D: AsRef<str>>(document: D) -> Option<(RawFrontMatter, RawMarkdown)> {
+    let doc = document.as_ref();
+    let re = regex!(
+        r#"^[[:space:]]*\+\+\+[[:space:]]*\n((?s).*)\n[[:space:]]*\+\+\+[[:space:]]*((?s).*)"#
+    );
+    match re.captures(doc) {
+        Some(captures) => {
+            let frontmatter = RawFrontMatter::new(&captures[1]);
+            let markdown = RawMarkdown::new(&captures[2]);
+            Some((frontmatter, markdown))
+        }
+        None => None,
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::split_document;
+
+    #[test]
+    fn splits_well_formed_document() {
+        let data = r"+++
+a=1
+b=2
+c=3
++++
+content here";
+        let (frontmatter, markdown) = split_document(data).unwrap();
+        assert_eq!(frontmatter.0, "a=1\nb=2\nc=3");
+        assert_eq!(markdown.0, "content here");
+    }
+
+    #[test]
+    fn splits_well_formed_document_with_newlines() {
+        let data = r"+++
+a=1
+b=2
+c=3
+
++++
+content here
+
+some newlines
+
+";
+        let (frontmatter, markdown) = split_document(data).unwrap();
+        assert_eq!(frontmatter.0, "a=1\nb=2\nc=3\n");
+        assert_eq!(markdown.0, "content here\n\nsome newlines\n\n");
+    }
 }

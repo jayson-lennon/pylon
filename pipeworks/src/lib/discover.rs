@@ -64,29 +64,32 @@ where
     let template_root = template_root.as_ref();
     let template_name = template_name.as_ref();
 
-    let mut template_path = {
-        let mut template_path = PathBuf::from(template_root);
-        // build a path with the template root as the first directory
-        for p in content_path.iter().skip(1) {
-            template_path.push(p);
+    let content_components = content_path.iter().collect::<Vec<_>>();
+    let template_root_components = template_root.iter().collect::<Vec<_>>();
+
+    // This is 0 when the content path and template root are both present in the CWD.
+    // Otherwise, it indicates how many directories deep both paths are. This happens
+    // when the generator is ran outside the projects directory, or if the
+    // directories are nested inside the project directory. See test code for examples.
+    let content_dir_start = {
+        let mut i = 0;
+        loop {
+            if content_components.get(i) != template_root_components.get(i) {
+                break;
+            }
+            i += 1;
         }
-        // add the target template name
-        template_path.push(template_name);
-        template_path
+        i
     };
+
+    let mut template_path = content_components;
+    template_path[content_dir_start] = template_root_components[template_root_components.len() - 1];
+    template_path.push(template_name.as_ref());
+
     let mut paths = vec![];
-    loop {
-        paths.push(template_path.clone());
-
-        template_path.pop();
-        if !template_path.pop() {
-            break;
-        }
-
-        if template_path.as_path() == template_root {
-            break;
-        }
-        template_path.push(template_name);
+    while template_path.len() > template_root_components.len() {
+        paths.push(PathBuf::from_iter(template_path.iter()));
+        template_path.remove(template_path.len() - 2); // -2 so we don't remove the filename
     }
     paths
 }
@@ -97,7 +100,7 @@ mod test {
     use std::path::PathBuf;
 
     #[test]
-    fn gets_list_of_template_paths_for_given_content_path() {
+    fn gets_list_of_template_paths_for_given_content_path_when_ran_from_project_root() {
         let content_path = PathBuf::from("src/blog/post1");
         let template_root = PathBuf::from("templates");
         let template_name = "single.tera";
@@ -110,6 +113,23 @@ mod test {
         assert_eq!(
             template_paths[1],
             PathBuf::from("templates/blog/single.tera")
+        );
+    }
+
+    #[test]
+    fn gets_list_of_template_paths_for_given_content_path_when_paths_exist_elsewhere() {
+        let content_path = PathBuf::from("test/src/blog/post1");
+        let template_root = PathBuf::from("test/templates");
+        let template_name = "single.tera";
+        let template_paths =
+            get_template_paths_for_content_path(content_path, template_root, template_name);
+        assert_eq!(
+            template_paths[0],
+            PathBuf::from("test/templates/blog/post1/single.tera")
+        );
+        assert_eq!(
+            template_paths[1],
+            PathBuf::from("test/templates/blog/single.tera")
         );
     }
 }
