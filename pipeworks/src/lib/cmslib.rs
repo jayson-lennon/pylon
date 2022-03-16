@@ -3,6 +3,7 @@ pub mod pipeline;
 pub mod render;
 pub use pipeline::Pipeline;
 
+use anyhow::Context;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -10,9 +11,21 @@ use tempfile::NamedTempFile;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+pub enum EngineError {
+    #[error("internal error")]
+    DocumentSplitError,
+}
+
+#[derive(Error, Debug)]
 pub enum FrontMatterError {
     #[error("parse error: {0}")]
     Error(#[from] toml::de::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum DocumentError {
+    #[error("missing frontmatter")]
+    MissingFrontmatter,
 }
 
 #[derive(Clone, Debug)]
@@ -68,25 +81,24 @@ pub struct Page {
     pub path: PathBuf,
 }
 
-pub fn generate_pages(dirs: Directories) -> Vec<Page> {
+pub fn generate_pages(dirs: Directories) -> Result<Vec<Page>, anyhow::Error> {
     let markdown_files = discover::get_all_paths(dirs.abs_src_dir(), &|path: &Path| -> bool {
         path.extension()
             .map(|ext| ext == "md")
             .unwrap_or_else(|| false)
-    })
-    .unwrap();
+    })?;
     let mut pages = vec![];
     for path in markdown_files.iter() {
-        let doc = std::fs::read_to_string(path).unwrap();
-        let (frontmatter, markdown) = split_document(doc).unwrap();
-        let frontmatter = FrontMatter::try_from(frontmatter).unwrap();
+        let doc = std::fs::read_to_string(path)?;
+        let (frontmatter, markdown) = split_document(doc, path).expect("missing frontmatter");
+        let frontmatter = FrontMatter::try_from(frontmatter)?;
         pages.push(Page {
             content: markdown,
             frontmatter,
             path: path.to_owned(),
         })
     }
-    pages
+    Ok(pages)
 }
 
 #[derive(Clone, Debug)]
@@ -193,18 +205,41 @@ macro_rules! regex {
     }};
 }
 
-pub fn split_document<D: AsRef<str>>(document: D) -> Option<(RawFrontMatter, RawMarkdown)> {
+pub fn split_document<D, P>(
+    document: D,
+    path: P,
+) -> Result<(RawFrontMatter, RawMarkdown), anyhow::Error>
+where
+    D: AsRef<str>,
+    P: AsRef<Path>,
+{
     let doc = document.as_ref();
     let re = regex!(
         r#"^[[:space:]]*\+\+\+[[:space:]]*\n((?s).*)\n[[:space:]]*\+\+\+[[:space:]]*((?s).*)"#
     );
     match re.captures(doc) {
         Some(captures) => {
-            let frontmatter = RawFrontMatter::new(&captures[1]);
-            let markdown = RawMarkdown::new(&captures[2]);
-            Some((frontmatter, markdown))
+            let frontmatter = captures
+                .get(1)
+                .map(|m| m.as_str())
+                .ok_or_else(|| DocumentError::MissingFrontmatter)?;
+            let frontmatter = RawFrontMatter::new(frontmatter);
+
+            let markdown = captures
+                .get(2)
+                .map(|m| m.as_str())
+                .ok_or_else(|| EngineError::DocumentSplitError)
+                .with_context(|| {
+                    format!(
+                        "Missing second regex capture when processing document data at '{}'",
+                        path.as_ref().to_string_lossy()
+                    )
+                })?;
+            let markdown = RawMarkdown::new(markdown);
+
+            Ok((frontmatter, markdown))
         }
-        None => None,
+        None => Err(DocumentError::MissingFrontmatter)?,
     }
 }
 
@@ -220,7 +255,7 @@ b=2
 c=3
 +++
 content here";
-        let (frontmatter, markdown) = split_document(data).unwrap();
+        let (frontmatter, markdown) = split_document(data, "").unwrap();
         assert_eq!(frontmatter.0, "a=1\nb=2\nc=3");
         assert_eq!(markdown.0, "content here");
     }
@@ -238,7 +273,7 @@ content here
 some newlines
 
 ";
-        let (frontmatter, markdown) = split_document(data).unwrap();
+        let (frontmatter, markdown) = split_document(data, "").unwrap();
         assert_eq!(frontmatter.0, "a=1\nb=2\nc=3\n");
         assert_eq!(markdown.0, "content here\n\nsome newlines\n\n");
     }
