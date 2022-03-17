@@ -74,7 +74,7 @@ impl RawFrontMatter {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FrontMatter {
     pub title: String,
-    pub template_path: Option<CmsPath>,
+    pub template_path: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -85,7 +85,8 @@ pub struct Page {
 }
 
 pub fn generate_pages(dirs: Directories) -> Result<Vec<Page>, anyhow::Error> {
-    let markdown_files = discover::get_all_paths(dirs.abs_src_dir(), &|path: &Path| -> bool {
+    let path = CmsPath::new(dirs.abs_src_dir(), "".as_ref());
+    let markdown_files = discover::get_all_paths(path, &|path: &Path| -> bool {
         path.extension()
             .map(|ext| ext == "md")
             .unwrap_or_else(|| false)

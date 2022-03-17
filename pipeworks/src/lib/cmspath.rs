@@ -88,9 +88,20 @@ impl From<&CmsPath> for PathBuf {
     }
 }
 
+pub fn strip_root<P: AsRef<Path>>(root: P, path: P) -> PathBuf {
+    let root = root.as_ref().iter().collect::<Vec<_>>();
+    let path = path.as_ref().iter().collect::<Vec<_>>();
+
+    let mut i = 0;
+    while root.get(i) == path.get(i) {
+        i += 1;
+    }
+    PathBuf::from_iter(path[i..].iter())
+}
+
 #[cfg(test)]
 mod test {
-    use super::CmsPath;
+    use super::{strip_root, CmsPath};
     use std::path::PathBuf;
 
     #[test]
@@ -107,5 +118,17 @@ mod test {
         assert_eq!(path.path, PathBuf::from("c.txt"));
 
         assert_eq!(path.to_full_path(), PathBuf::from("root/c.txt"))
+    }
+
+    #[test]
+    fn strips_root() {
+        let stripped = strip_root("a/b", "a/b/c/d");
+        assert_eq!(stripped, PathBuf::from("c/d"));
+
+        let stripped = strip_root("", "a/b/c/d");
+        assert_eq!(stripped, PathBuf::from("a/b/c/d"));
+
+        let stripped = strip_root("a", "");
+        assert_eq!(stripped, PathBuf::from(""));
     }
 }
