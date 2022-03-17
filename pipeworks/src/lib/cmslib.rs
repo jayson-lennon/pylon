@@ -1,6 +1,9 @@
+pub mod cmspath;
 pub mod discover;
 pub mod pipeline;
 pub mod render;
+
+pub use cmspath::CmsPath;
 pub use pipeline::Pipeline;
 
 use anyhow::Context;
@@ -71,14 +74,14 @@ impl RawFrontMatter {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FrontMatter {
     pub title: String,
-    pub template_path: Option<PathBuf>,
+    pub template_path: Option<CmsPath>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Page {
     pub content: RawMarkdown,
     pub frontmatter: FrontMatter,
-    pub path: PathBuf,
+    pub path: CmsPath,
 }
 
 pub fn generate_pages(dirs: Directories) -> Result<Vec<Page>, anyhow::Error> {
@@ -89,13 +92,16 @@ pub fn generate_pages(dirs: Directories) -> Result<Vec<Page>, anyhow::Error> {
     })?;
     let mut pages = vec![];
     for path in markdown_files.iter() {
-        let doc = std::fs::read_to_string(path)?;
-        let (frontmatter, markdown) = split_document(doc, path).expect("missing frontmatter");
+        let doc = {
+            let path = PathBuf::from(path);
+            std::fs::read_to_string(path)?
+        };
+        let (frontmatter, markdown) = split_document(doc, &path).expect("missing frontmatter");
         let frontmatter = FrontMatter::try_from(frontmatter)?;
         pages.push(Page {
             content: markdown,
             frontmatter,
-            path: path.to_owned(),
+            path: path.clone(),
         })
     }
     Ok(pages)
@@ -103,23 +109,23 @@ pub fn generate_pages(dirs: Directories) -> Result<Vec<Page>, anyhow::Error> {
 
 #[derive(Clone, Debug)]
 pub struct Directories {
-    src: PathBuf,
-    out: PathBuf,
+    src_root: PathBuf,
+    output_root: PathBuf,
 }
 
 impl Directories {
     pub fn new<P: AsRef<Path>>(src: P, out: P) -> Self {
         Self {
-            src: src.as_ref().into(),
-            out: out.as_ref().into(),
+            src_root: src.as_ref().into(),
+            output_root: out.as_ref().into(),
         }
     }
     pub fn abs_src_dir(&self) -> &Path {
-        self.src.as_path()
+        self.src_root.as_path()
     }
 
     pub fn abs_output_dir(&self) -> &Path {
-        self.out.as_path()
+        self.output_root.as_path()
     }
 
     /// Returns the absolute path to a source asset, given a partial asset path.
@@ -137,7 +143,7 @@ impl Directories {
     /// ```
     pub fn abs_src_asset(&self, asset_path: &Path) -> PathBuf {
         let mut path = PathBuf::new();
-        path.push(self.src.clone());
+        path.push(self.src_root.clone());
         path.push(asset_path);
         path
     }
@@ -157,7 +163,7 @@ impl Directories {
     /// ```
     pub fn abs_target_asset(&self, asset_path: &Path) -> PathBuf {
         let mut path = PathBuf::new();
-        path.push(self.out.clone());
+        path.push(self.output_root.clone());
         path.push(asset_path);
         path
     }
@@ -205,13 +211,12 @@ macro_rules! regex {
     }};
 }
 
-pub fn split_document<D, P>(
+pub fn split_document<D>(
     document: D,
-    path: P,
+    path: &CmsPath,
 ) -> Result<(RawFrontMatter, RawMarkdown), anyhow::Error>
 where
     D: AsRef<str>,
-    P: AsRef<Path>,
 {
     let doc = document.as_ref();
     let re = regex!(
@@ -232,7 +237,7 @@ where
                 .with_context(|| {
                     format!(
                         "Missing second regex capture when processing document data at '{}'",
-                        path.as_ref().to_string_lossy()
+                        path.to_full_path().as_path().to_string_lossy()
                     )
                 })?;
             let markdown = RawMarkdown::new(markdown);
@@ -246,6 +251,7 @@ where
 #[cfg(test)]
 mod test {
     use super::split_document;
+    use crate::cmspath::CmsPath;
 
     #[test]
     fn splits_well_formed_document() {
@@ -255,7 +261,9 @@ b=2
 c=3
 +++
 content here";
-        let (frontmatter, markdown) = split_document(data, "").unwrap();
+        // path only used for error reporting in split_document function
+        let path = CmsPath::new("", "");
+        let (frontmatter, markdown) = split_document(data, &path).unwrap();
         assert_eq!(frontmatter.0, "a=1\nb=2\nc=3");
         assert_eq!(markdown.0, "content here");
     }
@@ -273,7 +281,9 @@ content here
 some newlines
 
 ";
-        let (frontmatter, markdown) = split_document(data, "").unwrap();
+        // path only used for error reporting in split_document function
+        let path = CmsPath::new("", "");
+        let (frontmatter, markdown) = split_document(data, &path).unwrap();
         assert_eq!(frontmatter.0, "a=1\nb=2\nc=3\n");
         assert_eq!(markdown.0, "content here\n\nsome newlines\n\n");
     }

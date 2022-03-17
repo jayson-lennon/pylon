@@ -1,3 +1,4 @@
+use crate::cmspath::CmsPath;
 use scraper::{Html, Selector};
 use std::fs;
 use std::io;
@@ -30,20 +31,23 @@ pub fn find_assets<T: AsRef<str>>(html: T) -> Vec<String> {
     assets
 }
 
-pub fn get_all_paths<P: AsRef<Path>>(
+fn get_all_paths_impl<P: AsRef<Path>>(
+    root: P,
     dir: P,
     condition: &dyn Fn(&Path) -> bool,
-) -> io::Result<Vec<PathBuf>> {
+) -> io::Result<Vec<CmsPath>> {
     let dir = dir.as_ref();
+    let root = root.as_ref();
     let mut paths = vec![];
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
             let path = entry?.path();
             if path.is_dir() {
-                paths.append(&mut get_all_paths(path, condition)?);
+                paths.append(&mut get_all_paths_impl(root, &path, condition)?);
             } else {
                 if condition(path.as_ref()) {
-                    paths.push(path);
+                    let cmspath = CmsPath::new(root, &path);
+                    paths.push(cmspath);
                 }
             }
         }
@@ -51,65 +55,52 @@ pub fn get_all_paths<P: AsRef<Path>>(
     Ok(paths)
 }
 
-pub fn strip_root<P: AsRef<Path>>(path: P, root: P) -> PathBuf {
-    let root_components = root.as_ref().iter().collect::<Vec<_>>();
-    let path_components = path.as_ref().iter().collect::<Vec<_>>();
-    let mut i = 0;
-    while i < path_components.len() {
-        if root_components.get(i) != path_components.get(i) {
-            return PathBuf::from_iter(path_components.iter().skip(i));
-        }
-        i += 1;
-    }
-    PathBuf::from(path.as_ref())
+pub fn get_all_paths<P: AsRef<Path>>(
+    root: P,
+    condition: &dyn Fn(&Path) -> bool,
+) -> io::Result<Vec<CmsPath>> {
+    get_all_paths_impl(&root, &root, condition)
 }
 
-pub fn template_paths_from_content_path<P, S>(
-    content_path: P,
-    content_root: P,
+pub fn possible_template_paths<P, S>(
+    path: CmsPath,
+    template_root: P,
     template_name: S,
-) -> Vec<PathBuf>
+) -> Vec<CmsPath>
 where
     P: AsRef<Path>,
     S: AsRef<str>,
 {
-    let content_path = strip_root(content_path, content_root);
-    let mut content_path = content_path.iter().collect::<Vec<_>>();
-
     let mut paths = vec![];
-    while content_path.len() > 0 {
-        let mut path = PathBuf::from_iter(content_path.iter());
-        path.push(template_name.as_ref());
-        paths.push(path);
-        content_path.pop();
+    let mut path = path
+        .with_root(template_root)
+        .with_filename(template_name.as_ref());
+    paths.push(path.clone());
+    while path.pop_parent() {
+        paths.push(path.clone());
     }
     paths
 }
 
 #[cfg(test)]
 mod test {
-    use super::template_paths_from_content_path;
-    use std::path::PathBuf;
+    use super::possible_template_paths;
+    use crate::cmspath::CmsPath;
 
     #[test]
-    fn gets_list_of_template_paths_for_given_content_path_when_ran_from_project_root() {
-        let content_path = "blog/post1";
-        let content_root = "src";
+    fn gets_possible_template_paths() {
+        let path = CmsPath::new("src", "blog/post1/mypost.md");
+        let template_root = "templates";
         let template_name = "single.tera";
-        let template_paths =
-            template_paths_from_content_path(content_path, content_root, template_name);
-        assert_eq!(template_paths[0], PathBuf::from("blog/post1/single.tera"));
-        assert_eq!(template_paths[1], PathBuf::from("blog/single.tera"));
-    }
-
-    #[test]
-    fn gets_list_of_template_paths_for_given_content_path_when_paths_exist_elsewhere() {
-        let content_path = "test/src/blog/post1";
-        let content_root = "test/src";
-        let template_name = "single.tera";
-        let template_paths =
-            template_paths_from_content_path(content_path, content_root, template_name);
-        assert_eq!(template_paths[0], PathBuf::from("blog/post1/single.tera"));
-        assert_eq!(template_paths[1], PathBuf::from("blog/single.tera"));
+        let template_paths = possible_template_paths(path, template_root, template_name);
+        assert_eq!(
+            template_paths[0],
+            CmsPath::new("templates", "blog/post1/single.tera")
+        );
+        assert_eq!(
+            template_paths[1],
+            CmsPath::new("templates", "blog/single.tera")
+        );
+        assert_eq!(template_paths[2], CmsPath::new("templates", "single.tera"));
     }
 }
