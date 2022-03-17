@@ -11,7 +11,7 @@ pub struct CmsPath {
 }
 
 impl CmsPath {
-    pub fn new<P: AsRef<Path>>(root: P, path: P) -> Self {
+    pub fn new<R: AsRef<Path>, P: AsRef<Path>>(root: R, path: P) -> Self {
         Self {
             root: PathBuf::from(root.as_ref()),
             path: PathBuf::from(path.as_ref()),
@@ -31,6 +31,10 @@ impl CmsPath {
         full_path
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn with_filename<N: AsRef<Path>>(&self, file_name: N) -> Self {
         let mut new_path = PathBuf::from(&self.path);
         new_path.set_file_name(file_name.as_ref());
@@ -40,23 +44,48 @@ impl CmsPath {
         }
     }
 
-    pub fn with_root<P: AsRef<Path>>(&self, root: P) -> Self {
+    pub fn with_root<R: AsRef<Path>>(&self, root: R) -> Self {
         Self {
             root: PathBuf::from(root.as_ref()),
             path: PathBuf::from(&self.path),
         }
     }
 
-    pub fn to_template_path<P: AsRef<Path>>(&self, template_root: P) -> Self {
+    pub fn with_extension<E: AsRef<str>>(&self, name: E) -> Self {
+        let mut path = PathBuf::from(&self.path);
+        path.set_extension(name.as_ref());
+        Self {
+            root: PathBuf::from(&self.root),
+            path: path,
+        }
+    }
+
+    pub fn full_path_without_filename(&self) -> PathBuf {
+        let mut full_path = self.to_full_path();
+        full_path.pop();
+        full_path
+    }
+
+    pub fn path_without_filename(&self) -> PathBuf {
+        let mut path = self.path().to_path_buf();
+        path.pop();
+        path
+    }
+
+    pub fn with_template_path<R: AsRef<Path>>(&self, template_root: R) -> Self {
         self.with_root(template_root)
     }
 
-    pub fn to_output_path<P: AsRef<Path>>(&self, output_root: P) -> Self {
+    pub fn with_output_path<R: AsRef<Path>>(&self, output_root: R) -> Self {
         self.with_root(output_root)
     }
 
-    pub fn to_source_path<P: AsRef<Path>>(&self, source_root: P) -> Self {
+    pub fn with_source_path<R: AsRef<Path>>(&self, source_root: R) -> Self {
         self.with_root(source_root)
+    }
+
+    pub fn push_file_name<N: AsRef<Path>>(&mut self, file_name: N) {
+        self.path.push(file_name);
     }
 
     pub fn pop_parent(&mut self) -> bool {

@@ -85,7 +85,7 @@ pub struct Page {
 }
 
 pub fn generate_pages(dirs: Directories) -> Result<Vec<Page>, anyhow::Error> {
-    let path = CmsPath::new(dirs.abs_src_dir(), "".as_ref());
+    let path = CmsPath::new(dirs.abs_src_dir(), "");
     let markdown_files = discover::get_all_paths(path, &|path: &Path| -> bool {
         path.extension()
             .map(|ext| ext == "md")

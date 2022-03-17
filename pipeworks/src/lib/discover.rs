@@ -31,26 +31,23 @@ pub fn find_assets<T: AsRef<str>>(html: T) -> Vec<String> {
     assets
 }
 
-pub fn get_all_paths(
-    cmspath: CmsPath,
-    condition: &dyn Fn(&Path) -> bool,
-) -> io::Result<Vec<CmsPath>> {
+pub fn get_all_paths(root: CmsPath, condition: &dyn Fn(&Path) -> bool) -> io::Result<Vec<CmsPath>> {
     let mut paths = vec![];
-    let fullpath = cmspath.to_full_path();
+    let fullpath = root.to_full_path();
     if fullpath.is_dir() {
         for entry in fs::read_dir(fullpath)? {
             let path = entry?.path();
             if path.is_dir() {
                 let path = {
-                    let stripped = cmspath::strip_root(cmspath.root(), &path);
-                    CmsPath::new(cmspath.root(), &stripped)
+                    let stripped = cmspath::strip_root(root.root(), &path);
+                    CmsPath::new(root.root(), &stripped)
                 };
                 paths.append(&mut get_all_paths(path, condition)?);
             } else {
                 if condition(path.as_ref()) {
                     let path = {
-                        let stripped = cmspath::strip_root(cmspath.root(), &path);
-                        CmsPath::new(cmspath.root(), &stripped)
+                        let stripped = cmspath::strip_root(root.root(), &path);
+                        CmsPath::new(root.root(), &stripped)
                     };
                     paths.push(path);
                 }

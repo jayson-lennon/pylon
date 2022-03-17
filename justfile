@@ -1,2 +1,2 @@
 clean:
-  rm test/public/*
+  rm -rf test/public

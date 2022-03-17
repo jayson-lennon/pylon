@@ -1,4 +1,4 @@
-use crate::Directories;
+use crate::cmspath::CmsPath;
 use regex::Regex;
 use std::path::Path;
 
@@ -53,12 +53,11 @@ struct PipelineConfig {
 #[derive(Debug)]
 pub struct Pipeline {
     config: PipelineConfig,
-    dirs: Directories,
     state: PipelineState,
 }
 
 impl Pipeline {
-    pub fn new(dirs: Directories, target_glob: Glob, autorun: AutorunTrigger) -> Self {
+    pub fn new(target_glob: Glob, autorun: AutorunTrigger) -> Self {
         let re = crate::glob_to_re(target_glob.clone());
         let config = PipelineConfig {
             target_glob,
@@ -67,7 +66,6 @@ impl Pipeline {
         };
         Self {
             config,
-            dirs,
             state: PipelineState { re },
         }
     }
@@ -80,11 +78,17 @@ impl Pipeline {
         self.state.re.is_match(asset.as_ref())
     }
 
-    pub fn run<P: AsRef<Path>>(&mut self, asset: P) {
-        let asset = asset.as_ref();
+    pub fn run<R: AsRef<Path>>(&self, target_asset: &CmsPath, src_root: R) {
         let mut tmp_files = vec![];
-        let mut input_path = self.dirs.abs_src_asset(asset);
-        let output_path = self.dirs.abs_target_asset(asset);
+        let mut input_path = target_asset
+            .with_source_path(src_root.as_ref())
+            .to_full_path();
+        let output_path = target_asset.to_full_path();
+        // let mut input_path = self.dirs.abs_src_asset(target_asset);
+        // let output_path = self.dirs.abs_target_asset(target_asset);
+        dbg!(&input_path);
+        dbg!(&output_path);
+        dbg!(&target_asset);
         for op in self.config.ops.iter() {
             match op {
                 Operation::Copy => {
