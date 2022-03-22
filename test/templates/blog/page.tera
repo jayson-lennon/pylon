@@ -1,0 +1,9 @@
+{% extends "index.tera" %}
+
+{% block body %}
+<h3>page.tera</h3>
+<p>in the hrs below is markdown content</p>
+<hr>
+{{ content | safe}}
+<hr>
+{% endblock body %}

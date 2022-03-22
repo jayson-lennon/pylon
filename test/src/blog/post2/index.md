@@ -1,6 +1,6 @@
 +++
 title = "post2"
-template_path = "blog/test.tera"
+template_path = "blog/page.tera"
 +++
 
 # markdown content

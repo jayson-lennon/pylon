@@ -1,0 +1,23 @@
+{% extends "index.tera" %}
+
+{% block body %}
+
+<h3>db/page.tera</h3>
+
+{{ dbsample }} <br>
+
+<div class="checking section">
+{% if section %}
+    {{ section }}
+{% endif %}
+</pre>
+
+<div class="checking global">
+{{ global.globular }}
+</div>
+
+<div class="content">
+{{ content | safe}}
+<hr>
+
+{% endblock body %}

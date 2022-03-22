@@ -1,5 +1,6 @@
 [workspace]
 
 members = [
-    "pipeworks"
+    "cmslib",
+    "cms"
 ]
