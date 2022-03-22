@@ -84,7 +84,7 @@ pub fn add_frontmatter_hook(engine: &mut Engine) {
     engine.add_frontmatter_hook(hook);
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // use cmslib::pipeline::{AutorunTrigger, Glob, Operation, Pipeline};
 
@@ -139,9 +139,7 @@ async fn main() -> Result<(), anyhow::Error> {
     engine.run_pipelines(&assets)?;
 
     match args.command {
-        // Command::Serve => cmslib::serve().await?,
-        // Command::Build => generator.build_all()?,
-        Command::Serve => (),
+        Command::Serve => cmslib::devserver::serve().await?,
         Command::Build => (),
     }
 

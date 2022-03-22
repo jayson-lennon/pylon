@@ -8,8 +8,6 @@
 
   <h2>Below is the 'body' block</h2>
 
-  {{ content | safe}}
-
   {% block body %}{% endblock body %}
 
 </body>

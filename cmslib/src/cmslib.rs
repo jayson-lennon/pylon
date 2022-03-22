@@ -2,12 +2,12 @@
 
 pub mod util;
 
+pub mod devserver;
 pub mod discover;
 pub mod engine;
 pub mod page;
 pub mod pipeline;
 pub mod render;
-pub mod serve;
 pub mod site_context;
 
 pub use render::Renderers;
@@ -17,8 +17,6 @@ use std::path::PathBuf;
 // pub use pipeline::Pipeline;
 
 use serde::Serialize;
-
-pub use serve::serve;
 
 #[derive(Debug, Serialize, PartialEq, Hash, Eq, Clone, Default)]
 pub struct CanonicalPath(String);
