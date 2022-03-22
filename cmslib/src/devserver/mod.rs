@@ -2,21 +2,18 @@ mod staticfiles;
 
 use futures_util::{SinkExt, StreamExt};
 use poem::{
-    endpoint::StaticFilesEndpoint,
     get, handler,
     listener::TcpListener,
     web::{
         websocket::{Message, WebSocket},
-        Data, Html, Path,
+        Data,
     },
     EndpointExt, IntoResponse, Route, Server,
 };
-use tokio::time::{self, Duration};
+use tokio::time::Duration;
 
 #[handler]
-fn ws(ws: WebSocket, sender: Data<&tokio::sync::broadcast::Sender<String>>) -> impl IntoResponse {
-    let sender = sender.clone();
-    let mut receiver = sender.subscribe();
+fn ws(ws: WebSocket, _: Data<&tokio::sync::broadcast::Sender<String>>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
         let (mut sink, _) = socket.split();
 
