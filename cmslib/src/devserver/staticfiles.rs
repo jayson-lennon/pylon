@@ -151,9 +151,13 @@ async fn make_injected_response<P: AsRef<Path>>(
     file_path: P,
     prefer_utf8: bool,
 ) -> Result<Response> {
+    let file_path = file_path.as_ref();
     let response = StaticFileRequest::from_request_without_body(&req)
         .await?
         .create_response(&file_path, prefer_utf8)?;
+    if file_path.extension() != Some(OsStr::new("html")) {
+        return Ok(response.into_response());
+    }
     let response = {
         if let StaticFileResponse::Ok {
             body,
