@@ -6,11 +6,16 @@ use poem::{
     listener::TcpListener,
     web::{
         websocket::{Message, WebSocket},
-        Data,
+        Data, Path,
     },
     EndpointExt, IntoResponse, Route, Server,
 };
 use tokio::time::Duration;
+
+// #[handler]
+// fn serve_file(Path(name): Path<String>) -> String {
+//     format!("hello: {}", name)
+// }
 
 #[handler]
 fn ws(ws: WebSocket, _: Data<&tokio::sync::broadcast::Sender<String>>) -> impl IntoResponse {
@@ -35,11 +40,12 @@ pub async fn serve() -> Result<(), std::io::Error> {
             "/ws",
             get(ws.data(tokio::sync::broadcast::channel::<String>(32).0)),
         )
+        // .at("/*path", get(serve_file));
         .nest(
             "/",
             staticfiles::StaticFilesEndpoint::new("./test/public")
-                .index_file("index.html")
-                .inject_script(r#"<script>console.log("injected");</script>"#),
+                .inject_script(r#"<script>console.log("injected");</script>"#)
+                .load_file_on_slash("index.html"),
         );
     Server::new(TcpListener::bind("127.0.0.1:3000"))
         .run(app)

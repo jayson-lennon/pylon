@@ -73,6 +73,7 @@ pub struct StaticFilesEndpoint {
     index_file: Option<String>,
     prefer_utf8: bool,
     inject_script: Option<String>,
+    load_file_on_slash: Option<String>,
 }
 
 impl StaticFilesEndpoint {
@@ -97,12 +98,22 @@ impl StaticFilesEndpoint {
             index_file: None,
             prefer_utf8: true,
             inject_script: None,
+            load_file_on_slash: None,
         }
     }
 
+    #[must_use]
     pub fn inject_script<S: Into<String>>(self, script: S) -> Self {
         Self {
             inject_script: Some(script.into()),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn load_file_on_slash(self, file: impl Into<String>) -> Self {
+        Self {
+            load_file_on_slash: Some(file.into()),
             ..self
         }
     }
@@ -195,13 +206,20 @@ impl Endpoint for StaticFilesEndpoint {
             return Err(StaticFileError::MethodNotAllowed(req.method().clone()).into());
         }
 
-        let path = req
-            .uri()
-            .path()
-            .trim_start_matches('/')
-            .trim_end_matches('/');
+        let path = {
+            let path = req.uri().path().trim_start_matches('/');
+            if path.ends_with('/') {
+                if let Some(file) = &self.load_file_on_slash {
+                    std::borrow::Cow::Owned(format!("{path}{file}"))
+                } else {
+                    std::borrow::Cow::Borrowed(path)
+                }
+            } else {
+                std::borrow::Cow::Borrowed(path)
+            }
+        };
 
-        let path = percent_encoding::percent_decode_str(path)
+        let path = percent_encoding::percent_decode_str(&path)
             .decode_utf8()
             .map_err(|_| StaticFileError::InvalidPath)?;
 
