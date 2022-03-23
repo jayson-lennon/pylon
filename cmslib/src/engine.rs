@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::{
+    devserver::{DevServerEvent, DevServerReceiver, DevServerSender},
     page::{Page, PageStore},
     pipeline::Pipeline,
     render::Renderers,
@@ -153,6 +154,23 @@ impl EngineConfig {
 }
 
 #[derive(Debug)]
+pub struct EngineBroker {
+    pub devserver_channel: (DevServerSender, DevServerReceiver),
+}
+
+impl EngineBroker {
+    fn new() -> Self {
+        Self {
+            devserver_channel: async_channel::unbounded(),
+        }
+    }
+
+    async fn send_devserver_event(&self, event: DevServerEvent) -> Result<(), anyhow::Error> {
+        Ok(self.devserver_channel.0.send(event).await?)
+    }
+}
+
+#[derive(Debug)]
 pub struct Engine {
     config: EngineConfig,
     pipelines: Vec<Pipeline>,
@@ -160,6 +178,7 @@ pub struct Engine {
     renderers: Renderers,
     frontmatter_hooks: FrontmatterHooks,
     global_ctx: Option<serde_json::Value>,
+    pub broker: EngineBroker,
 }
 
 impl Engine {
@@ -187,6 +206,7 @@ impl Engine {
             renderers,
             frontmatter_hooks: FrontmatterHooks::new(),
             global_ctx: None,
+            broker: EngineBroker::new(),
         })
     }
 

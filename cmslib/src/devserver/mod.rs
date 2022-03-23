@@ -1,53 +1,51 @@
+pub mod fswatcher;
+mod livereload;
 mod staticfiles;
 
-use futures_util::{SinkExt, StreamExt};
+pub use livereload::DevServerEvent;
+
+use std::{net::SocketAddr, sync::Arc};
+
 use poem::{
-    get, handler,
-    listener::TcpListener,
+    handler,
     web::{
         websocket::{Message, WebSocket},
         Data, Path,
     },
-    EndpointExt, IntoResponse, Route, Server,
+    EndpointExt, IntoResponse, Response,
 };
+use tokio::runtime::Runtime;
 use tokio::time::Duration;
 
-// #[handler]
-// fn serve_file(Path(name): Path<String>) -> String {
-//     format!("hello: {}", name)
-// }
+pub type DevServerSender = async_channel::Sender<crate::devserver::DevServerEvent>;
+pub type DevServerReceiver = async_channel::Receiver<crate::devserver::DevServerEvent>;
 
-#[handler]
-fn ws(ws: WebSocket, _: Data<&tokio::sync::broadcast::Sender<String>>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| async move {
-        let (mut sink, _) = socket.split();
+pub async fn run<R: AsRef<std::path::Path>, B: Into<SocketAddr>>(
+    rt: Arc<Runtime>,
+    event_channel: (DevServerSender, DevServerReceiver),
+    output_root: R,
+    bind: B,
+    debounce_duration: Duration,
+) -> Result<(), std::io::Error> {
+    use poem::listener::TcpListener;
+    use poem::middleware::AddData;
+    use poem::{get, Route, Server};
+    let fs_watch = fswatcher::start_watching(rt, event_channel.0, debounce_duration);
 
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(1000));
-            loop {
-                interval.tick().await;
-                if sink.send(Message::Text(format!("sup"))).await.is_err() {
-                    break;
-                }
-            }
-        });
-    })
-}
+    let output_root = output_root.as_ref().to_string_lossy().to_string();
 
-pub async fn serve() -> Result<(), std::io::Error> {
     let app = Route::new()
         .at(
             "/ws",
-            get(ws.data(tokio::sync::broadcast::channel::<String>(32).0)),
+            get(livereload::handle.data(tokio::sync::broadcast::channel::<String>(8).0)),
         )
-        // .at("/*path", get(serve_file));
-        .nest(
-            "/",
-            staticfiles::StaticFilesEndpoint::new("./test/public")
-                .inject_script(r#"<script>console.log("injected");</script>"#)
-                .load_file_on_slash("index.html"),
-        );
-    Server::new(TcpListener::bind("127.0.0.1:3000"))
+        .at("/*path", get(staticfiles::handle))
+        .with(AddData::new(staticfiles::OutputRootDir(output_root)))
+        .with(AddData::new(livereload::LiveReloadReceiver(
+            event_channel.1,
+        )));
+
+    Server::new(TcpListener::bind(bind.into().to_string()))
         .run(app)
         .await
 }

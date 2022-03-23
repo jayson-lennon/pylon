@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use clap::{Parser, Subcommand};
 use cmslib::{
@@ -33,6 +33,12 @@ struct Args {
 
     #[clap(long, default_value = "test/src")]
     src_dir: std::path::PathBuf,
+
+    #[clap(long, default_value = "127.0.0.1:8000")]
+    bind: SocketAddr,
+
+    #[clap(long, default_value = "100")]
+    debounce_ms: u64,
 
     #[clap(subcommand)]
     command: Command,
@@ -84,8 +90,7 @@ pub fn add_frontmatter_hook(engine: &mut Engine) {
     engine.add_frontmatter_hook(hook);
 }
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<(), anyhow::Error> {
     // use cmslib::pipeline::{AutorunTrigger, Glob, Operation, Pipeline};
 
     let args = Args::parse();
@@ -139,7 +144,32 @@ async fn main() -> Result<(), anyhow::Error> {
     engine.run_pipelines(&assets)?;
 
     match args.command {
-        Command::Serve => cmslib::devserver::serve().await?,
+        Command::Serve => {
+            use std::sync::Arc;
+            use tokio::runtime::Builder;
+            let rt = Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_io()
+                .enable_time()
+                .build()
+                .unwrap();
+            let channel = engine.broker.devserver_channel.clone();
+            let rt = Arc::new(rt);
+            let rt_clone = Arc::clone(&rt);
+            rt.block_on(async move {
+                if let Err(e) = cmslib::devserver::run(
+                    rt_clone,
+                    channel,
+                    &args.output_dir,
+                    args.bind,
+                    Duration::from_millis(args.debounce_ms),
+                )
+                .await
+                {
+                    println!("error spawning devserver: {e:?}");
+                }
+            });
+        }
         Command::Build => (),
     }
 
