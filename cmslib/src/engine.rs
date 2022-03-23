@@ -5,7 +5,9 @@ use std::{
     collections::HashSet,
     ffi::OsStr,
     path::{Path, PathBuf},
+    sync::Arc,
 };
+use tokio::runtime::Runtime;
 
 use crate::{
     devserver::{DevServerEvent, DevServerReceiver, DevServerSender},
@@ -15,6 +17,14 @@ use crate::{
     site_context::SiteContext,
     util::RetargetablePathBuf,
 };
+
+#[derive(Debug, Clone)]
+pub enum EngineMsg {
+    TriggerRebuild,
+}
+
+type EngineSender = async_channel::Sender<EngineMsg>;
+type EngineReceiver = async_channel::Receiver<EngineMsg>;
 
 #[derive(Debug, Clone)]
 pub enum FrontmatterHookResponse {
@@ -156,12 +166,14 @@ impl EngineConfig {
 #[derive(Debug)]
 pub struct EngineBroker {
     pub devserver_channel: (DevServerSender, DevServerReceiver),
+    pub engine_channel: (EngineSender, EngineReceiver),
 }
 
 impl EngineBroker {
     fn new() -> Self {
         Self {
             devserver_channel: async_channel::unbounded(),
+            engine_channel: async_channel::unbounded(),
         }
     }
 
@@ -172,6 +184,7 @@ impl EngineBroker {
 
 #[derive(Debug)]
 pub struct Engine {
+    rt: Arc<Runtime>,
     config: EngineConfig,
     pipelines: Vec<Pipeline>,
     page_store: PageStore,
@@ -182,7 +195,11 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(config: EngineConfig, renderers: Renderers) -> Result<Self, anyhow::Error> {
+    pub fn new(
+        config: EngineConfig,
+        renderers: Renderers,
+        rt: Arc<Runtime>,
+    ) -> Result<Self, anyhow::Error> {
         let mut pages: Vec<_> =
             crate::discover::get_all_paths(&config.src_root, &|path: &Path| -> bool {
                 path.extension() == Some(OsStr::new("md"))
@@ -200,6 +217,7 @@ impl Engine {
         page_store.insert_batch(pages);
 
         Ok(Self {
+            rt,
             config,
             pipelines: vec![],
             page_store,
@@ -341,6 +359,14 @@ impl Engine {
                     )),
                 })
                 .try_collect()?,
+        })
+    }
+
+    pub fn refresh_clients(&self) -> Result<(), anyhow::Error> {
+        self.rt.block_on(async {
+            self.broker
+                .send_devserver_event(DevServerEvent::ReloadPage)
+                .await
         })
     }
 }

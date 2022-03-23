@@ -1,4 +1,6 @@
+use std::sync::Arc;
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use tokio::runtime::Builder;
 
 use clap::{Parser, Subcommand};
 use cmslib::{
@@ -108,8 +110,15 @@ fn main() -> Result<(), anyhow::Error> {
     let renderers = Renderers::new(&args.template_dir);
 
     let config = EngineConfig::new(&args.src_dir, &args.output_dir, &args.template_dir);
+    let rt = Arc::new(
+        Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_io()
+            .enable_time()
+            .build()?,
+    );
 
-    let mut engine = Engine::new(config, renderers)?;
+    let mut engine = Engine::new(config, renderers, Arc::clone(&rt))?;
 
     engine.set_global_ctx(&|page_store: &PageStore| -> HashMap<String, String> {
         let mut map = HashMap::new();
@@ -145,16 +154,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     match args.command {
         Command::Serve => {
-            use std::sync::Arc;
-            use tokio::runtime::Builder;
-            let rt = Builder::new_multi_thread()
-                .worker_threads(2)
-                .enable_io()
-                .enable_time()
-                .build()
-                .unwrap();
             let channel = engine.broker.devserver_channel.clone();
-            let rt = Arc::new(rt);
             let rt_clone = Arc::clone(&rt);
             rt.block_on(async move {
                 if let Err(e) = cmslib::devserver::run(
