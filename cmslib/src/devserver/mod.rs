@@ -6,16 +6,17 @@ pub use livereload::DevServerEvent;
 
 use std::{net::SocketAddr, sync::Arc};
 
-use poem::{
-    handler,
-    web::{
-        websocket::{Message, WebSocket},
-        Data, Path,
-    },
-    EndpointExt, IntoResponse, Response,
-};
+use poem::EndpointExt;
 use tokio::runtime::Runtime;
 use tokio::time::Duration;
+
+/*
+`run` starts up the fswatcher which responds to filesystem events by pushing an event into the event channel.
+for each connected websocket client, a channel is created in the ConnectedClients struct to manage the client.
+whenever the fswatcher sends an event, the connected clients struct monitors it and then sends a message
+to all connected clients via channel for the reload. the websocket server read message from their specific
+channel and then sends out a message to their respective clients.
+ */
 
 pub type DevServerSender = async_channel::Sender<crate::devserver::DevServerEvent>;
 pub type DevServerReceiver = async_channel::Receiver<crate::devserver::DevServerEvent>;
@@ -26,11 +27,12 @@ pub async fn run<R: AsRef<std::path::Path>, B: Into<SocketAddr>>(
     output_root: R,
     bind: B,
     debounce_duration: Duration,
-) -> Result<(), std::io::Error> {
+) -> Result<(), anyhow::Error> {
     use poem::listener::TcpListener;
     use poem::middleware::AddData;
     use poem::{get, Route, Server};
-    let fs_watch = fswatcher::start_watching(rt, event_channel.0, debounce_duration);
+    fswatcher::start_watching(rt.clone(), event_channel.0, debounce_duration)?;
+    let connected_clients = livereload::ConnectedClients::new(rt, event_channel.1);
 
     let output_root = output_root.as_ref().to_string_lossy().to_string();
 
@@ -41,11 +43,9 @@ pub async fn run<R: AsRef<std::path::Path>, B: Into<SocketAddr>>(
         )
         .at("/*path", get(staticfiles::handle))
         .with(AddData::new(staticfiles::OutputRootDir(output_root)))
-        .with(AddData::new(livereload::LiveReloadReceiver(
-            event_channel.1,
-        )));
+        .with(AddData::new(connected_clients));
 
-    Server::new(TcpListener::bind(bind.into().to_string()))
+    Ok(Server::new(TcpListener::bind(bind.into().to_string()))
         .run(app)
-        .await
+        .await?)
 }

@@ -2,8 +2,8 @@
   var socket = null;
   var reconnectTimeout = null;
 
-  function log(msg, type = 'status') {
-    console.debug('%c' + msg, 'background: #42099e;');
+  function log(msg) {
+    console.debug('%c[DEVSERVER]: ' + msg, 'background: #42099e;');
   }
 
   function connect() {
@@ -20,7 +20,13 @@
     }
 
     socket.onmessage = (ev) => {
-      log('Received: ' + ev.data, 'message');
+      log(`Received message: ${ev.data}`);
+      if (ev.data === 'RELOAD') {
+        log('Reloading page');
+        location.reload();
+      } else {
+        log(`Error: unhandled message: ${ev.data}`);
+      }
     }
 
     socket.onclose = () => {
