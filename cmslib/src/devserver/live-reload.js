@@ -1,8 +1,9 @@
 (function () {
   var socket = null;
+  var reconnectTimeout = null;
 
   function log(msg, type = 'status') {
-    console.debug(msg);
+    console.debug('%c' + msg, 'background: #42099e;');
   }
 
   function connect() {
@@ -25,6 +26,7 @@
     socket.onclose = () => {
       log('Disconnected');
       socket = null;
+      reconnectTimeout = setTimeout(() => connect(), 1000);
     }
   }
 
