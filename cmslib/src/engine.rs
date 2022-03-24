@@ -7,11 +7,12 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
+    thread::{self, JoinHandle},
 };
 use tokio::runtime::{Builder, Handle, Runtime};
 
 use crate::{
-    devserver::{DevServerMsg, DevServerReceiver, DevServerSender},
+    devserver::{DevServer, DevServerMsg, DevServerReceiver, DevServerSender},
     page::{Page, PageStore},
     pipeline::Pipeline,
     render::Renderers,
@@ -21,7 +22,16 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub enum EngineMsg {
-    TriggerRebuild,
+    /// Builds the site using existing configuration and source material
+    Build,
+    /// Builds the site using existing configuration, but rescans all source material
+    Rebuild,
+    /// Starts the development server
+    StartDevServer(SocketAddr, u64),
+    /// Reloads user configuration
+    ReloadUserConfig,
+    /// Quits the application
+    Quit,
 }
 
 type EngineSender = async_channel::Sender<EngineMsg>;
@@ -166,7 +176,7 @@ impl EngineConfig {
 
 #[derive(Debug, Clone)]
 pub struct EngineBroker {
-    handle: Handle,
+    rt_handle: Handle,
     devserver: (DevServerSender, DevServerReceiver),
     engine: (EngineSender, EngineReceiver),
 }
@@ -174,14 +184,14 @@ pub struct EngineBroker {
 impl EngineBroker {
     fn new(handle: Handle) -> Self {
         Self {
-            handle,
+            rt_handle: handle,
             devserver: async_channel::unbounded(),
             engine: async_channel::unbounded(),
         }
     }
 
     pub fn handle(&self) -> Handle {
-        self.handle.clone()
+        self.rt_handle.clone()
     }
 
     pub async fn send_devserver_msg(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
@@ -193,12 +203,12 @@ impl EngineBroker {
     }
 
     pub fn send_engine_msg_sync(&self, msg: EngineMsg) -> Result<(), anyhow::Error> {
-        self.handle
+        self.rt_handle
             .block_on(async { self.send_engine_msg(msg).await })
     }
 
     pub fn send_devserver_msg_sync(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
-        self.handle
+        self.rt_handle
             .block_on(async { self.send_devserver_msg(msg).await })
     }
 
@@ -207,8 +217,19 @@ impl EngineBroker {
     }
 
     pub fn recv_devserver_msg_sync(&self) -> Result<DevServerMsg, anyhow::Error> {
-        self.handle
+        self.rt_handle
             .block_on(async { self.recv_devserver_msg().await })
+    }
+
+    async fn recv_engine_msg(&self) -> Result<EngineMsg, anyhow::Error> {
+        println!("try to recv engine msg async");
+        Ok(self.engine.1.recv().await?)
+    }
+
+    fn recv_engine_msg_sync(&self) -> Result<EngineMsg, anyhow::Error> {
+        println!("try to recv engine msg");
+        self.rt_handle
+            .block_on(async { self.recv_engine_msg().await })
     }
 }
 
@@ -222,27 +243,16 @@ pub struct Engine {
     frontmatter_hooks: FrontmatterHooks,
     global_ctx: Option<serde_json::Value>,
     broker: EngineBroker,
+    devserver: Option<DevServer>,
 }
 
 impl Engine {
-    pub fn new(config: EngineConfig) -> Result<(Self, EngineBroker), anyhow::Error> {
+    pub fn new(
+        config: EngineConfig,
+    ) -> Result<(JoinHandle<Result<(), anyhow::Error>>, EngineBroker), anyhow::Error> {
         let renderers = Renderers::new(&config.template_root);
 
-        let mut pages: Vec<_> =
-            crate::discover::get_all_paths(&config.src_root, &|path: &Path| -> bool {
-                path.extension() == Some(OsStr::new("md"))
-            })?
-            .iter()
-            .map(|path| Page::new(path.as_path(), &config.src_root.as_path(), &renderers))
-            .try_collect()?;
-
-        let template_names = renderers.tera.get_template_names().collect::<HashSet<_>>();
-        for page in pages.iter_mut() {
-            page.set_default_template(&template_names)?;
-        }
-
-        let mut page_store = PageStore::new(&config.src_root);
-        page_store.insert_batch(pages);
+        let page_store = do_build_page_store(&config.src_root, &renderers)?;
 
         let rt = Arc::new(
             Builder::new_multi_thread()
@@ -257,18 +267,58 @@ impl Engine {
         let broker = EngineBroker::new(handle);
         let broker_clone = broker.clone();
 
-        let engine = Self {
-            rt,
-            config,
-            pipelines: vec![],
-            page_store,
-            renderers,
-            frontmatter_hooks: FrontmatterHooks::new(),
-            global_ctx: None,
-            broker,
-        };
+        let engine_handle = thread::spawn(move || {
+            let mut engine = Self {
+                rt,
+                config,
+                pipelines: vec![],
+                page_store,
+                renderers,
+                frontmatter_hooks: FrontmatterHooks::new(),
+                global_ctx: None,
+                broker,
+                devserver: None,
+            };
 
-        Ok((engine, broker_clone))
+            engine.process_user_script()?;
+
+            loop {
+                println!("engine loop waiting for messages");
+                match &engine.broker.recv_engine_msg_sync() {
+                    Ok(msg) => match msg {
+                        EngineMsg::Build => {
+                            println!("build");
+                            engine.build()?;
+                        }
+                        EngineMsg::Rebuild => {
+                            println!("rebuild");
+                            engine.rebuild()?;
+                        }
+                        EngineMsg::ReloadUserConfig => {
+                            println!("reload config");
+                            engine.process_user_script()?;
+                        }
+                        EngineMsg::StartDevServer(bind, debounce_ms) => {
+                            println!("start dev server");
+                            engine.devserver = Some(engine.start_devserver(*bind, *debounce_ms)?);
+                        }
+                        EngineMsg::Quit => {
+                            println!("quit");
+                            break;
+                        }
+                    },
+                    Err(e) => panic!("problem receiving from engine channel"),
+                }
+                if engine.devserver.is_some() {
+                    engine
+                        .broker
+                        .send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
+                }
+            }
+            Ok(())
+        });
+
+        Ok((engine_handle, broker_clone))
     }
 
     pub fn add_pipeline(&mut self, pipeline: Pipeline) {
@@ -409,15 +459,17 @@ impl Engine {
         })
     }
 
-    pub fn refresh_clients(&self) -> Result<(), anyhow::Error> {
-        self.rt.block_on(async {
-            self.broker
-                .send_devserver_msg(DevServerMsg::ReloadPage)
-                .await
-        })
+    pub fn drop_user_config(&mut self) -> Result<(), anyhow::Error> {
+        self.pipelines = vec![];
+        self.frontmatter_hooks = FrontmatterHooks::new();
+        self.global_ctx = None;
+
+        Ok(())
     }
 
-    pub fn process_user_config(&mut self) -> Result<(), anyhow::Error> {
+    pub fn process_user_script(&mut self) -> Result<(), anyhow::Error> {
+        self.drop_user_config()?;
+
         // This will be the configuration supplied by the user scripts.
         // For now, we are just hard-coding configuration until the scripting
         // engine is integrated.
@@ -473,6 +525,21 @@ impl Engine {
 
         add_frontmatter_hook(self);
 
+        Ok(())
+    }
+
+    pub fn rebuild_page_store(&mut self) -> Result<(), anyhow::Error> {
+        self.page_store = do_build_page_store(&self.config.src_root, &self.renderers)?;
+        Ok(())
+    }
+
+    pub fn rebuild(&mut self) -> Result<(), anyhow::Error> {
+        self.renderers.tera.reload()?;
+        self.rebuild_page_store()?;
+        self.build()
+    }
+
+    pub fn build(&mut self) -> Result<(), anyhow::Error> {
         self.process_frontmatter_hooks()?;
 
         let rendered = self.render(Box::new(
@@ -493,22 +560,54 @@ impl Engine {
         Ok(())
     }
 
-    pub fn start_devserver(&self, bind: SocketAddr, debounce_ms: u64) -> Result<(), anyhow::Error> {
+    pub fn start_devserver(
+        &self,
+        bind: SocketAddr,
+        debounce_ms: u64,
+    ) -> Result<DevServer, anyhow::Error> {
+        use crate::devserver;
         use std::time::Duration;
 
         let engine: &Engine = &self;
-        engine.broker.handle().block_on(async move {
-            crate::devserver::run(
+
+        // spawn filesystem monitoring thread
+        {
+            let watch_dirs = vec![&engine.config.template_root, &engine.config.src_root];
+            devserver::fswatcher::start_watching(
+                &watch_dirs,
                 engine.broker.clone(),
-                &engine.config.output_root,
-                bind,
                 Duration::from_millis(debounce_ms),
-            )
-            .await
-        })
+            )?;
+        }
+
+        let devserver = DevServer::run(engine.broker.clone(), &engine.config.output_root, bind);
+        Ok(devserver)
     }
 }
 
 fn make_parent_dirs<P: AsRef<Path>>(dir: P) -> Result<(), std::io::Error> {
     std::fs::create_dir_all(dir)
+}
+
+fn do_build_page_store<P: AsRef<Path>>(
+    src_root: P,
+    renderers: &Renderers,
+) -> Result<PageStore, anyhow::Error> {
+    let src_root = src_root.as_ref();
+    let mut pages: Vec<_> = crate::discover::get_all_paths(src_root, &|path: &Path| -> bool {
+        path.extension() == Some(OsStr::new("md"))
+    })?
+    .iter()
+    .map(|path| Page::new(path.as_path(), &src_root, &renderers))
+    .try_collect()?;
+
+    let template_names = renderers.tera.get_template_names().collect::<HashSet<_>>();
+    for page in pages.iter_mut() {
+        page.set_default_template(&template_names)?;
+    }
+
+    let mut page_store = PageStore::new(&src_root);
+    page_store.insert_batch(pages);
+
+    Ok(page_store)
 }

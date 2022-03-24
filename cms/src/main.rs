@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::net::SocketAddr;
 
-use cmslib::engine::{Engine, EngineConfig};
+use cmslib::engine::{Engine, EngineConfig, EngineMsg};
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -68,15 +68,19 @@ fn main() -> Result<(), anyhow::Error> {
 
     let config = EngineConfig::new(&args.src_dir, &args.output_dir, &args.template_dir);
 
-    let (mut engine, broker) = Engine::new(config)?;
+    let (engine, broker) = Engine::new(config)?;
 
     match args.command {
         Command::Serve(opt) => {
-            engine.process_user_config()?;
-            engine.start_devserver(opt.bind, opt.debounce_ms)?;
+            broker.send_engine_msg_sync(EngineMsg::Build)?;
+            broker.send_engine_msg_sync(EngineMsg::StartDevServer(opt.bind, opt.debounce_ms))?;
         }
-        Command::Build => engine.process_user_config()?,
+        Command::Build => {
+            broker.send_engine_msg_sync(EngineMsg::Build)?;
+            broker.send_engine_msg_sync(EngineMsg::Quit)?;
+        }
     }
+    println!("{:?}", engine.join());
 
     Ok(())
 }

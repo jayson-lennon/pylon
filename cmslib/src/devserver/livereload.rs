@@ -14,7 +14,6 @@ use poem::{
     IntoResponse,
 };
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 
 #[derive(Clone, Debug)]
 pub struct LiveReloadReceiver(pub DevServerReceiver);
@@ -134,14 +133,14 @@ pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse 
                         DevServerMsg::ReloadPage => {
                             if let Err(e) = sink.send(Message::Text(format!("RELOAD"))).await {
                                 eprintln!("error sending message to client: {}", e);
-                                clients.remove(client_id);
+                                clients.remove(client_id).await;
                                 return;
                             }
                         }
                     }
                 } else {
                     eprintln!("reading from client channel should never fail; closing corresponding websocket connection");
-                    clients.remove(client_id);
+                    clients.remove(client_id).await;
                     return;
                 }
             }

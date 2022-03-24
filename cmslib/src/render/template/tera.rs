@@ -27,4 +27,8 @@ impl TeraRenderer {
     pub fn get_template_names(&self) -> impl Iterator<Item = &str> {
         self.renderer.get_template_names()
     }
+
+    pub fn reload(&mut self) -> Result<(), anyhow::Error> {
+        Ok(self.renderer.full_reload()?)
+    }
 }

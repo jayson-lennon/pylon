@@ -1,6 +1,5 @@
 (function () {
   var socket = null;
-  var reconnectTimeout = null;
 
   function log(msg) {
     console.debug('%c[DEVSERVER]: ' + msg, 'background: #42099e;');
@@ -32,7 +31,7 @@
     socket.onclose = () => {
       log('Disconnected');
       socket = null;
-      reconnectTimeout = setTimeout(() => connect(), 1000);
+      setTimeout(() => connect(), 1000);
     }
   }
 

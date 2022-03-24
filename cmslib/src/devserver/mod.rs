@@ -4,11 +4,10 @@ mod staticfiles;
 
 pub use livereload::DevServerMsg;
 
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
+use std::thread::JoinHandle;
 
 use poem::EndpointExt;
-use tokio::runtime::Runtime;
-use tokio::time::Duration;
 
 use crate::engine::EngineBroker;
 
@@ -23,21 +22,50 @@ channel and then sends out a message to their respective clients.
 pub type DevServerSender = async_channel::Sender<crate::devserver::DevServerMsg>;
 pub type DevServerReceiver = async_channel::Receiver<crate::devserver::DevServerMsg>;
 
-pub async fn run<R: AsRef<std::path::Path>, B: Into<SocketAddr>>(
+#[derive(Debug)]
+pub struct DevServer {
+    server_thread: JoinHandle<()>,
+    broker: EngineBroker,
+}
+
+impl DevServer {
+    #[must_use]
+    pub fn run<P: AsRef<std::path::Path>, B: Into<SocketAddr>>(
+        broker: EngineBroker,
+        output_root: P,
+        bind: B,
+    ) -> Self {
+        let output_root = output_root.as_ref().to_owned();
+        let bind = bind.into();
+
+        let broker_clone = broker.clone();
+        let handle = std::thread::spawn(move || {
+            broker_clone
+                .handle()
+                .block_on(async move { run(broker_clone, output_root, bind).await })
+                .expect("failed to start dev server")
+        });
+
+        Self {
+            server_thread: handle,
+            broker,
+        }
+    }
+}
+
+async fn run<R: AsRef<std::path::Path>, B: Into<SocketAddr>>(
     broker: EngineBroker,
     output_root: R,
     bind: B,
-    debounce_wait: Duration,
 ) -> Result<(), anyhow::Error> {
     use poem::listener::TcpListener;
     use poem::middleware::AddData;
     use poem::{get, Route, Server};
 
-    fswatcher::start_watching(broker.clone(), debounce_wait)?;
+    let output_root = output_root.as_ref().to_string_lossy().to_string();
+    let bind = bind.into();
 
     let connected_clients = livereload::ClientBroker::new(broker);
-
-    let output_root = output_root.as_ref().to_string_lossy().to_string();
 
     let app = Route::new()
         .at(
@@ -48,7 +76,7 @@ pub async fn run<R: AsRef<std::path::Path>, B: Into<SocketAddr>>(
         .with(AddData::new(staticfiles::OutputRootDir(output_root)))
         .with(AddData::new(connected_clients));
 
-    Ok(Server::new(TcpListener::bind(bind.into().to_string()))
+    Ok(Server::new(TcpListener::bind(bind.to_string()))
         .run(app)
         .await?)
 }

@@ -2,7 +2,9 @@
 title = "blog title"
 +++
 
-wtf
+hello friend
+
+edited md file
 
 # markdown content
 
