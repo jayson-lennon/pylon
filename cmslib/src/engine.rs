@@ -2,15 +2,16 @@ use anyhow::anyhow;
 use itertools::Itertools;
 use serde::Serialize;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ffi::OsStr,
+    net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tokio::runtime::Runtime;
+use tokio::runtime::{Builder, Handle, Runtime};
 
 use crate::{
-    devserver::{DevServerEvent, DevServerReceiver, DevServerSender},
+    devserver::{DevServerMsg, DevServerReceiver, DevServerSender},
     page::{Page, PageStore},
     pipeline::Pipeline,
     render::Renderers,
@@ -163,22 +164,51 @@ impl EngineConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EngineBroker {
-    pub devserver_channel: (DevServerSender, DevServerReceiver),
-    pub engine_channel: (EngineSender, EngineReceiver),
+    handle: Handle,
+    devserver: (DevServerSender, DevServerReceiver),
+    engine: (EngineSender, EngineReceiver),
 }
 
 impl EngineBroker {
-    fn new() -> Self {
+    fn new(handle: Handle) -> Self {
         Self {
-            devserver_channel: async_channel::unbounded(),
-            engine_channel: async_channel::unbounded(),
+            handle,
+            devserver: async_channel::unbounded(),
+            engine: async_channel::unbounded(),
         }
     }
 
-    async fn send_devserver_event(&self, event: DevServerEvent) -> Result<(), anyhow::Error> {
-        Ok(self.devserver_channel.0.send(event).await?)
+    pub fn handle(&self) -> Handle {
+        self.handle.clone()
+    }
+
+    pub async fn send_devserver_msg(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
+        Ok(self.devserver.0.send(msg).await?)
+    }
+
+    pub async fn send_engine_msg(&self, msg: EngineMsg) -> Result<(), anyhow::Error> {
+        Ok(self.engine.0.send(msg).await?)
+    }
+
+    pub fn send_engine_msg_sync(&self, msg: EngineMsg) -> Result<(), anyhow::Error> {
+        self.handle
+            .block_on(async { self.send_engine_msg(msg).await })
+    }
+
+    pub fn send_devserver_msg_sync(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
+        self.handle
+            .block_on(async { self.send_devserver_msg(msg).await })
+    }
+
+    pub async fn recv_devserver_msg(&self) -> Result<DevServerMsg, anyhow::Error> {
+        Ok(self.devserver.1.recv().await?)
+    }
+
+    pub fn recv_devserver_msg_sync(&self) -> Result<DevServerMsg, anyhow::Error> {
+        self.handle
+            .block_on(async { self.recv_devserver_msg().await })
     }
 }
 
@@ -191,15 +221,13 @@ pub struct Engine {
     renderers: Renderers,
     frontmatter_hooks: FrontmatterHooks,
     global_ctx: Option<serde_json::Value>,
-    pub broker: EngineBroker,
+    broker: EngineBroker,
 }
 
 impl Engine {
-    pub fn new(
-        config: EngineConfig,
-        renderers: Renderers,
-        rt: Arc<Runtime>,
-    ) -> Result<Self, anyhow::Error> {
+    pub fn new(config: EngineConfig) -> Result<(Self, EngineBroker), anyhow::Error> {
+        let renderers = Renderers::new(&config.template_root);
+
         let mut pages: Vec<_> =
             crate::discover::get_all_paths(&config.src_root, &|path: &Path| -> bool {
                 path.extension() == Some(OsStr::new("md"))
@@ -216,7 +244,20 @@ impl Engine {
         let mut page_store = PageStore::new(&config.src_root);
         page_store.insert_batch(pages);
 
-        Ok(Self {
+        let rt = Arc::new(
+            Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_io()
+                .enable_time()
+                .build()?,
+        );
+
+        let handle = rt.handle().clone();
+
+        let broker = EngineBroker::new(handle);
+        let broker_clone = broker.clone();
+
+        let engine = Self {
             rt,
             config,
             pipelines: vec![],
@@ -224,8 +265,10 @@ impl Engine {
             renderers,
             frontmatter_hooks: FrontmatterHooks::new(),
             global_ctx: None,
-            broker: EngineBroker::new(),
-        })
+            broker,
+        };
+
+        Ok((engine, broker_clone))
     }
 
     pub fn add_pipeline(&mut self, pipeline: Pipeline) {
@@ -233,19 +276,20 @@ impl Engine {
     }
 
     pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<(), anyhow::Error> {
-        for pipeline in &self.pipelines {
+        let engine: &Engine = &self;
+        for pipeline in &engine.pipelines {
             for asset in linked_assets.iter() {
                 if pipeline.is_match(asset.target.to_string_lossy().to_string()) {
                     {
                         // Make a new target in order to create directories for the asset.
-                        let mut target_dir = PathBuf::from(&self.config.output_root);
+                        let mut target_dir = PathBuf::from(&engine.config.output_root);
                         target_dir.push(&asset.target);
                         let target_dir = target_dir.parent().expect("should have parent directory");
                         make_parent_dirs(target_dir)?;
                     }
                     pipeline.run(
-                        &self.config.src_root,
-                        &self.config.output_root,
+                        &engine.config.src_root,
+                        &engine.config.output_root,
                         &asset.target,
                     )?;
                 }
@@ -259,13 +303,15 @@ impl Engine {
     }
 
     pub fn process_frontmatter_hooks(&self) -> Result<(), anyhow::Error> {
-        let responses: Vec<(&Page, Vec<FrontmatterHookResponse>)> = self
+        let engine: &Engine = &self;
+        let responses: Vec<(&Page, Vec<FrontmatterHookResponse>)> = engine
             .page_store
             .iter()
             .map(|page| {
                 (
                     page,
-                    self.frontmatter_hooks
+                    engine
+                        .frontmatter_hooks
                         .iter()
                         .map(|hook_fn| hook_fn(page))
                         .filter(|response| match response {
@@ -314,11 +360,12 @@ impl Engine {
         &self,
         ctx_fn: Box<dyn Fn(&PageStore, &Page) -> S>,
     ) -> Result<RenderedPageCollection, anyhow::Error> {
+        let engine: &Engine = &self;
         let site_ctx = SiteContext::new("sample");
-        let page_store = &self.page_store.iter().collect::<Vec<_>>();
+        let page_store = engine.page_store.iter().collect::<Vec<_>>();
 
         Ok(RenderedPageCollection {
-            pages: self
+            pages: engine
                 .page_store
                 .iter()
                 .map(|page| match page.frontmatter.template_path.as_ref() {
@@ -327,7 +374,7 @@ impl Engine {
                         tera_ctx.insert("site", &site_ctx);
                         tera_ctx.insert("content", &page.markdown);
                         tera_ctx.insert("page_store", &page_store);
-                        if let Some(global) = self.global_ctx.as_ref() {
+                        if let Some(global) = engine.global_ctx.as_ref() {
                             tera_ctx.insert("global", global);
                         }
 
@@ -335,19 +382,19 @@ impl Engine {
                             .expect("failed converting page metadata into tera context");
                         tera_ctx.extend(meta_ctx);
 
-                        let user_ctx = ctx_fn(&self.page_store, &page);
+                        let user_ctx = ctx_fn(&engine.page_store, &page);
                         let user_ctx = tera::Context::from_serialize(user_ctx)
                             .expect("failed converting user supplied object into tera context");
                         tera_ctx.extend(user_ctx);
 
-                        let renderer = &self.renderers.tera;
+                        let renderer = &engine.renderers.tera;
                         renderer
                             .render(template, &tera_ctx)
                             .map(|html| {
                                 // change file extension to 'html'
                                 let target_path = page
                                     .system_path
-                                    .with_root::<&Path>(&self.config.output_root)
+                                    .with_root::<&Path>(&engine.config.output_root)
                                     .with_extension("html");
                                 RenderedPage::new(html, &target_path)
                             })
@@ -365,8 +412,99 @@ impl Engine {
     pub fn refresh_clients(&self) -> Result<(), anyhow::Error> {
         self.rt.block_on(async {
             self.broker
-                .send_devserver_event(DevServerEvent::ReloadPage)
+                .send_devserver_msg(DevServerMsg::ReloadPage)
                 .await
+        })
+    }
+
+    pub fn process_user_config(&mut self) -> Result<(), anyhow::Error> {
+        // This will be the configuration supplied by the user scripts.
+        // For now, we are just hard-coding configuration until the scripting
+        // engine is integrated.
+        pub fn add_copy_pipeline(engine: &mut Engine) -> Result<(), anyhow::Error> {
+            use crate::pipeline::*;
+            let mut copy_pipeline = Pipeline::new("**/*.png", AutorunTrigger::TargetGlob)?;
+            copy_pipeline.push_op(Operation::Copy);
+            engine.add_pipeline(copy_pipeline);
+            Ok(())
+        }
+
+        pub fn add_sed_pipeline(engine: &mut Engine) -> Result<(), anyhow::Error> {
+            use crate::pipeline::*;
+            let mut sed_pipeline = Pipeline::new("sample.txt", AutorunTrigger::TargetGlob)?;
+            sed_pipeline.push_op(Operation::Shell(ShellCommand::new(
+                r"sed 's/hello/goodbye/g' $INPUT > $OUTPUT",
+            )));
+            sed_pipeline.push_op(Operation::Shell(ShellCommand::new(
+                r"sed 's/bye/ day/g' $INPUT > $OUTPUT",
+            )));
+            sed_pipeline.push_op(Operation::Copy);
+
+            engine.add_pipeline(sed_pipeline);
+            Ok(())
+        }
+
+        pub fn add_frontmatter_hook(engine: &mut Engine) {
+            let hook = Box::new(|page: &Page| -> FrontmatterHookResponse {
+                if page.canonical_path.as_str().starts_with("/db") {
+                    if !page.frontmatter.meta.contains_key("section") {
+                        FrontmatterHookResponse::Error("require 'section' in metadata".to_owned())
+                    } else {
+                        FrontmatterHookResponse::Ok
+                    }
+                } else {
+                    FrontmatterHookResponse::Ok
+                }
+            });
+            engine.add_frontmatter_hook(hook);
+        }
+
+        self.set_global_ctx(&|page_store: &PageStore| -> HashMap<String, String> {
+            let mut map = HashMap::new();
+            map.insert(
+                "globular".to_owned(),
+                "haaaay db sample custom variable!".to_owned(),
+            );
+            map
+        })?;
+
+        add_copy_pipeline(self)?;
+        add_sed_pipeline(self)?;
+
+        add_frontmatter_hook(self);
+
+        self.process_frontmatter_hooks()?;
+
+        let rendered = self.render(Box::new(
+            |page_store: &PageStore, page: &Page| -> HashMap<String, String> {
+                let mut map = HashMap::new();
+                map.insert(
+                    "dbsample".to_owned(),
+                    "haaaay db sample custom variable!".to_owned(),
+                );
+                map
+            },
+        ))?;
+        rendered.write_to_disk()?;
+
+        let assets = rendered.find_assets()?;
+
+        self.run_pipelines(&assets)?;
+        Ok(())
+    }
+
+    pub fn start_devserver(&self, bind: SocketAddr, debounce_ms: u64) -> Result<(), anyhow::Error> {
+        use std::time::Duration;
+
+        let engine: &Engine = &self;
+        engine.broker.handle().block_on(async move {
+            crate::devserver::run(
+                engine.broker.clone(),
+                &engine.config.output_root,
+                bind,
+                Duration::from_millis(debounce_ms),
+            )
+            .await
         })
     }
 }

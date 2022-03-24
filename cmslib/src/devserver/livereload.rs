@@ -1,6 +1,8 @@
 use slotmap::DenseSlotMap;
 use std::thread;
 
+use crate::engine::EngineBroker;
+
 use super::DevServerReceiver;
 use async_lock::Mutex;
 use poem::{
@@ -18,7 +20,7 @@ use tokio::runtime::Runtime;
 pub struct LiveReloadReceiver(pub DevServerReceiver);
 
 #[derive(Copy, Clone, Debug)]
-pub enum DevServerEvent {
+pub enum DevServerMsg {
     ReloadPage,
 }
 
@@ -27,8 +29,8 @@ type WsClientId = slotmap::DefaultKey;
 #[derive(Debug)]
 struct WsClient {
     id: WsClientId,
-    tx: async_channel::Sender<DevServerEvent>,
-    rx: async_channel::Receiver<DevServerEvent>,
+    tx: async_channel::Sender<DevServerMsg>,
+    rx: async_channel::Receiver<DevServerMsg>,
 }
 
 impl WsClient {
@@ -40,38 +42,38 @@ impl WsClient {
 
     pub async fn send(
         &self,
-        msg: DevServerEvent,
-    ) -> Result<(), async_channel::SendError<DevServerEvent>> {
+        msg: DevServerMsg,
+    ) -> Result<(), async_channel::SendError<DevServerMsg>> {
         self.tx.send(msg).await
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct ConnectedClients {
+pub struct ClientBroker {
     clients: Arc<Mutex<DenseSlotMap<WsClientId, WsClient>>>,
+    engine_broker: EngineBroker,
 }
 
-impl ConnectedClients {
+impl ClientBroker {
     #[must_use]
-    pub fn new(rt: Arc<Runtime>, fs_recv: DevServerReceiver) -> Self {
-        let clients = ConnectedClients {
+    pub fn new(engine_broker: EngineBroker) -> Self {
+        let client_broker = ClientBroker {
             clients: Arc::new(Mutex::new(DenseSlotMap::new())),
+            engine_broker: engine_broker.clone(),
         };
 
-        let clients_thread = clients.clone();
+        let client_broker_clone = client_broker.clone();
         thread::spawn(move || {
-            let clients = clients_thread;
-            rt.block_on(async move {
-                loop {
-                    match fs_recv.recv().await {
-                        Ok(msg) => clients.send(msg).await,
-                        Err(e) => eprintln!("filesystem watcher channel error: {}", e),
-                    }
+            let client_broker = client_broker_clone;
+            loop {
+                match engine_broker.recv_devserver_msg_sync() {
+                    Ok(msg) => client_broker.send_sync(msg),
+                    Err(e) => panic!("devserver channel error: {}", e),
                 }
-            });
+            }
         });
 
-        clients
+        client_broker
     }
 
     pub async fn add(&self) -> WsClientId {
@@ -84,7 +86,7 @@ impl ConnectedClients {
         clients.remove(id);
     }
 
-    pub async fn send(&self, msg: DevServerEvent) {
+    pub async fn send(&self, msg: DevServerMsg) {
         let clients = self.clients.lock().await;
         for (id, client) in clients.iter() {
             if let Err(e) = client.tx.send(msg).await {
@@ -93,45 +95,54 @@ impl ConnectedClients {
         }
     }
 
-    pub async fn receiver(
-        &self,
-        id: WsClientId,
-    ) -> Option<async_channel::Receiver<DevServerEvent>> {
+    pub fn send_sync(&self, msg: DevServerMsg) {
+        self.engine_broker
+            .handle()
+            .block_on(async { self.send(msg).await })
+    }
+
+    pub async fn receiver(&self, id: WsClientId) -> Option<async_channel::Receiver<DevServerMsg>> {
         let clients = self.clients.lock().await;
         clients.get(id).map(|client| client.rx.clone())
     }
 }
 
 #[handler]
-pub fn handle(
-    ws: WebSocket,
-    _: Data<&tokio::sync::broadcast::Sender<String>>,
-    clients: Data<&ConnectedClients>,
-) -> impl IntoResponse {
+pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse {
     use futures_util::{SinkExt, StreamExt};
 
     let clients = clients.clone();
 
+    // on_upgrade corresponds to a successfully connected client
     ws.on_upgrade(move |socket| async move {
         let (mut sink, _) = socket.split();
+
+        // track client
         let client_id = clients.add().await;
 
+        // each client will listen on their respective channel
         tokio::spawn(async move {
             loop {
-                match clients.receiver(client_id).await.unwrap().recv().await {
-                    Ok(msg) => match msg {
-                        DevServerEvent::ReloadPage => {
-                            if sink.send(Message::Text(format!("RELOAD"))).await.is_err() {
+                if let Ok(msg) = clients
+                    .receiver(client_id)
+                    .await
+                    .expect("receiver should exist for client connection. this is a bug")
+                    .recv()
+                    .await
+                {
+                    match msg {
+                        DevServerMsg::ReloadPage => {
+                            if let Err(e) = sink.send(Message::Text(format!("RELOAD"))).await {
+                                eprintln!("error sending message to client: {}", e);
+                                clients.remove(client_id);
                                 return;
-                            } else {
-                                dbg!("send msg");
                             }
                         }
-                    },
-                    Err(_) => {
-                        dbg!("websocket error");
-                        return;
                     }
+                } else {
+                    eprintln!("reading from client channel should never fail; closing corresponding websocket connection");
+                    clients.remove(client_id);
+                    return;
                 }
             }
         });
