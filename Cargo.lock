@@ -246,6 +246,7 @@ dependencies = [
  "async-trait",
  "crossbeam-channel",
  "futures-util",
+ "globset",
  "hotwatch",
  "itertools",
  "mime",

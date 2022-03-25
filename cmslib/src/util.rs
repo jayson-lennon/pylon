@@ -4,7 +4,6 @@ use std::{
 };
 
 use anyhow::Context;
-use regex::Regex;
 use serde::Serialize;
 use tempfile::NamedTempFile;
 
@@ -25,38 +24,6 @@ pub fn gen_temp_file() -> Result<NamedTempFile, anyhow::Error> {
         .rand_bytes(12)
         .tempfile()
         .with_context(|| format!("failed creating temporary file for shell processing"))?)
-}
-
-pub fn glob_to_re<G: AsRef<str>>(glob: G) -> Result<Regex, anyhow::Error> {
-    let masks = [
-        ("**/", "<__RECURSE__>"),
-        ("*", "<__ANY__>"),
-        ("?", "<__ONE__>"),
-        ("/", "<__SLASH__>"),
-        (".", "<__DOT__>"),
-    ];
-    let mut updated_glob = glob.as_ref().to_owned();
-    for m in masks.iter() {
-        updated_glob = updated_glob.replace(m.0, m.1);
-    }
-
-    let replacements = [
-        ("<__RECURSE__>", r".*"),
-        ("<__ANY__>", r"[^/]*"),
-        ("<__ONE__>", "."),
-        ("<__SLASH__>", r"/"),
-        ("<__DOT__>", r"."),
-    ];
-    let mut re_str = format!("^{updated_glob}");
-    for r in replacements {
-        re_str = re_str.replace(r.0, r.1);
-    }
-    Regex::new(&re_str).with_context(|| {
-        format!(
-            "failed converting glob to regex. Glob input: '{}'. This is a bug.",
-            glob.as_ref()
-        )
-    })
 }
 
 pub fn get_all_templates(template_root: PathBuf) -> Result<Vec<PathBuf>, anyhow::Error> {

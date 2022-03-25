@@ -1,7 +1,52 @@
 use anyhow::Context;
-use regex::Regex;
 use std::path::{Path, PathBuf};
 use tracing::info;
+
+#[derive(Debug)]
+pub struct GlobCandidate<'a>(globset::Candidate<'a>);
+
+impl<'a> GlobCandidate<'a> {
+    pub fn new<P: AsRef<Path>>(path: &'a P) -> GlobCandidate<'a> {
+        Self(globset::Candidate::new(path))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Glob {
+    glob: globset::Glob,
+    matcher: globset::GlobMatcher,
+}
+
+impl Glob {
+    pub fn is_match<P: AsRef<Path>>(&self, path: P) -> bool {
+        self.matcher.is_match(path)
+    }
+    pub fn is_match_candidate(&self, path: &GlobCandidate<'_>) -> bool {
+        self.matcher.is_match_candidate(&path.0)
+    }
+}
+
+impl TryFrom<String> for Glob {
+    type Error = globset::Error;
+    fn try_from(s: String) -> Result<Glob, Self::Error> {
+        let glob = globset::GlobBuilder::new(&s)
+            .literal_separator(true)
+            .build()?;
+        let matcher = glob.compile_matcher();
+        Ok(Self { glob, matcher })
+    }
+}
+
+impl TryFrom<&str> for Glob {
+    type Error = globset::Error;
+    fn try_from(s: &str) -> Result<Glob, Self::Error> {
+        let glob = globset::GlobBuilder::new(s)
+            .literal_separator(true)
+            .build()?;
+        let matcher = glob.compile_matcher();
+        Ok(Self { glob, matcher })
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
@@ -20,32 +65,6 @@ impl ShellCommand {
 }
 
 #[derive(Clone, Debug)]
-pub struct Glob(pub String);
-impl AsRef<str> for Glob {
-    fn as_ref(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-impl From<String> for Glob {
-    fn from(s: String) -> Self {
-        Glob(s)
-    }
-}
-
-impl From<&str> for Glob {
-    fn from(s: &str) -> Self {
-        Glob(s.to_owned())
-    }
-}
-
-impl From<Glob> for String {
-    fn from(g: Glob) -> Self {
-        g.0
-    }
-}
-
-#[derive(Clone, Debug)]
 pub enum Operation {
     Copy,
     Shell(ShellCommand),
@@ -58,49 +77,36 @@ pub enum AutorunTrigger {
 }
 
 #[derive(Debug)]
-struct PipelineState {
-    re: Regex,
-}
-
-#[derive(Debug)]
-pub struct PipelineConfig {
+pub struct Pipeline {
     pub target_glob: Glob,
     ops: Vec<Operation>,
     autorun: AutorunTrigger,
 }
 
-#[derive(Debug)]
-pub struct Pipeline {
-    pub config: PipelineConfig,
-    state: PipelineState,
-}
-
 impl Pipeline {
-    pub fn new<G: Into<Glob>>(
+    pub fn new<G: TryInto<Glob, Error = globset::Error>>(
         target_glob: G,
         autorun: AutorunTrigger,
     ) -> Result<Self, anyhow::Error> {
-        let target_glob = target_glob.into();
-        let re = crate::util::glob_to_re(&target_glob).with_context(|| {
-            format!("Failed converting glob to regex when creating new pipeline")
-        })?;
-        let config = PipelineConfig {
+        let target_glob = target_glob.try_into()?;
+
+        Ok(Self {
             target_glob,
             autorun,
             ops: vec![],
-        };
-        Ok(Self {
-            config,
-            state: PipelineState { re },
         })
     }
 
     pub fn push_op(&mut self, op: Operation) {
-        self.config.ops.push(op);
+        self.ops.push(op);
     }
 
-    pub fn is_match<P: AsRef<str>>(&self, asset: P) -> bool {
-        self.state.re.is_match(asset.as_ref())
+    pub fn is_match<P: AsRef<Path>>(&self, asset: P) -> bool {
+        self.target_glob.is_match(asset)
+    }
+
+    pub fn is_match_candidate<'a, C: AsRef<GlobCandidate<'a>>>(&self, asset: C) -> bool {
+        self.target_glob.is_match_candidate(asset.as_ref())
     }
 
     pub fn run<P: AsRef<Path>>(
@@ -126,7 +132,7 @@ impl Pipeline {
         };
         // let mut input_path = self.dirs.abs_src_asset(target_asset);
         // let output_path = self.dirs.abs_target_asset(target_asset);
-        for op in self.config.ops.iter() {
+        for op in self.ops.iter() {
             let _span = tracing::info_span!(target: "pipeline_spans", "perform pipeline operation")
                 .entered();
             match op {
