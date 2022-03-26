@@ -9,68 +9,19 @@ use std::{
     sync::Arc,
     thread::{self, JoinHandle},
 };
-use tokio::runtime::{Builder, Handle, Runtime};
 use tracing::{instrument, trace};
 
 use crate::{
-    devserver::{DevServer, DevServerMsg, DevServerReceiver, DevServerSender},
-    page::{
-        ContextGenerator, ContextGeneratorFn, ContextGenerators, ContextItem, ContextMatcher, Page,
-        PageStore,
-    },
-    pipeline::Pipeline,
+    devserver::{DevServer, DevServerMsg},
+    engine::broker::EngineMsg,
+    page::Page,
+    pagestore::PageStore,
     render::Renderers,
     site_context::SiteContext,
     util::RetargetablePathBuf,
 };
 
-#[derive(Debug, Clone)]
-pub enum EngineMsg {
-    /// Builds the site using existing configuration and source material
-    Build,
-    /// Builds the site using existing configuration, but rescans all source material
-    Rebuild,
-    /// Starts the development server
-    StartDevServer(SocketAddr, u64),
-    /// Reloads user configuration
-    ReloadUserConfig,
-    /// Quits the application
-    Quit,
-}
-
-type EngineSender = async_channel::Sender<EngineMsg>;
-type EngineReceiver = async_channel::Receiver<EngineMsg>;
-
-#[derive(Debug, Clone)]
-pub enum FrontmatterHookResponse {
-    Ok,
-    Warn(String),
-    Error(String),
-}
-
-type FrontmatterHook = Box<dyn Fn(&Page) -> FrontmatterHookResponse>;
-
-pub struct FrontmatterHooks {
-    inner: Vec<Box<dyn Fn(&Page) -> FrontmatterHookResponse>>,
-}
-
-impl FrontmatterHooks {
-    pub fn new() -> Self {
-        Self { inner: vec![] }
-    }
-    pub fn add(&mut self, hook: FrontmatterHook) {
-        self.inner.push(hook);
-    }
-    pub fn iter(&self) -> impl Iterator<Item = &FrontmatterHook> {
-        self.inner.iter()
-    }
-}
-
-impl std::fmt::Debug for FrontmatterHooks {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("FrontmatterHook count: {}", self.inner.len()))
-    }
-}
+use super::{broker::EngineBroker, config::EngineConfig, rules::Rules};
 
 #[derive(Clone, Debug, Serialize, Default, Eq, PartialEq, Hash)]
 pub struct LinkedAsset {
@@ -162,142 +113,8 @@ impl RenderedPageCollection {
 }
 
 #[derive(Debug)]
-pub struct EngineConfig {
-    pub src_root: PathBuf,
-    pub output_root: PathBuf,
-    pub template_root: PathBuf,
-}
-
-impl EngineConfig {
-    pub fn new<P: AsRef<Path>>(src_root: P, target_root: P, template_root: P) -> Self {
-        Self {
-            src_root: src_root.as_ref().to_path_buf(),
-            output_root: target_root.as_ref().to_path_buf(),
-            template_root: template_root.as_ref().to_path_buf(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct EngineBroker {
-    rt_handle: Handle,
-    devserver: (DevServerSender, DevServerReceiver),
-    engine: (EngineSender, EngineReceiver),
-}
-
-impl EngineBroker {
-    fn new(handle: Handle) -> Self {
-        Self {
-            rt_handle: handle,
-            devserver: async_channel::unbounded(),
-            engine: async_channel::unbounded(),
-        }
-    }
-
-    pub fn handle(&self) -> Handle {
-        self.rt_handle.clone()
-    }
-
-    pub async fn send_devserver_msg(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
-        Ok(self.devserver.0.send(msg).await?)
-    }
-
-    pub async fn send_engine_msg(&self, msg: EngineMsg) -> Result<(), anyhow::Error> {
-        Ok(self.engine.0.send(msg).await?)
-    }
-
-    pub fn send_engine_msg_sync(&self, msg: EngineMsg) -> Result<(), anyhow::Error> {
-        self.rt_handle
-            .block_on(async { self.send_engine_msg(msg).await })
-    }
-
-    pub fn send_devserver_msg_sync(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
-        self.rt_handle
-            .block_on(async { self.send_devserver_msg(msg).await })
-    }
-
-    pub async fn recv_devserver_msg(&self) -> Result<DevServerMsg, anyhow::Error> {
-        Ok(self.devserver.1.recv().await?)
-    }
-
-    pub fn recv_devserver_msg_sync(&self) -> Result<DevServerMsg, anyhow::Error> {
-        self.rt_handle
-            .block_on(async { self.recv_devserver_msg().await })
-    }
-
-    async fn recv_engine_msg(&self) -> Result<EngineMsg, anyhow::Error> {
-        println!("try to recv engine msg async");
-        Ok(self.engine.1.recv().await?)
-    }
-
-    fn recv_engine_msg_sync(&self) -> Result<EngineMsg, anyhow::Error> {
-        println!("try to recv engine msg");
-        self.rt_handle
-            .block_on(async { self.recv_engine_msg().await })
-    }
-}
-
-#[derive(Debug)]
-struct Rules {
-    pipelines: Vec<Pipeline>,
-    frontmatter_hooks: FrontmatterHooks,
-    global_ctx: Option<serde_json::Value>,
-    page_ctx: ContextGenerators,
-}
-
-impl Rules {
-    pub fn add_pipeline(&mut self, pipeline: Pipeline) {
-        self.pipelines.push(pipeline);
-    }
-
-    pub fn add_frontmatter_hook(&mut self, hook: FrontmatterHook) {
-        self.frontmatter_hooks.add(hook);
-    }
-
-    pub fn set_global_context(&mut self, global_ctx: serde_json::Value) {
-        self.global_ctx = Some(global_ctx);
-    }
-
-    pub fn add_context_generator(
-        &mut self,
-        matcher: ContextMatcher,
-        generator: ContextGeneratorFn,
-    ) {
-        self.page_ctx.add_generator(matcher, generator)
-    }
-
-    pub fn pipelines(&self) -> impl Iterator<Item = &Pipeline> {
-        self.pipelines.iter()
-    }
-
-    pub fn frontmatter_hooks(&self) -> impl Iterator<Item = &FrontmatterHook> {
-        self.frontmatter_hooks.iter()
-    }
-
-    pub fn global_ctx(&self) -> Option<&serde_json::Value> {
-        self.global_ctx.as_ref()
-    }
-
-    pub fn page_ctx(&self) -> &ContextGenerators {
-        &self.page_ctx
-    }
-}
-
-impl Rules {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            pipelines: vec![],
-            frontmatter_hooks: FrontmatterHooks::new(),
-            global_ctx: None,
-            page_ctx: ContextGenerators::new(),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct Engine {
-    rt: Arc<Runtime>,
+    rt: Arc<tokio::runtime::Runtime>,
     config: EngineConfig,
     rules: Rules,
     page_store: PageStore,
@@ -315,7 +132,7 @@ impl Engine {
         let page_store = do_build_page_store(&config.src_root, &renderers)?;
 
         let rt = Arc::new(
-            Builder::new_multi_thread()
+            tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(2)
                 .enable_io()
                 .enable_time()
@@ -379,12 +196,8 @@ impl Engine {
         Ok((engine_handle, broker_clone))
     }
 
-    pub fn add_context_generator(&mut self, matcher: ContextMatcher, ctx_fn: ContextGeneratorFn) {
-        self.rules.page_ctx.add_generator(matcher, ctx_fn);
-    }
-
-    pub fn add_pipeline(&mut self, pipeline: Pipeline) {
-        self.rules.add_pipeline(pipeline)
+    pub fn rules(&mut self) -> &mut Rules {
+        &mut self.rules
     }
 
     pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<(), anyhow::Error> {
@@ -410,11 +223,9 @@ impl Engine {
         Ok(())
     }
 
-    pub fn add_frontmatter_hook(&mut self, hook: FrontmatterHook) {
-        self.rules.add_frontmatter_hook(hook);
-    }
-
     pub fn process_frontmatter_hooks(&self) -> Result<(), anyhow::Error> {
+        use crate::engine::rules::FrontmatterHookResponse;
+
         let engine: &Engine = &self;
         let responses: Vec<(&Page, Vec<FrontmatterHookResponse>)> = engine
             .page_store
@@ -458,16 +269,6 @@ impl Engine {
         }
     }
 
-    pub fn set_global_ctx<S: Serialize>(
-        &mut self,
-        ctx_fn: &dyn Fn(&PageStore) -> S,
-    ) -> Result<(), anyhow::Error> {
-        let ctx = ctx_fn(&self.page_store);
-        let ctx = serde_json::to_value(ctx)?;
-        self.rules.set_global_context(ctx);
-        Ok(())
-    }
-
     pub fn render(&self) -> Result<RenderedPageCollection, anyhow::Error> {
         let engine: &Engine = &self;
         let site_ctx = SiteContext::new("sample");
@@ -484,7 +285,7 @@ impl Engine {
                         tera_ctx.insert("page_store", {
                             &engine.page_store.iter().collect::<Vec<_>>()
                         });
-                        if let Some(global) = engine.rules.global_ctx() {
+                        if let Some(global) = engine.rules.global_context() {
                             tera_ctx.insert("global", global);
                         }
 
@@ -494,7 +295,7 @@ impl Engine {
 
                         let user_ctx = engine
                             .rules
-                            .page_ctx()
+                            .page_context()
                             .build_context(&self.page_store, page)?;
 
                         for ctx in user_ctx {
@@ -540,7 +341,7 @@ impl Engine {
             use crate::pipeline::*;
             let mut copy_pipeline = Pipeline::new("**/*.png", AutorunTrigger::TargetGlob)?;
             copy_pipeline.push_op(Operation::Copy);
-            engine.add_pipeline(copy_pipeline);
+            engine.rules().add_pipeline(copy_pipeline);
             Ok(())
         }
 
@@ -555,11 +356,13 @@ impl Engine {
             )));
             sed_pipeline.push_op(Operation::Copy);
 
-            engine.add_pipeline(sed_pipeline);
+            engine.rules().add_pipeline(sed_pipeline);
             Ok(())
         }
 
         pub fn add_frontmatter_hook(engine: &mut Engine) {
+            use crate::engine::rules::FrontmatterHookResponse;
+
             let hook = Box::new(|page: &Page| -> FrontmatterHookResponse {
                 if page.canonical_path.as_str().starts_with("/db") {
                     if !page.frontmatter.meta.contains_key("section") {
@@ -571,19 +374,21 @@ impl Engine {
                     FrontmatterHookResponse::Ok
                 }
             });
-            engine.add_frontmatter_hook(hook);
+            engine.rules().add_frontmatter_hook(hook);
         }
 
         pub fn add_ctx_generator(engine: &mut Engine) -> Result<(), anyhow::Error> {
-            let matcher = ContextMatcher::Glob(vec!["**/ctxgen/index.md".try_into()?]);
-            let ctx_fn = ContextGeneratorFn::new(Box::new(|page_store, page| -> ContextItem {
+            use crate::gctx::{ContextItem, GeneratorFunc, Matcher};
+
+            let matcher = Matcher::Glob(vec!["**/ctxgen/index.md".try_into()?]);
+            let ctx_fn = GeneratorFunc::new(Box::new(|page_store, page| -> ContextItem {
                 ContextItem::new("ctxgen_context", "hello!".into())
             }));
-            engine.add_context_generator(matcher, ctx_fn);
+            engine.rules().add_context_generator(matcher, ctx_fn);
             Ok(())
         }
 
-        self.set_global_ctx(&|page_store: &PageStore| -> HashMap<String, String> {
+        self.rules().set_global_context({
             let mut map = HashMap::new();
             map.insert(
                 "globular".to_owned(),

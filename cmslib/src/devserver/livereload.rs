@@ -1,9 +1,5 @@
-use slotmap::DenseSlotMap;
-use std::thread;
-
-use crate::engine::EngineBroker;
-
 use super::DevServerReceiver;
+use crate::engine::broker::EngineBroker;
 use async_lock::Mutex;
 use poem::{
     handler,
@@ -13,7 +9,9 @@ use poem::{
     },
     IntoResponse,
 };
+use slotmap::DenseSlotMap;
 use std::sync::Arc;
+use std::thread;
 
 #[derive(Clone, Debug)]
 pub struct LiveReloadReceiver(pub DevServerReceiver);

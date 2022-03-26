@@ -1,10 +1,9 @@
+use anyhow::Context;
+use serde::Serialize;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
 };
-
-use anyhow::Context;
-use serde::Serialize;
 use tempfile::NamedTempFile;
 
 #[macro_export]

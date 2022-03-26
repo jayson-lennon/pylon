@@ -2,14 +2,11 @@ pub mod fswatcher;
 mod livereload;
 mod staticfiles;
 
+use crate::engine::broker::EngineBroker;
 pub use livereload::DevServerMsg;
-
+use poem::EndpointExt;
 use std::net::SocketAddr;
 use std::thread::JoinHandle;
-
-use poem::EndpointExt;
-
-use crate::engine::EngineBroker;
 
 /*
 `run` starts up the fswatcher which responds to filesystem events by pushing an event into the event channel.

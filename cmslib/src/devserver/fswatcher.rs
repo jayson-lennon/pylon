@@ -1,4 +1,4 @@
-use crate::engine::{EngineBroker, EngineMsg};
+use crate::engine::broker::{EngineBroker, EngineMsg};
 use hotwatch::blocking::Flow;
 use hotwatch::{blocking::Hotwatch, Event};
 use std::path::Path;
