@@ -1,0 +1,7 @@
+{% extends "index.tera" %}
+
+{% block body %}
+
+{{ content | safe}}
+
+{% endblock body %}

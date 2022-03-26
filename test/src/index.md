@@ -1,9 +1,8 @@
 +++
 title = "src root"
-template_path = "index.tera"
+template_path = "index_content.tera"
 +++
 
 *root/index markdown content!*
 
-
-test
+here is some content
