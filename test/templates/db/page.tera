@@ -4,7 +4,6 @@
 
 <h3>db/page.tera</h3>
 
-{{ dbsample }} <br>
 
 <div class="checking section">
 {% if section %}

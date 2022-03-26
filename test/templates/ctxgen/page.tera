@@ -1,0 +1,11 @@
+{% extends "index.tera" %}
+
+{% block body %}
+
+<h3>ctxgen page.tera</h3>
+
+<pre>
+tera context:
+  {{ __tera_context | striptags }}
+</pre>
+{% endblock body %}

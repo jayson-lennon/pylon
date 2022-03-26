@@ -61,6 +61,9 @@ fn main() -> Result<(), anyhow::Error> {
         // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
         // will be written to stdout.
         .with_max_level(Level::TRACE)
+        .with_line_number(true)
+        .with_env_filter("cms=trace")
+        .pretty()
         // completes the builder.
         .finish();
 

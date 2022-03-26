@@ -1,52 +1,7 @@
+use crate::util::{Glob, GlobCandidate};
 use anyhow::Context;
 use std::path::{Path, PathBuf};
 use tracing::info;
-
-#[derive(Debug)]
-pub struct GlobCandidate<'a>(globset::Candidate<'a>);
-
-impl<'a> GlobCandidate<'a> {
-    pub fn new<P: AsRef<Path>>(path: &'a P) -> GlobCandidate<'a> {
-        Self(globset::Candidate::new(path))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Glob {
-    glob: globset::Glob,
-    matcher: globset::GlobMatcher,
-}
-
-impl Glob {
-    pub fn is_match<P: AsRef<Path>>(&self, path: P) -> bool {
-        self.matcher.is_match(path)
-    }
-    pub fn is_match_candidate(&self, path: &GlobCandidate<'_>) -> bool {
-        self.matcher.is_match_candidate(&path.0)
-    }
-}
-
-impl TryFrom<String> for Glob {
-    type Error = globset::Error;
-    fn try_from(s: String) -> Result<Glob, Self::Error> {
-        let glob = globset::GlobBuilder::new(&s)
-            .literal_separator(true)
-            .build()?;
-        let matcher = glob.compile_matcher();
-        Ok(Self { glob, matcher })
-    }
-}
-
-impl TryFrom<&str> for Glob {
-    type Error = globset::Error;
-    fn try_from(s: &str) -> Result<Glob, Self::Error> {
-        let glob = globset::GlobBuilder::new(s)
-            .literal_separator(true)
-            .build()?;
-        let matcher = glob.compile_matcher();
-        Ok(Self { glob, matcher })
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);

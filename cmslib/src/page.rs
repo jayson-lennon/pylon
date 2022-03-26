@@ -1,17 +1,17 @@
+use crate::util::{Glob, GlobCandidate, RetargetablePathBuf};
+use crate::{CanonicalPath, Renderers};
+use anyhow::anyhow;
+use serde::{Deserialize, Serialize};
+use slotmap::SlotMap;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
-use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
-use slotmap::SlotMap;
-
 slotmap::new_key_type! {
     pub struct PageKey;
+    pub struct GeneratorKey;
 }
-
-use crate::{util::RetargetablePathBuf, CanonicalPath, Renderers};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -189,5 +189,164 @@ impl PageStore {
 
     pub fn iter(&self) -> impl Iterator<Item = &Page> {
         self.pages.iter().map(|(_, page)| page)
+    }
+}
+
+pub type ContextGeneratorFunc = Box<dyn Fn(&PageStore, &Page) -> ContextItem>;
+pub struct ContextGeneratorFn(ContextGeneratorFunc);
+
+impl ContextGeneratorFn {
+    pub fn new(func: ContextGeneratorFunc) -> Self {
+        Self(func)
+    }
+}
+
+impl ContextGeneratorFn {
+    pub fn call(&self, store: &PageStore, page: &Page) -> ContextItem {
+        self.0(store, page)
+    }
+}
+
+impl std::fmt::Debug for ContextGeneratorFn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ContextGeneratorFn")
+    }
+}
+
+#[derive(Debug)]
+pub struct ContextGenerator {
+    matcher: ContextMatcher,
+    func: ContextGeneratorFn,
+}
+
+impl ContextGenerator {
+    #[must_use]
+    pub fn new(matcher: ContextMatcher, func: ContextGeneratorFn) -> Self {
+        Self { matcher, func }
+    }
+}
+
+#[derive(Debug)]
+pub struct ContextItem {
+    pub identifier: String,
+    pub data: serde_json::Value,
+}
+
+impl ContextItem {
+    #[must_use]
+    pub fn new<S: AsRef<str>>(identifier: S, data: serde_json::Value) -> Self {
+        Self {
+            identifier: identifier.as_ref().to_string(),
+            data,
+        }
+    }
+}
+
+pub enum ContextMatcher {
+    // Runs when the canonical path matches some glob(s). Easy to define specific pages.
+    Glob(Vec<Glob>),
+    // Runs when the closure returns true. Allows user to define own parameters such
+    // as processing metadata (author, title, etc).
+    Metadata(Box<dyn Fn(&FrontMatter) -> bool>),
+}
+
+impl std::fmt::Debug for ContextMatcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Glob(globs) => {
+                f.write_fmt(format_args!(
+                    "PageContextMatcher: Glob with {} globs",
+                    globs.len()
+                ))?;
+                f.debug_list().entries(globs.iter()).finish()
+            }
+            Self::Metadata(_) => f.write_str("PageContextMatcher: Metadata closure"),
+        }
+    }
+}
+
+pub struct ContextGenerators {
+    generators: SlotMap<GeneratorKey, ContextGeneratorFn>,
+    matchers: Vec<(ContextMatcher, GeneratorKey)>,
+}
+
+impl std::fmt::Debug for ContextGenerators {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContextGenerators")
+            .field("generators", &format_args!("{}", self.generators.len()))
+            .field("matchers", &format_args!("{:?}", self.matchers))
+            .finish()
+    }
+}
+
+impl ContextGenerators {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            generators: SlotMap::with_key(),
+            matchers: vec![],
+        }
+    }
+
+    pub fn add_generator(&mut self, matcher: ContextMatcher, generator: ContextGeneratorFn) {
+        let key = self.generators.insert(generator);
+        self.matchers.push((matcher, key));
+    }
+
+    fn find_generators(&self, page: &Page) -> Vec<GeneratorKey> {
+        self.matchers
+            .iter()
+            .filter_map(|(matcher, generator_key)| match matcher {
+                ContextMatcher::Glob(globs) => {
+                    let candidate = GlobCandidate::new(page.canonical_path.as_str());
+
+                    let mut is_match = false;
+                    for g in globs {
+                        if g.is_match_candidate(&candidate) {
+                            is_match = true;
+                            break;
+                        }
+                    }
+                    if is_match {
+                        Some(*generator_key)
+                    } else {
+                        None
+                    }
+                }
+                ContextMatcher::Metadata(func) => {
+                    if func(&page.frontmatter) {
+                        Some(*generator_key)
+                    } else {
+                        None
+                    }
+                }
+            })
+            .collect()
+    }
+
+    pub fn build_context(
+        &self,
+        page_store: &PageStore,
+        for_page: &Page,
+    ) -> Result<Vec<ContextItem>, anyhow::Error> {
+        let contexts = self
+            .find_generators(for_page)
+            .iter()
+            .filter_map(|key| self.generators.get(*key))
+            .map(|gen| gen.call(page_store, for_page))
+            .collect::<Vec<_>>();
+        dbg!(&contexts);
+
+        let mut identifiers: HashSet<&str> = HashSet::new();
+        for ctx in contexts.iter() {
+            if !identifiers.insert(ctx.identifier.as_str()) {
+                return Err(anyhow!(
+                    "duplicate context identifier encountered in page context generation: {}",
+                    ctx.identifier.as_str()
+                ));
+            }
+        }
+
+        Ok(contexts)
     }
 }

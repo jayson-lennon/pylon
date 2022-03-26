@@ -10,10 +10,14 @@ use std::{
     thread::{self, JoinHandle},
 };
 use tokio::runtime::{Builder, Handle, Runtime};
+use tracing::{instrument, trace};
 
 use crate::{
     devserver::{DevServer, DevServerMsg, DevServerReceiver, DevServerSender},
-    page::{Page, PageStore},
+    page::{
+        ContextGenerator, ContextGeneratorFn, ContextGenerators, ContextItem, ContextMatcher, Page,
+        PageStore,
+    },
     pipeline::Pipeline,
     render::Renderers,
     site_context::SiteContext,
@@ -103,7 +107,7 @@ pub struct RenderedPage {
 }
 
 impl RenderedPage {
-    pub fn new<S: Into<String>>(html: S, target: &RetargetablePathBuf) -> Self {
+    pub fn new<S: Into<String> + std::fmt::Debug>(html: S, target: &RetargetablePathBuf) -> Self {
         Self {
             html: html.into(),
             target: target.clone(),
@@ -234,14 +238,70 @@ impl EngineBroker {
 }
 
 #[derive(Debug)]
+struct Rules {
+    pipelines: Vec<Pipeline>,
+    frontmatter_hooks: FrontmatterHooks,
+    global_ctx: Option<serde_json::Value>,
+    page_ctx: ContextGenerators,
+}
+
+impl Rules {
+    pub fn add_pipeline(&mut self, pipeline: Pipeline) {
+        self.pipelines.push(pipeline);
+    }
+
+    pub fn add_frontmatter_hook(&mut self, hook: FrontmatterHook) {
+        self.frontmatter_hooks.add(hook);
+    }
+
+    pub fn set_global_context(&mut self, global_ctx: serde_json::Value) {
+        self.global_ctx = Some(global_ctx);
+    }
+
+    pub fn add_context_generator(
+        &mut self,
+        matcher: ContextMatcher,
+        generator: ContextGeneratorFn,
+    ) {
+        self.page_ctx.add_generator(matcher, generator)
+    }
+
+    pub fn pipelines(&self) -> impl Iterator<Item = &Pipeline> {
+        self.pipelines.iter()
+    }
+
+    pub fn frontmatter_hooks(&self) -> impl Iterator<Item = &FrontmatterHook> {
+        self.frontmatter_hooks.iter()
+    }
+
+    pub fn global_ctx(&self) -> Option<&serde_json::Value> {
+        self.global_ctx.as_ref()
+    }
+
+    pub fn page_ctx(&self) -> &ContextGenerators {
+        &self.page_ctx
+    }
+}
+
+impl Rules {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            pipelines: vec![],
+            frontmatter_hooks: FrontmatterHooks::new(),
+            global_ctx: None,
+            page_ctx: ContextGenerators::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Engine {
     rt: Arc<Runtime>,
     config: EngineConfig,
-    pipelines: Vec<Pipeline>,
+    rules: Rules,
     page_store: PageStore,
     renderers: Renderers,
-    frontmatter_hooks: FrontmatterHooks,
-    global_ctx: Option<serde_json::Value>,
     broker: EngineBroker,
     devserver: Option<DevServer>,
 }
@@ -271,11 +331,9 @@ impl Engine {
             let mut engine = Self {
                 rt,
                 config,
-                pipelines: vec![],
+                rules: Rules::new(),
                 page_store,
                 renderers,
-                frontmatter_hooks: FrontmatterHooks::new(),
-                global_ctx: None,
                 broker,
                 devserver: None,
             };
@@ -321,13 +379,17 @@ impl Engine {
         Ok((engine_handle, broker_clone))
     }
 
+    pub fn add_context_generator(&mut self, matcher: ContextMatcher, ctx_fn: ContextGeneratorFn) {
+        self.rules.page_ctx.add_generator(matcher, ctx_fn);
+    }
+
     pub fn add_pipeline(&mut self, pipeline: Pipeline) {
-        self.pipelines.push(pipeline)
+        self.rules.add_pipeline(pipeline)
     }
 
     pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<(), anyhow::Error> {
         let engine: &Engine = &self;
-        for pipeline in &engine.pipelines {
+        for pipeline in engine.rules.pipelines() {
             for asset in linked_assets.iter() {
                 if pipeline.is_match(asset.target.to_string_lossy().to_string()) {
                     {
@@ -349,7 +411,7 @@ impl Engine {
     }
 
     pub fn add_frontmatter_hook(&mut self, hook: FrontmatterHook) {
-        self.frontmatter_hooks.add(hook);
+        self.rules.add_frontmatter_hook(hook);
     }
 
     pub fn process_frontmatter_hooks(&self) -> Result<(), anyhow::Error> {
@@ -361,8 +423,8 @@ impl Engine {
                 (
                     page,
                     engine
-                        .frontmatter_hooks
-                        .iter()
+                        .rules
+                        .frontmatter_hooks()
                         .map(|hook_fn| hook_fn(page))
                         .filter(|response| match response {
                             &FrontmatterHookResponse::Ok => false,
@@ -401,18 +463,14 @@ impl Engine {
         ctx_fn: &dyn Fn(&PageStore) -> S,
     ) -> Result<(), anyhow::Error> {
         let ctx = ctx_fn(&self.page_store);
-        let value = serde_json::to_value(ctx)?;
-        self.global_ctx = Some(value);
+        let ctx = serde_json::to_value(ctx)?;
+        self.rules.set_global_context(ctx);
         Ok(())
     }
 
-    pub fn render<S: Serialize>(
-        &self,
-        ctx_fn: Box<dyn Fn(&PageStore, &Page) -> S>,
-    ) -> Result<RenderedPageCollection, anyhow::Error> {
+    pub fn render(&self) -> Result<RenderedPageCollection, anyhow::Error> {
         let engine: &Engine = &self;
         let site_ctx = SiteContext::new("sample");
-        let page_store = engine.page_store.iter().collect::<Vec<_>>();
 
         Ok(RenderedPageCollection {
             pages: engine
@@ -423,8 +481,10 @@ impl Engine {
                         let mut tera_ctx = tera::Context::new();
                         tera_ctx.insert("site", &site_ctx);
                         tera_ctx.insert("content", &page.markdown);
-                        tera_ctx.insert("page_store", &page_store);
-                        if let Some(global) = engine.global_ctx.as_ref() {
+                        tera_ctx.insert("page_store", {
+                            &engine.page_store.iter().collect::<Vec<_>>()
+                        });
+                        if let Some(global) = engine.rules.global_ctx() {
                             tera_ctx.insert("global", global);
                         }
 
@@ -432,10 +492,16 @@ impl Engine {
                             .expect("failed converting page metadata into tera context");
                         tera_ctx.extend(meta_ctx);
 
-                        let user_ctx = ctx_fn(&engine.page_store, &page);
-                        let user_ctx = tera::Context::from_serialize(user_ctx)
-                            .expect("failed converting user supplied object into tera context");
-                        tera_ctx.extend(user_ctx);
+                        let user_ctx = engine
+                            .rules
+                            .page_ctx()
+                            .build_context(&self.page_store, page)?;
+
+                        for ctx in user_ctx {
+                            let mut user_ctx = tera::Context::new();
+                            user_ctx.insert(ctx.identifier, &ctx.data);
+                            tera_ctx.extend(user_ctx);
+                        }
 
                         let renderer = &engine.renderers.tera;
                         renderer
@@ -459,16 +525,13 @@ impl Engine {
         })
     }
 
-    pub fn drop_user_config(&mut self) -> Result<(), anyhow::Error> {
-        self.pipelines = vec![];
-        self.frontmatter_hooks = FrontmatterHooks::new();
-        self.global_ctx = None;
-
+    pub fn unload_user_config(&mut self) -> Result<(), anyhow::Error> {
+        self.rules = Rules::new();
         Ok(())
     }
 
     pub fn process_user_script(&mut self) -> Result<(), anyhow::Error> {
-        self.drop_user_config()?;
+        self.unload_user_config()?;
 
         // This will be the configuration supplied by the user scripts.
         // For now, we are just hard-coding configuration until the scripting
@@ -511,6 +574,15 @@ impl Engine {
             engine.add_frontmatter_hook(hook);
         }
 
+        pub fn add_ctx_generator(engine: &mut Engine) -> Result<(), anyhow::Error> {
+            let matcher = ContextMatcher::Glob(vec!["**/ctxgen/index.md".try_into()?]);
+            let ctx_fn = ContextGeneratorFn::new(Box::new(|page_store, page| -> ContextItem {
+                ContextItem::new("ctxgen_context", "hello!".into())
+            }));
+            engine.add_context_generator(matcher, ctx_fn);
+            Ok(())
+        }
+
         self.set_global_ctx(&|page_store: &PageStore| -> HashMap<String, String> {
             let mut map = HashMap::new();
             map.insert(
@@ -524,6 +596,8 @@ impl Engine {
         add_sed_pipeline(self)?;
 
         add_frontmatter_hook(self);
+
+        add_ctx_generator(self)?;
 
         Ok(())
     }
@@ -542,16 +616,7 @@ impl Engine {
     pub fn build(&mut self) -> Result<(), anyhow::Error> {
         self.process_frontmatter_hooks()?;
 
-        let rendered = self.render(Box::new(
-            |page_store: &PageStore, page: &Page| -> HashMap<String, String> {
-                let mut map = HashMap::new();
-                map.insert(
-                    "dbsample".to_owned(),
-                    "haaaay db sample custom variable!".to_owned(),
-                );
-                map
-            },
-        ))?;
+        let rendered = self.render()?;
         rendered.write_to_disk()?;
 
         let assets = rendered.find_assets()?;
@@ -608,6 +673,8 @@ fn do_build_page_store<P: AsRef<Path>>(
 
     let mut page_store = PageStore::new(&src_root);
     page_store.insert_batch(pages);
+
+    let page_store = page_store;
 
     Ok(page_store)
 }
