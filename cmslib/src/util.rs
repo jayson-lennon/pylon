@@ -139,6 +139,10 @@ impl Glob {
     pub fn is_match_candidate(&self, path: &GlobCandidate<'_>) -> bool {
         self.matcher.is_match_candidate(&path.0)
     }
+
+    pub fn glob(&self) -> &str {
+        self.glob.glob()
+    }
 }
 
 impl TryFrom<String> for Glob {

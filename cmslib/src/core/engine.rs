@@ -9,11 +9,11 @@ use std::{
     sync::Arc,
     thread::{self, JoinHandle},
 };
-use tracing::{instrument, trace};
+use tracing::{instrument, trace, trace_span};
 
 use crate::{
+    core::broker::EngineMsg,
     devserver::{DevServer, DevServerMsg},
-    engine::broker::EngineMsg,
     page::Page,
     pagestore::PageStore,
     render::Renderers,
@@ -83,7 +83,9 @@ impl RenderedPageCollection {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     pub fn find_assets(&self) -> Result<LinkedAssets, anyhow::Error> {
+        trace!("searching for linked external assets in rendered pages");
         let mut all_assets = HashSet::new();
         for page in self.pages.iter() {
             let page_assets = crate::discover::find_assets(&page.html)
@@ -124,6 +126,7 @@ pub struct Engine {
 }
 
 impl Engine {
+    #[instrument]
     pub fn new(
         config: EngineConfig,
     ) -> Result<(JoinHandle<Result<(), anyhow::Error>>, EngineBroker), anyhow::Error> {
@@ -144,6 +147,7 @@ impl Engine {
         let broker = EngineBroker::new(handle);
         let broker_clone = broker.clone();
 
+        trace!("spawning engine thread");
         let engine_handle = thread::spawn(move || {
             let mut engine = Self {
                 rt,
@@ -158,27 +162,21 @@ impl Engine {
             engine.process_user_script()?;
 
             loop {
-                println!("engine loop waiting for messages");
                 match &engine.broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::Build => {
-                            println!("build");
                             engine.build()?;
                         }
                         EngineMsg::Rebuild => {
-                            println!("rebuild");
                             engine.rebuild()?;
                         }
                         EngineMsg::ReloadUserConfig => {
-                            println!("reload config");
                             engine.process_user_script()?;
                         }
                         EngineMsg::StartDevServer(bind, debounce_ms) => {
-                            println!("start dev server");
                             engine.devserver = Some(engine.start_devserver(*bind, *debounce_ms)?);
                         }
                         EngineMsg::Quit => {
-                            println!("quit");
                             break;
                         }
                     },
@@ -200,7 +198,10 @@ impl Engine {
         &mut self.rules
     }
 
+    #[instrument(skip_all)]
     pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<(), anyhow::Error> {
+        trace!("running pipelines");
+
         let engine: &Engine = &self;
         for pipeline in engine.rules.pipelines() {
             for asset in linked_assets.iter() {
@@ -223,8 +224,11 @@ impl Engine {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     pub fn process_frontmatter_hooks(&self) -> Result<(), anyhow::Error> {
-        use crate::engine::rules::FrontmatterHookResponse;
+        trace!("processing frontmatter hooks");
+
+        use crate::core::rules::FrontmatterHookResponse;
 
         let engine: &Engine = &self;
         let responses: Vec<(&Page, Vec<FrontmatterHookResponse>)> = engine
@@ -252,11 +256,8 @@ impl Engine {
                 match issue {
                     FrontmatterHookResponse::Error(msg) => {
                         abort = true;
-                        println!("{:?}: {}", page.canonical_path, msg)
                     }
-                    FrontmatterHookResponse::Warn(msg) => {
-                        println!("{:?}: {}", page.canonical_path, msg)
-                    }
+                    FrontmatterHookResponse::Warn(msg) => {}
                     _ => (),
                 }
             }
@@ -269,7 +270,10 @@ impl Engine {
         }
     }
 
+    #[instrument(skip_all)]
     pub fn render(&self) -> Result<RenderedPageCollection, anyhow::Error> {
+        trace!("rendering pages");
+
         let engine: &Engine = &self;
         let site_ctx = SiteContext::new("sample");
 
@@ -326,13 +330,17 @@ impl Engine {
         })
     }
 
+    #[instrument(skip_all)]
     pub fn unload_user_config(&mut self) -> Result<(), anyhow::Error> {
+        trace!("user configuration unloaded");
         self.rules = Rules::new();
         Ok(())
     }
 
+    #[instrument(skip_all)]
     pub fn process_user_script(&mut self) -> Result<(), anyhow::Error> {
         self.unload_user_config()?;
+        trace!("processing user configuration script");
 
         // This will be the configuration supplied by the user scripts.
         // For now, we are just hard-coding configuration until the scripting
@@ -361,7 +369,7 @@ impl Engine {
         }
 
         pub fn add_frontmatter_hook(engine: &mut Engine) {
-            use crate::engine::rules::FrontmatterHookResponse;
+            use crate::core::rules::FrontmatterHookResponse;
 
             let hook = Box::new(|page: &Page| -> FrontmatterHookResponse {
                 if page.canonical_path.as_str().starts_with("/db") {
@@ -407,21 +415,28 @@ impl Engine {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     pub fn rebuild_page_store(&mut self) -> Result<(), anyhow::Error> {
+        trace!("rebuilding the page store");
         self.page_store = do_build_page_store(&self.config.src_root, &self.renderers)?;
         Ok(())
     }
 
+    #[instrument(skip_all)]
     pub fn rebuild(&mut self) -> Result<(), anyhow::Error> {
+        trace!("rebuilding everything");
         self.renderers.tera.reload()?;
         self.rebuild_page_store()?;
         self.build()
     }
 
+    #[instrument(skip_all)]
     pub fn build(&mut self) -> Result<(), anyhow::Error> {
+        trace!("running build");
         self.process_frontmatter_hooks()?;
 
         let rendered = self.render()?;
+        trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
 
         let assets = rendered.find_assets()?;
@@ -430,11 +445,13 @@ impl Engine {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     pub fn start_devserver(
         &self,
         bind: SocketAddr,
         debounce_ms: u64,
     ) -> Result<DevServer, anyhow::Error> {
+        trace!("starting devserver");
         use crate::devserver;
         use std::time::Duration;
 
@@ -473,7 +490,7 @@ fn do_build_page_store<P: AsRef<Path>>(
 
     let template_names = renderers.tera.get_template_names().collect::<HashSet<_>>();
     for page in pages.iter_mut() {
-        page.set_default_template(&template_names)?;
+        page.set_template(&template_names)?;
     }
 
     let mut page_store = PageStore::new(&src_root);

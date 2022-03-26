@@ -3,12 +3,15 @@ use poem::{
     web::{Data, Path},
     Response,
 };
+use tracing::{instrument, trace};
 
 #[derive(Clone, Debug)]
 pub struct OutputRootDir(pub String);
 
+#[instrument(skip(mount_point))]
 #[handler]
 pub fn handle(Path(path): Path<String>, mount_point: Data<&OutputRootDir>) -> Response {
+    trace!("handling static file request");
     use poem::http::StatusCode;
     use std::path::PathBuf;
 

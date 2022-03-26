@@ -1,7 +1,7 @@
 use crate::util::{Glob, GlobCandidate};
 use anyhow::Context;
 use std::path::{Path, PathBuf};
-use tracing::info;
+use tracing::{info_span, instrument, trace};
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
@@ -39,11 +39,17 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
+    #[instrument(skip_all)]
     pub fn new<G: TryInto<Glob, Error = globset::Error>>(
         target_glob: G,
         autorun: AutorunTrigger,
     ) -> Result<Self, anyhow::Error> {
         let target_glob = target_glob.try_into()?;
+        trace!(
+            "make new pipeline using glob target {} and autorun trigger {:?}",
+            target_glob.glob(),
+            autorun
+        );
 
         Ok(Self {
             target_glob,
@@ -64,12 +70,14 @@ impl Pipeline {
         self.target_glob.is_match_candidate(asset.as_ref())
     }
 
-    pub fn run<P: AsRef<Path>>(
+    #[instrument(skip(self))]
+    pub fn run<P: AsRef<Path> + std::fmt::Debug>(
         &self,
         src_root: P,
         output_root: P,
         target_asset: P,
     ) -> Result<(), anyhow::Error> {
+        trace!("run pipeline");
         let src_root = src_root.as_ref();
         let output_root = output_root.as_ref();
         let target_asset = target_asset.as_ref();
@@ -80,23 +88,24 @@ impl Pipeline {
             buf.push(target_asset);
             buf
         };
+
         let output_path = {
             let mut buf = PathBuf::from(output_root);
             buf.push(target_asset);
             buf
         };
+
         // let mut input_path = self.dirs.abs_src_asset(target_asset);
         // let output_path = self.dirs.abs_target_asset(target_asset);
         for op in self.ops.iter() {
-            let _span = tracing::info_span!(target: "pipeline_spans", "perform pipeline operation")
-                .entered();
+            let _span = info_span!("perform pipeline operation").entered();
             match op {
                 Operation::Copy => {
-                    info!(target: "pipeline_event", "copy: {:?} -> {:?}", input_path, output_path);
+                    trace!("copy: {:?} -> {:?}", input_path, output_path);
                     std::fs::copy(&input_path, &output_path).with_context(||format!("Failed performing copy operation in pipeline. '{input_path:?}' -> '{output_path:?}'"))?;
                 }
                 Operation::Shell(command) => {
-                    info!(target: "pipeline_event", "shell command: {:?}", command);
+                    trace!("shell command: {:?}", command);
                     let artifact_path = {
                         if command.has_output() {
                             let tmp = crate::util::gen_temp_file()
@@ -135,7 +144,9 @@ impl Pipeline {
                 }
             }
         }
+        trace!("cleaning up temp files");
         for f in tmp_files {
+            trace!("remove {}", f.to_string_lossy());
             std::fs::remove_file(&f).with_context(|| {
                 format!(
                     "Failed to clean up temporary file: '{}'",

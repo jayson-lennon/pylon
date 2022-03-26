@@ -1,5 +1,5 @@
 use super::DevServerReceiver;
-use crate::engine::broker::EngineBroker;
+use crate::core::broker::EngineBroker;
 use async_lock::Mutex;
 use poem::{
     handler,
@@ -12,6 +12,7 @@ use poem::{
 use slotmap::DenseSlotMap;
 use std::sync::Arc;
 use std::thread;
+use tracing::{instrument, trace};
 
 #[derive(Clone, Debug)]
 pub struct LiveReloadReceiver(pub DevServerReceiver);
@@ -87,7 +88,7 @@ impl ClientBroker {
         let clients = self.clients.lock().await;
         for (id, client) in clients.iter() {
             if let Err(e) = client.tx.send(msg).await {
-                eprintln!("error sending dev server event to client {:?}: {:?}", id, e);
+                trace!("error sending dev server event to client {:?}: {:?}", id, e);
             }
         }
     }
@@ -104,14 +105,17 @@ impl ClientBroker {
     }
 }
 
+#[instrument(skip_all)]
 #[handler]
 pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse {
+    trace!("incoming websocket connection");
     use futures_util::{SinkExt, StreamExt};
 
     let clients = clients.clone();
 
     // on_upgrade corresponds to a successfully connected client
     ws.on_upgrade(move |socket| async move {
+        trace!("upgrade successful");
         let (mut sink, _) = socket.split();
 
         // track client
@@ -119,6 +123,7 @@ pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse 
 
         // each client will listen on their respective channel
         tokio::spawn(async move {
+            trace!("spawned livereload websocket task");
             loop {
                 if let Ok(msg) = clients
                     .receiver(client_id)
@@ -129,15 +134,16 @@ pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse 
                 {
                     match msg {
                         DevServerMsg::ReloadPage => {
+                            trace!("live reload message sent to client {:?}", client_id);
                             if let Err(e) = sink.send(Message::Text(format!("RELOAD"))).await {
-                                eprintln!("error sending message to client: {}", e);
+                                trace!("error sending message to live reload client: {}. terminating websocket connection (probably left page)", e);
                                 clients.remove(client_id).await;
                                 return;
                             }
                         }
                     }
                 } else {
-                    eprintln!("reading from client channel should never fail; closing corresponding websocket connection");
+                    trace!("reading from client channel should never fail; closing corresponding websocket connection");
                     clients.remove(client_id).await;
                     return;
                 }

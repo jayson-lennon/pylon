@@ -4,6 +4,7 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
+use tracing::{instrument, trace};
 
 #[derive(Debug)]
 pub struct PageStore {
@@ -37,7 +38,9 @@ impl PageStore {
         self.pages.get_mut(*page_key)
     }
 
+    #[instrument(skip_all, fields(page=%page.canonical_path.to_string()))]
     pub fn insert(&mut self, page: Page) -> PageKey {
+        trace!("inserting page into page store");
         let search_key = page.system_path.to_path_buf();
 
         let page_key = self.pages.insert_with_key(|key| {

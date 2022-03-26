@@ -7,6 +7,7 @@ use crate::{
 use anyhow::anyhow;
 use slotmap::SlotMap;
 use std::collections::HashSet;
+use tracing::{instrument, trace};
 
 slotmap::new_key_type! {
     pub struct GeneratorKey;
@@ -108,7 +109,9 @@ impl Generators {
         }
     }
 
+    #[instrument(skip_all)]
     pub fn add_generator(&mut self, matcher: Matcher, generator: GeneratorFunc) {
+        trace!("add context generator function");
         let key = self.generators.insert(generator);
         self.matchers.push((matcher, key));
     }
@@ -144,18 +147,19 @@ impl Generators {
             .collect()
     }
 
+    #[instrument(skip(self, page_store, for_page), fields(page = ?for_page.canonical_path.to_string()))]
     pub fn build_context(
         &self,
         page_store: &PageStore,
         for_page: &Page,
     ) -> Result<Vec<ContextItem>, anyhow::Error> {
+        trace!("building page-specific context");
         let contexts = self
             .find_generators(for_page)
             .iter()
             .filter_map(|key| self.generators.get(*key))
             .map(|gen| gen.call(page_store, for_page))
             .collect::<Vec<_>>();
-        dbg!(&contexts);
 
         let mut identifiers = HashSet::new();
         for ctx in contexts.iter() {

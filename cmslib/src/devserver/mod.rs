@@ -2,11 +2,12 @@ pub mod fswatcher;
 mod livereload;
 mod staticfiles;
 
-use crate::engine::broker::EngineBroker;
+use crate::core::broker::EngineBroker;
 pub use livereload::DevServerMsg;
 use poem::EndpointExt;
 use std::net::SocketAddr;
 use std::thread::JoinHandle;
+use tracing::{instrument, trace};
 
 /*
 `run` starts up the fswatcher which responds to filesystem events by pushing an event into the event channel.
@@ -26,8 +27,12 @@ pub struct DevServer {
 }
 
 impl DevServer {
+    #[instrument(skip(broker))]
     #[must_use]
-    pub fn run<P: AsRef<std::path::Path>, B: Into<SocketAddr>>(
+    pub fn run<
+        P: AsRef<std::path::Path> + std::fmt::Debug,
+        B: Into<SocketAddr> + std::fmt::Debug,
+    >(
         broker: EngineBroker,
         output_root: P,
         bind: B,
@@ -36,6 +41,7 @@ impl DevServer {
         let bind = bind.into();
 
         let broker_clone = broker.clone();
+        trace!("spawning web server thread...");
         let handle = std::thread::spawn(move || {
             broker_clone
                 .handle()
@@ -50,11 +56,14 @@ impl DevServer {
     }
 }
 
-async fn run<R: AsRef<std::path::Path>, B: Into<SocketAddr>>(
+#[instrument(skip(broker))]
+async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + std::fmt::Debug>(
     broker: EngineBroker,
     output_root: R,
     bind: B,
 ) -> Result<(), anyhow::Error> {
+    trace!("starting dev server");
+
     use poem::listener::TcpListener;
     use poem::middleware::AddData;
     use poem::{get, Route, Server};

@@ -7,6 +7,7 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
+use tracing::{instrument, trace, trace_span};
 
 slotmap::new_key_type! {
     pub struct PageKey;
@@ -63,11 +64,10 @@ impl Page {
         self.page_key = key;
     }
 
-    pub fn set_default_template(
-        &mut self,
-        template_paths: &HashSet<&str>,
-    ) -> Result<(), anyhow::Error> {
+    #[instrument(skip_all, fields(page=%self.canonical_path.to_string()))]
+    pub fn set_template(&mut self, template_paths: &HashSet<&str>) -> Result<(), anyhow::Error> {
         if self.frontmatter.template_path.is_none() {
+            let _span = trace_span!("no template specified").entered();
             match get_default_template_path(template_paths, &self.canonical_path) {
                 Some(template) => self.frontmatter.template_path = Some(template),
                 None => {
@@ -83,8 +83,9 @@ impl Page {
     }
 }
 
+#[instrument(ret)]
 fn get_default_template_path(
-    default_template_dirs: &HashSet<&str>,
+    default_template_paths: &HashSet<&str>,
     page_path: &CanonicalPath,
 ) -> Option<String> {
     // This function chomps the page path until no more components are remaining.
@@ -99,7 +100,7 @@ fn get_default_template_path(
             template_path.to_string_lossy().to_string()
         };
 
-        if default_template_dirs.contains(&template_path.as_str()) {
+        if default_template_paths.contains(&template_path.as_str()) {
             return Some(template_path);
         }
     }

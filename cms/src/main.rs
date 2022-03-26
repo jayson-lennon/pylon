@@ -1,5 +1,5 @@
 use clap::Parser;
-use cmslib::engine::{broker::EngineMsg, config::EngineConfig, engine::Engine};
+use cmslib::core::{broker::EngineMsg, config::EngineConfig, engine::Engine};
 use std::net::SocketAddr;
 
 use tracing::Level;

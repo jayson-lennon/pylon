@@ -66,12 +66,10 @@ impl EngineBroker {
     }
 
     async fn recv_engine_msg(&self) -> Result<EngineMsg, anyhow::Error> {
-        println!("try to recv engine msg async");
         Ok(self.engine.1.recv().await?)
     }
 
     pub fn recv_engine_msg_sync(&self) -> Result<EngineMsg, anyhow::Error> {
-        println!("try to recv engine msg");
         self.rt_handle
             .block_on(async { self.recv_engine_msg().await })
     }

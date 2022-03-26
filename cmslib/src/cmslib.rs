@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
+pub mod core;
 pub mod devserver;
 pub mod discover;
-pub mod engine;
 pub mod frontmatter;
 pub mod gctx;
 pub mod page;
