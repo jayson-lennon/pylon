@@ -1,4 +1,4 @@
-use crate::core::broker::{EngineBroker, EngineMsg};
+use crate::core::broker::{EngineBroker, EngineMsg, FilesystemUpdateEvents};
 use hotwatch::blocking::Flow;
 use hotwatch::{blocking::Hotwatch, Event};
 use std::path::Path;
@@ -7,8 +7,8 @@ use std::time::Duration;
 use tracing::{instrument, trace};
 
 #[derive(Debug)]
-enum DebounceMsg {
-    Trigger,
+enum WatchMsg {
+    Ev(Event),
 }
 
 #[instrument(skip(broker))]
@@ -24,7 +24,7 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
         .map(|p| p.as_ref().to_path_buf())
         .collect::<Vec<_>>();
 
-    let (debounce_tx, debounce_rx) = crossbeam_channel::unbounded();
+    let (engine_relay_tx, engine_relay_rx) = crossbeam_channel::unbounded();
 
     trace!("spawning watcher thread");
     thread::spawn(move || {
@@ -32,11 +32,11 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
             .expect("hotwatch failed to initialize!");
 
         for dir in dirs.iter() {
-            let debounce_tx = debounce_tx.clone();
+            let engine_relay_tx = engine_relay_tx.clone();
             hotwatch
-                .watch(dir, move |_: Event| {
-                    debounce_tx
-                        .send(DebounceMsg::Trigger)
+                .watch(dir, move |ev: Event| {
+                    engine_relay_tx
+                        .send(WatchMsg::Ev(ev))
                         .expect("error communicating with debounce thread on filesystem watcher");
                     Flow::Continue
                 })
@@ -46,20 +46,45 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
         hotwatch.run();
     });
 
-    trace!("spawning debouncer thread");
+    trace!("spawning engine comms thread");
     thread::spawn(move || loop {
-        if debounce_rx.recv().is_err() {
-            panic!("internal error in fswatcher thread");
+        let mut events = FilesystemUpdateEvents::new();
+        match engine_relay_rx.recv() {
+            Ok(msg) => {
+                let WatchMsg::Ev(ev) = msg;
+                add_event(&mut events, ev);
+            }
+            Err(e) => panic!("internal error in fswatcher thread: {:?}", e),
         }
         loop {
-            if let Err(_) = debounce_rx.recv_timeout(debounce_wait) {
-                broker
-                    .send_engine_msg_sync(EngineMsg::Rebuild)
-                    .expect("error communicating with engine from filesystem watcher");
-                break;
+            match engine_relay_rx.recv_timeout(debounce_wait) {
+                Ok(msg) => {
+                    let WatchMsg::Ev(ev) = msg;
+                    add_event(&mut events, ev);
+                }
+                Err(_) => {
+                    broker
+                        .send_engine_msg_sync(EngineMsg::FilesystemUpdate(events))
+                        .expect("error communicating with engine from filesystem watcher");
+                    break;
+                }
             }
         }
     });
 
     Ok(())
+}
+
+fn add_event(events: &mut FilesystemUpdateEvents, ev: Event) {
+    use Event::*;
+    match ev {
+        Create(path) => events.added(path),
+        Remove(path) => events.deleted(path),
+        Write(path) => events.changed(path),
+        Rename(src, dst) => {
+            events.deleted(src);
+            events.added(dst);
+        }
+        _ => (),
+    }
 }

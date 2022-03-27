@@ -1,11 +1,56 @@
+use std::{collections::HashSet, path::PathBuf};
+
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
 use tokio::runtime::Handle;
 
 type EngineSender = async_channel::Sender<EngineMsg>;
 type EngineReceiver = async_channel::Receiver<EngineMsg>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+pub struct FilesystemUpdateEvents {
+    changed: HashSet<PathBuf>,
+    deleted: HashSet<PathBuf>,
+    added: HashSet<PathBuf>,
+}
+
+impl FilesystemUpdateEvents {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            changed: HashSet::new(),
+            deleted: HashSet::new(),
+            added: HashSet::new(),
+        }
+    }
+
+    pub fn changed<P: Into<PathBuf>>(&mut self, path: P) {
+        self.changed.insert(path.into());
+    }
+
+    pub fn deleted<P: Into<PathBuf>>(&mut self, path: P) {
+        self.deleted.insert(path.into());
+    }
+
+    pub fn added<P: Into<PathBuf>>(&mut self, path: P) {
+        self.added.insert(path.into());
+    }
+
+    pub fn get_changed(&self) -> impl Iterator<Item = &PathBuf> {
+        self.changed.iter()
+    }
+
+    pub fn get_deleted(&self) -> impl Iterator<Item = &PathBuf> {
+        self.deleted.iter()
+    }
+
+    pub fn get_added(&self) -> impl Iterator<Item = &PathBuf> {
+        self.added.iter()
+    }
+}
+
+#[derive(Debug)]
 pub enum EngineMsg {
+    FilesystemUpdate(FilesystemUpdateEvents),
     /// Builds the site using existing configuration and source material
     Build,
     /// Builds the site using existing configuration, but rescans all source material

@@ -9,7 +9,7 @@ use std::{
     sync::Arc,
     thread::{self, JoinHandle},
 };
-use tracing::{instrument, trace, trace_span};
+use tracing::{instrument, trace};
 
 use crate::{
     core::broker::EngineMsg,
@@ -164,6 +164,10 @@ impl Engine {
             loop {
                 match &engine.broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
+                        EngineMsg::FilesystemUpdate(_) => {
+                            // TODO: handle individual file updates
+                            engine.rebuild()?;
+                        }
                         EngineMsg::Build => {
                             engine.build()?;
                         }

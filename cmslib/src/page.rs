@@ -7,7 +7,7 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
-use tracing::{instrument, trace, trace_span};
+use tracing::{instrument, trace_span};
 
 slotmap::new_key_type! {
     pub struct PageKey;
