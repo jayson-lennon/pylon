@@ -210,17 +210,21 @@ impl Engine {
         for pipeline in engine.rules.pipelines() {
             for asset in linked_assets.iter() {
                 if pipeline.is_match(asset.target.to_string_lossy().to_string()) {
-                    {
-                        // Make a new target in order to create directories for the asset.
-                        let mut target_dir = PathBuf::from(&engine.config.output_root);
-                        target_dir.push(&asset.target);
-                        let target_dir = target_dir.parent().expect("should have parent directory");
-                        make_parent_dirs(target_dir)?;
-                    }
+                    // Make a new target in order to create directories for the asset.
+                    let mut target_dir = PathBuf::from(&engine.config.output_root);
+                    let target_asset = if let Ok(path) = asset.target.strip_prefix("/") {
+                        path
+                    } else {
+                        &asset.target
+                    };
+                    target_dir.push(target_asset);
+                    let target_dir = target_dir.parent().expect("should have parent directory");
+                    make_parent_dirs(target_dir)?;
+
                     pipeline.run(
                         &engine.config.src_root,
                         &engine.config.output_root,
-                        &asset.target,
+                        target_asset,
                     )?;
                 }
             }
@@ -317,10 +321,30 @@ impl Engine {
                             .render(template, &tera_ctx)
                             .map(|html| {
                                 // change file extension to 'html'
-                                let target_path = page
-                                    .system_path
-                                    .with_root::<&Path>(&engine.config.output_root)
-                                    .with_extension("html");
+                                let target_path = {
+                                    if page.canonical_path.as_str().ends_with("index.md") {
+                                        page.system_path
+                                            .with_root::<&Path>(&engine.config.output_root)
+                                            .with_extension("html")
+                                    } else {
+                                        // will require linking directly to file
+                                        if page.frontmatter.use_file_url {
+                                            page.system_path
+                                                .with_root::<&Path>(&engine.config.output_root)
+                                                .with_extension("html")
+                                        } else {
+                                            // uses index.html and a subdirectory with the
+                                            // page name will be created so no direct
+                                            // file link is needed
+                                            let mut path = page
+                                                .system_path
+                                                .with_root::<&Path>(&engine.config.output_root)
+                                                .with_extension("");
+                                            path.push_path("index.html");
+                                            path
+                                        }
+                                    }
+                                };
                                 RenderedPage::new(html, &target_path)
                             })
                             .map_err(|e| anyhow!("{}", e))
@@ -476,7 +500,9 @@ impl Engine {
     }
 }
 
-fn make_parent_dirs<P: AsRef<Path>>(dir: P) -> Result<(), std::io::Error> {
+#[instrument]
+fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<(), std::io::Error> {
+    trace!("create parent directories");
     std::fs::create_dir_all(dir)
 }
 

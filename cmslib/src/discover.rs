@@ -4,6 +4,9 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
+use tracing::instrument;
+use tracing::trace;
+
 pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Result<Vec<PathBuf>> {
     let mut paths = vec![];
     if root.is_dir() {
@@ -21,6 +24,7 @@ pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Resu
     Ok(paths)
 }
 
+#[instrument(skip_all, ret)]
 pub fn find_assets<T: AsRef<str>>(html: T) -> HashSet<String> {
     use scraper::{Html, Selector};
 

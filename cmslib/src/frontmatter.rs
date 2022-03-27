@@ -5,5 +5,6 @@ use std::collections::HashMap;
 #[serde(default)]
 pub struct FrontMatter {
     pub template_path: Option<String>,
+    pub use_file_url: bool,
     pub meta: HashMap<String, serde_json::Value>,
 }

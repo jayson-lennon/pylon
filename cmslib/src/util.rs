@@ -92,6 +92,10 @@ impl RetargetablePathBuf {
         self.target.set_extension(extension);
     }
 
+    pub fn push_path<P: AsRef<Path>>(&mut self, path: P) {
+        self.target.push(path);
+    }
+
     pub fn to_parent(&self) -> Self {
         let mut new_buf = self.clone();
         new_buf.target.pop();

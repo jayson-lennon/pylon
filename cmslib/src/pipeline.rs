@@ -1,7 +1,7 @@
 use crate::util::{Glob, GlobCandidate};
 use anyhow::Context;
 use std::path::{Path, PathBuf};
-use tracing::{info_span, instrument, trace};
+use tracing::{info_span, instrument, trace, trace_span};
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
@@ -71,12 +71,17 @@ impl Pipeline {
     }
 
     #[instrument(skip(self))]
-    pub fn run<P: AsRef<Path> + std::fmt::Debug>(
+    pub fn run<S, O, T>(
         &self,
-        src_root: P,
-        output_root: P,
-        target_asset: P,
-    ) -> Result<(), anyhow::Error> {
+        src_root: S,
+        output_root: O,
+        target_asset: T,
+    ) -> Result<(), anyhow::Error>
+    where
+        S: AsRef<Path> + std::fmt::Debug,
+        O: AsRef<Path> + std::fmt::Debug,
+        T: AsRef<Path> + std::fmt::Debug,
+    {
         trace!("run pipeline");
         let src_root = src_root.as_ref();
         let output_root = output_root.as_ref();
@@ -144,7 +149,8 @@ impl Pipeline {
                 }
             }
         }
-        trace!("cleaning up temp files");
+        let _span = trace_span!("clean up temp files").entered();
+        trace!(files = ?tmp_files);
         for f in tmp_files {
             trace!("remove {}", f.to_string_lossy());
             std::fs::remove_file(&f).with_context(|| {

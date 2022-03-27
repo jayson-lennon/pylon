@@ -11,11 +11,32 @@ edited md file
 
 ![img d](d.png)
 
-[relative link to post1 with @](@./post1/index.md)
+[linktype1](@./post1)
 
-[absolute link to post1 with @](@/blog/post1/index.md)
+[linktype2](@./post1/)
 
-[absolute link](/blog/post1/index.md)
+[linktype3](@./post1/index.md)
+
+[linktype4](@./post1/index.html)
+
+[linktype5](@/blog/post1)
+
+[linktype6](@/blog/post1/)
+
+[linktype7](@/blog/post1/index.md)
+
+
+[linktype8](@blog/post1)
+
+[linktype9](@blog/post1/)
+
+[linktype10](@blog/post1/index.md)
+
+
+
+[linktype4](/blog/post1/index.md)
+
+[linktype5](post1)
 
 [relative link with dot](./post1/index.md)
 
