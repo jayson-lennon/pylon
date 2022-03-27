@@ -8,7 +8,7 @@ use tracing::{instrument, trace};
 #[derive(Clone, Debug)]
 pub struct OutputRootDir(pub String);
 
-#[instrument(skip(mount_point))]
+#[instrument(skip(mount_point), ret)]
 #[handler]
 pub fn handle(Path(path): Path<String>, mount_point: Data<&OutputRootDir>) -> Response {
     trace!("handling static file request");
@@ -37,7 +37,7 @@ pub fn handle(Path(path): Path<String>, mount_point: Data<&OutputRootDir>) -> Re
             trace!("no extension detected. redirecting to directory url");
             return Response::builder()
                 .status(StatusCode::SEE_OTHER)
-                .header("Location", format!("{}/", path))
+                .header("Location", format!("/{}/", path))
                 .finish();
         }
     }
