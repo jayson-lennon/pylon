@@ -19,21 +19,22 @@ fn do_render<M: AsRef<str>>(raw_markdown: M) -> String {
 
     let href_re = crate::util::static_regex!(r#"(^[[:alnum:]]*:.*)|(^[[:digit:]]*\..*)|(^/.*)"#);
 
-    let parser = Parser::new_ext(raw_markdown, options).map(|ev| match ev {
-        Event::Start(Tag::Link(LinkType::Inline, href, title)) => {
-            if href_re.is_match(&href) {
-                Event::Start(Tag::Link(LinkType::Inline, href, title))
-            } else {
-                let new_href = compose_relative_path(&href);
-                Event::Start(Tag::Link(
-                    LinkType::Inline,
-                    CowStr::Boxed(new_href.into_boxed_str()),
-                    title,
-                ))
-            }
-        }
-        _ => ev,
-    });
+    // let parser = Parser::new_ext(raw_markdown, options).map(|ev| match ev {
+    //     Event::Start(Tag::Link(LinkType::Inline, href, title)) => {
+    //         if href_re.is_match(&href) {
+    //             Event::Start(Tag::Link(LinkType::Inline, href, title))
+    //         } else {
+    //             let new_href = compose_relative_path(&href);
+    //             Event::Start(Tag::Link(
+    //                 LinkType::Inline,
+    //                 CowStr::Boxed(new_href.into_boxed_str()),
+    //                 title,
+    //             ))
+    //         }
+    //     }
+    //     _ => ev,
+    // });
+    let parser = Parser::new_ext(raw_markdown, options);
 
     html::push_html(&mut buf, parser);
 
