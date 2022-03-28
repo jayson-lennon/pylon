@@ -4,7 +4,6 @@ pub mod core;
 pub mod devserver;
 pub mod discover;
 pub mod frontmatter;
-pub mod gctx;
 pub mod page;
 pub mod pagestore;
 pub mod pipeline;

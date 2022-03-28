@@ -1,11 +1,9 @@
-use crate::{
-    gctx::{GeneratorFunc, Generators, Matcher},
-    page::Page,
-    pipeline::Pipeline,
-};
+use super::gctx::{Generators, Matcher};
+use crate::core::rules::script::ScriptEngine;
+use crate::{page::Page, pipeline::Pipeline};
 use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Rules {
     pipelines: Vec<Pipeline>,
     frontmatter_hooks: FrontmatterHooks,
@@ -18,7 +16,7 @@ impl Rules {
         self.pipelines.push(pipeline);
     }
 
-    pub fn add_frontmatter_hook(&mut self, hook: FrontmatterHook) {
+    pub fn add_frontmatter_hook(&mut self, hook: rhai::FnPtr) {
         self.frontmatter_hooks.add(hook);
     }
 
@@ -28,16 +26,12 @@ impl Rules {
         Ok(())
     }
 
-    pub fn add_context_generator(&mut self, matcher: Matcher, generator: GeneratorFunc) {
+    pub fn add_context_generator(&mut self, matcher: Matcher, generator: rhai::FnPtr) {
         self.page_context.add_generator(matcher, generator)
     }
 
     pub fn pipelines(&self) -> impl Iterator<Item = &Pipeline> {
         self.pipelines.iter()
-    }
-
-    pub fn frontmatter_hooks(&self) -> impl Iterator<Item = &FrontmatterHook> {
-        self.frontmatter_hooks.iter()
     }
 
     pub fn global_context(&self) -> Option<&serde_json::Value> {
@@ -46,6 +40,10 @@ impl Rules {
 
     pub fn page_context(&self) -> &Generators {
         &self.page_context
+    }
+
+    pub fn test(&mut self) {
+        self.global_context = None;
     }
 }
 
@@ -70,24 +68,16 @@ pub enum FrontmatterHookResponse {
 
 type FrontmatterHook = Box<dyn Fn(&Page) -> FrontmatterHookResponse>;
 
+#[derive(Debug, Clone)]
 pub struct FrontmatterHooks {
-    inner: Vec<Box<dyn Fn(&Page) -> FrontmatterHookResponse>>,
+    inner: Vec<rhai::FnPtr>,
 }
 
 impl FrontmatterHooks {
     pub fn new() -> Self {
         Self { inner: vec![] }
     }
-    pub fn add(&mut self, hook: FrontmatterHook) {
+    pub fn add(&mut self, hook: rhai::FnPtr) {
         self.inner.push(hook);
-    }
-    pub fn iter(&self) -> impl Iterator<Item = &FrontmatterHook> {
-        self.inner.iter()
-    }
-}
-
-impl std::fmt::Debug for FrontmatterHooks {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("FrontmatterHook count: {}", self.inner.len()))
     }
 }

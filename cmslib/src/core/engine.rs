@@ -12,7 +12,7 @@ use std::{
 use tracing::{instrument, trace};
 
 use crate::{
-    core::broker::EngineMsg,
+    core::{broker::EngineMsg, rules::script::ScriptEngineConfig},
     devserver::{DevServer, DevServerMsg},
     page::Page,
     pagestore::PageStore,
@@ -21,7 +21,14 @@ use crate::{
     util::RetargetablePathBuf,
 };
 
-use super::{broker::EngineBroker, config::EngineConfig, rules::Rules};
+use super::{
+    broker::EngineBroker,
+    config::EngineConfig,
+    rules::{
+        script::{RuleEngine, ScriptEngine},
+        Rules,
+    },
+};
 
 #[derive(Clone, Debug, Serialize, Default, Eq, PartialEq, Hash)]
 pub struct LinkedAsset {
@@ -116,13 +123,20 @@ impl RenderedPageCollection {
 
 #[derive(Debug)]
 pub struct Engine {
+    // These don't change after being initialized
     rt: Arc<tokio::runtime::Runtime>,
     config: EngineConfig,
-    rules: Rules,
-    page_store: PageStore,
+    script_engine: ScriptEngine,
     renderers: Renderers,
     broker: EngineBroker,
     devserver: Option<DevServer>,
+
+    // reset when the user script is updated
+    rules: Rules,
+    // reset when the user script is updated
+    rule_engine: RuleEngine,
+    // reset when content is updated
+    page_store: PageStore,
 }
 
 impl Engine {
@@ -149,17 +163,25 @@ impl Engine {
 
         trace!("spawning engine thread");
         let engine_handle = thread::spawn(move || {
+            let script_engine_config = ScriptEngineConfig::new();
+            let script_engine = ScriptEngine::new(&script_engine_config.modules());
+
+            let rule_script = std::fs::read_to_string(&config.rule_script)?;
+
+            let (rule_engine, rules) = script_engine.build_rules(rule_script)?;
+
             let mut engine = Self {
                 rt,
                 config,
-                rules: Rules::new(),
-                page_store,
                 renderers,
                 broker,
                 devserver: None,
-            };
 
-            engine.process_user_script()?;
+                rules,
+                rule_engine,
+                page_store,
+                script_engine,
+            };
 
             loop {
                 match &engine.broker.recv_engine_msg_sync() {
@@ -234,48 +256,49 @@ impl Engine {
 
     #[instrument(skip_all)]
     pub fn process_frontmatter_hooks(&self) -> Result<(), anyhow::Error> {
-        trace!("processing frontmatter hooks");
+        Ok(())
+        // trace!("processing frontmatter hooks");
 
-        use crate::core::rules::FrontmatterHookResponse;
+        // use crate::core::rules::FrontmatterHookResponse;
 
-        let engine: &Engine = &self;
-        let responses: Vec<(&Page, Vec<FrontmatterHookResponse>)> = engine
-            .page_store
-            .iter()
-            .map(|page| {
-                (
-                    page,
-                    engine
-                        .rules
-                        .frontmatter_hooks()
-                        .map(|hook_fn| hook_fn(page))
-                        .filter(|response| match response {
-                            &FrontmatterHookResponse::Ok => false,
-                            _ => true,
-                        })
-                        .collect(),
-                )
-            })
-            .collect();
+        // let engine: &Engine = &self;
+        // let responses: Vec<(&Page, Vec<FrontmatterHookResponse>)> = engine
+        //     .page_store
+        //     .iter()
+        //     .map(|page| {
+        //         (
+        //             page,
+        //             engine
+        //                 .rules
+        //                 .frontmatter_hooks()
+        //                 .map(|hook_fn| hook_fn(page))
+        //                 .filter(|response| match response {
+        //                     &FrontmatterHookResponse::Ok => false,
+        //                     _ => true,
+        //                 })
+        //                 .collect(),
+        //         )
+        //     })
+        //     .collect();
 
-        let mut abort = false;
-        for (page, issues) in responses.iter() {
-            for issue in issues {
-                match issue {
-                    FrontmatterHookResponse::Error(msg) => {
-                        abort = true;
-                    }
-                    FrontmatterHookResponse::Warn(msg) => {}
-                    _ => (),
-                }
-            }
-        }
+        // let mut abort = false;
+        // for (page, issues) in responses.iter() {
+        //     for issue in issues {
+        //         match issue {
+        //             FrontmatterHookResponse::Error(msg) => {
+        //                 abort = true;
+        //             }
+        //             FrontmatterHookResponse::Warn(msg) => {}
+        //             _ => (),
+        //         }
+        //     }
+        // }
 
-        if abort {
-            Err(anyhow!("frontmatter hook errors occurred"))
-        } else {
-            Ok(())
-        }
+        // if abort {
+        //     Err(anyhow!("frontmatter hook errors occurred"))
+        // } else {
+        //     Ok(())
+        // }
     }
 
     #[instrument(skip_all)]
@@ -305,10 +328,14 @@ impl Engine {
                             .expect("failed converting page metadata into tera context");
                         tera_ctx.extend(meta_ctx);
 
-                        let user_ctx = engine
-                            .rules
-                            .page_context()
-                            .build_context(&self.page_store, page)?;
+                        let user_ctx_generators = engine.rules.page_context();
+                        let user_ctx = crate::core::rules::script::build_context(
+                            &self.rule_engine,
+                            user_ctx_generators,
+                            &self.page_store,
+                            page,
+                        )?;
+                        dbg!(&user_ctx);
 
                         for ctx in user_ctx {
                             let mut user_ctx = tera::Context::new();
@@ -367,80 +394,81 @@ impl Engine {
 
     #[instrument(skip_all)]
     pub fn process_user_script(&mut self) -> Result<(), anyhow::Error> {
-        self.unload_user_config()?;
-        trace!("processing user configuration script");
+        todo!();
+        // self.unload_user_config()?;
+        // trace!("processing user configuration script");
 
-        // This will be the configuration supplied by the user scripts.
-        // For now, we are just hard-coding configuration until the scripting
-        // engine is integrated.
-        pub fn add_copy_pipeline(engine: &mut Engine) -> Result<(), anyhow::Error> {
-            use crate::pipeline::*;
-            let mut copy_pipeline = Pipeline::new("**/*.png", AutorunTrigger::TargetGlob)?;
-            copy_pipeline.push_op(Operation::Copy);
-            engine.rules().add_pipeline(copy_pipeline);
-            Ok(())
-        }
+        // // This will be the configuration supplied by the user scripts.
+        // // For now, we are just hard-coding configuration until the scripting
+        // // engine is integrated.
+        // pub fn add_copy_pipeline(engine: &mut Engine) -> Result<(), anyhow::Error> {
+        //     use crate::pipeline::*;
+        //     let mut copy_pipeline = Pipeline::new("**/*.png", AutorunTrigger::TargetGlob)?;
+        //     copy_pipeline.push_op(Operation::Copy);
+        //     engine.rules().add_pipeline(copy_pipeline);
+        //     Ok(())
+        // }
 
-        pub fn add_sed_pipeline(engine: &mut Engine) -> Result<(), anyhow::Error> {
-            use crate::pipeline::*;
-            let mut sed_pipeline = Pipeline::new("sample.txt", AutorunTrigger::TargetGlob)?;
-            sed_pipeline.push_op(Operation::Shell(ShellCommand::new(
-                r"sed 's/hello/goodbye/g' $INPUT > $OUTPUT",
-            )));
-            sed_pipeline.push_op(Operation::Shell(ShellCommand::new(
-                r"sed 's/bye/ day/g' $INPUT > $OUTPUT",
-            )));
-            sed_pipeline.push_op(Operation::Copy);
+        // pub fn add_sed_pipeline(engine: &mut Engine) -> Result<(), anyhow::Error> {
+        //     use crate::pipeline::*;
+        //     let mut sed_pipeline = Pipeline::new("sample.txt", AutorunTrigger::TargetGlob)?;
+        //     sed_pipeline.push_op(Operation::Shell(ShellCommand::new(
+        //         r"sed 's/hello/goodbye/g' $INPUT > $OUTPUT",
+        //     )));
+        //     sed_pipeline.push_op(Operation::Shell(ShellCommand::new(
+        //         r"sed 's/bye/ day/g' $INPUT > $OUTPUT",
+        //     )));
+        //     sed_pipeline.push_op(Operation::Copy);
 
-            engine.rules().add_pipeline(sed_pipeline);
-            Ok(())
-        }
+        //     engine.rules().add_pipeline(sed_pipeline);
+        //     Ok(())
+        // }
 
-        pub fn add_frontmatter_hook(engine: &mut Engine) {
-            use crate::core::rules::FrontmatterHookResponse;
+        // pub fn add_frontmatter_hook(engine: &mut Engine) {
+        //     use crate::core::rules::FrontmatterHookResponse;
 
-            let hook = Box::new(|page: &Page| -> FrontmatterHookResponse {
-                if page.canonical_path.as_str().starts_with("/db") {
-                    if !page.frontmatter.meta.contains_key("section") {
-                        FrontmatterHookResponse::Error("require 'section' in metadata".to_owned())
-                    } else {
-                        FrontmatterHookResponse::Ok
-                    }
-                } else {
-                    FrontmatterHookResponse::Ok
-                }
-            });
-            engine.rules().add_frontmatter_hook(hook);
-        }
+        //     let hook = Box::new(|page: &Page| -> FrontmatterHookResponse {
+        //         if page.canonical_path.as_str().starts_with("/db") {
+        //             if !page.frontmatter.meta.contains_key("section") {
+        //                 FrontmatterHookResponse::Error("require 'section' in metadata".to_owned())
+        //             } else {
+        //                 FrontmatterHookResponse::Ok
+        //             }
+        //         } else {
+        //             FrontmatterHookResponse::Ok
+        //         }
+        //     });
+        //     engine.rules().add_frontmatter_hook(hook);
+        // }
 
-        pub fn add_ctx_generator(engine: &mut Engine) -> Result<(), anyhow::Error> {
-            use crate::gctx::{ContextItem, GeneratorFunc, Matcher};
+        // pub fn add_ctx_generator(engine: &mut Engine) -> Result<(), anyhow::Error> {
+        //     use crate::core::rules::gctx::{ContextItem, Matcher};
 
-            let matcher = Matcher::Glob(vec!["**/ctxgen/index.md".try_into()?]);
-            let ctx_fn = GeneratorFunc::new(Box::new(|page_store, page| -> ContextItem {
-                ContextItem::new("ctxgen_context", "hello!".into())
-            }));
-            engine.rules().add_context_generator(matcher, ctx_fn);
-            Ok(())
-        }
+        //     let matcher = Matcher::Glob(vec!["**/ctxgen/index.md".try_into()?]);
+        //     let ctx_fn = GeneratorFunc::new(Box::new(|page_store, page| -> ContextItem {
+        //         ContextItem::new("ctxgen_context", "hello!".into())
+        //     }));
+        //     engine.rules().add_context_generator(matcher, ctx_fn);
+        //     Ok(())
+        // }
 
-        self.rules().set_global_context({
-            let mut map = HashMap::new();
-            map.insert(
-                "globular".to_owned(),
-                "haaaay db sample custom variable!".to_owned(),
-            );
-            map
-        })?;
+        // self.rules().set_global_context({
+        //     let mut map = HashMap::new();
+        //     map.insert(
+        //         "globular".to_owned(),
+        //         "haaaay db sample custom variable!".to_owned(),
+        //     );
+        //     map
+        // })?;
 
-        add_copy_pipeline(self)?;
-        add_sed_pipeline(self)?;
+        // add_copy_pipeline(self)?;
+        // add_sed_pipeline(self)?;
 
-        add_frontmatter_hook(self);
+        // add_frontmatter_hook(self);
 
-        add_ctx_generator(self)?;
+        // add_ctx_generator(self)?;
 
-        Ok(())
+        // Ok(())
     }
 
     #[instrument(skip_all)]

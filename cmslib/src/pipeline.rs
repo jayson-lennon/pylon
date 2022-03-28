@@ -31,7 +31,7 @@ pub enum AutorunTrigger {
     TargetGlob,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Pipeline {
     pub target_glob: Glob,
     ops: Vec<Operation>,

@@ -36,3 +36,5 @@ hotwatch = "0.4"
 async-lock = "2.5"
 crossbeam-channel = "0.5"
 globset = "0.4"
+rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
+parking_lot = "0.12"

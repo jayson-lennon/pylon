@@ -1,6 +1,7 @@
 use clap::Parser;
 use cmslib::core::{broker::EngineMsg, config::EngineConfig, engine::Engine};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -22,13 +23,16 @@ use tracing_subscriber::FmtSubscriber;
 #[clap(author, version, about, long_about = None)]
 struct Args {
     #[clap(long, default_value = "test/templates", env = "CMS_TEMPLATE_DIR")]
-    template_dir: std::path::PathBuf,
+    template_dir: PathBuf,
 
     #[clap(long, default_value = "test/public", env = "CMS_OUTPUT_DIR")]
-    output_dir: std::path::PathBuf,
+    output_dir: PathBuf,
 
     #[clap(long, default_value = "test/src", env = "CMS_SRC_DIR")]
-    src_dir: std::path::PathBuf,
+    src_dir: PathBuf,
+
+    #[clap(long, default_value = "test/site-rules.rhai", env = "CMS_SITE_RULES")]
+    rule_script: PathBuf,
 
     #[clap(subcommand)]
     command: Command,
@@ -69,7 +73,12 @@ fn main() -> Result<(), anyhow::Error> {
 
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = EngineConfig::new(&args.src_dir, &args.output_dir, &args.template_dir);
+    let config = EngineConfig::new(
+        &args.src_dir,
+        &args.output_dir,
+        &args.template_dir,
+        &args.rule_script,
+    );
 
     let (engine, broker) = Engine::new(config)?;
 

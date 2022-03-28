@@ -11,3 +11,6 @@ cmslib = { path = "../cmslib" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["ansi", "env-filter"] }
 anyhow = "1.0"
+
+rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
+parking_lot = "0.12"

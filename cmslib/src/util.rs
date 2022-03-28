@@ -59,6 +59,9 @@ pub struct RetargetablePathBuf {
 }
 
 impl RetargetablePathBuf {
+    pub fn script_get(&mut self) -> String {
+        self.to_string()
+    }
     pub fn new<R: AsRef<Path>, P: AsRef<Path>>(root: R, target: P) -> Self {
         Self {
             root: PathBuf::from(root.as_ref()),

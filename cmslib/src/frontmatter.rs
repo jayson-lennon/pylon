@@ -8,3 +8,12 @@ pub struct FrontMatter {
     pub use_file_url: bool,
     pub meta: HashMap<String, serde_json::Value>,
 }
+
+impl FrontMatter {
+    pub fn script_get_template_path(&mut self) -> String {
+        match &self.template_path {
+            Some(p) => p.clone(),
+            None => format!(""),
+        }
+    }
+}
