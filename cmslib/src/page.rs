@@ -81,6 +81,10 @@ impl Page {
 
         Ok(())
     }
+
+    pub fn canonical_path(&mut self) -> String {
+        self.canonical_path.to_string()
+    }
 }
 
 #[instrument(ret)]

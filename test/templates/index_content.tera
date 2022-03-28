@@ -3,7 +3,6 @@
 {% block body %}
 
 <h1>here is e</h1>
-{{ e.sup }}
 
 {{ content | safe }}
 

@@ -48,6 +48,11 @@ mod rules {
         Ok(context_items)
     }
 
+    #[rhai_fn(name = "canonical_path")]
+    pub fn canonical_path(page: &mut Page) -> String {
+        page.canonical_path().to_string()
+    }
+
     #[rhai_fn(name = "increment")]
     pub fn increment(db: Database) {
         db.increment();
@@ -142,6 +147,11 @@ impl ScriptEngine {
         for pkg in packages {
             engine.register_global_module(pkg.clone());
         }
+
+        engine.set_max_expr_depths(64, 64);
+        engine.set_max_call_levels(64);
+        engine.set_max_operations(5000);
+        engine.set_max_modules(100);
 
         engine
     }
@@ -239,7 +249,7 @@ impl Database {
 pub fn build_context(
     script_fn_runner: &RuleEngine,
     generators: &Generators,
-    page_store: &PageStore,
+    page_store: Arc<RwLock<PageStore>>,
     for_page: &Page,
 ) -> Result<Vec<ContextItem>, anyhow::Error> {
     trace!("building page-specific context");
@@ -248,7 +258,7 @@ pub fn build_context(
         .find_generators(for_page)
         .iter()
         .filter_map(|key| generators.get(*key))
-        .map(|ptr| script_fn_runner.run(ptr, (1,)))
+        .map(|ptr| script_fn_runner.run(ptr, (page_store.clone(), for_page.clone())))
         .try_collect()?;
     let contexts = contexts.into_iter().flatten().collect::<Vec<_>>();
 

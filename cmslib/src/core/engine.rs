@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use itertools::Itertools;
+use parking_lot::RwLock;
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
@@ -136,7 +137,7 @@ pub struct Engine {
     // reset when the user script is updated
     rule_engine: RuleEngine,
     // reset when content is updated
-    page_store: PageStore,
+    page_store: Arc<RwLock<PageStore>>,
 }
 
 impl Engine {
@@ -311,6 +312,7 @@ impl Engine {
         Ok(RenderedPageCollection {
             pages: engine
                 .page_store
+                .read()
                 .iter()
                 .map(|page| match page.frontmatter.template_path.as_ref() {
                     Some(template) => {
@@ -318,7 +320,7 @@ impl Engine {
                         tera_ctx.insert("site", &site_ctx);
                         tera_ctx.insert("content", &page.markdown);
                         tera_ctx.insert("page_store", {
-                            &engine.page_store.iter().collect::<Vec<_>>()
+                            &engine.page_store.read().iter().collect::<Vec<_>>()
                         });
                         if let Some(global) = engine.rules.global_context() {
                             tera_ctx.insert("global", global);
@@ -332,7 +334,7 @@ impl Engine {
                         let user_ctx = crate::core::rules::script::build_context(
                             &self.rule_engine,
                             user_ctx_generators,
-                            &self.page_store,
+                            self.page_store.clone(),
                             page,
                         )?;
                         dbg!(&user_ctx);
@@ -537,7 +539,7 @@ fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<(), std:
 fn do_build_page_store<P: AsRef<Path>>(
     src_root: P,
     renderers: &Renderers,
-) -> Result<PageStore, anyhow::Error> {
+) -> Result<Arc<RwLock<PageStore>>, anyhow::Error> {
     let src_root = src_root.as_ref();
     let mut pages: Vec<_> = crate::discover::get_all_paths(src_root, &|path: &Path| -> bool {
         path.extension() == Some(OsStr::new("md"))
@@ -554,7 +556,7 @@ fn do_build_page_store<P: AsRef<Path>>(
     let mut page_store = PageStore::new(&src_root);
     page_store.insert_batch(pages);
 
-    let page_store = page_store;
+    let page_store = Arc::new(RwLock::new(page_store));
 
     Ok(page_store)
 }
