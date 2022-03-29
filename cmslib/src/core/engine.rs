@@ -125,29 +125,27 @@ impl RenderedPageCollection {
 #[derive(Debug)]
 pub struct Engine {
     // these don't change after being initialized
-    rt: Arc<tokio::runtime::Runtime>,
     config: EngineConfig,
     renderers: Renderers,
-    broker: EngineBroker,
-    devserver: Option<DevServer>,
 
     // these are reset when the user script is updated
     script_engine: ScriptEngine,
     rules: Rules,
     rule_processor: RuleProcessor,
 
-    // reset when content is updated
+    // Contains all the site pages. Will be updated when needed
+    // if running in devserver mode.
     page_store: PageStore,
 }
 
 impl Engine {
     #[instrument]
-    pub fn new(
+    pub fn with_broker<S: Into<SocketAddr> + std::fmt::Debug>(
         config: EngineConfig,
+        bind: S,
+        debounce_ms: u64,
     ) -> Result<(JoinHandle<Result<(), anyhow::Error>>, EngineBroker), anyhow::Error> {
-        let renderers = Renderers::new(&config.template_root);
-
-        let page_store = do_build_page_store(&config.src_root, &renderers)?;
+        let bind = bind.into();
 
         let rt = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
@@ -157,31 +155,18 @@ impl Engine {
                 .build()?,
         );
 
-        let handle = rt.handle().clone();
-
-        let broker = EngineBroker::new(handle);
+        let broker = EngineBroker::new(rt);
         let broker_clone = broker.clone();
 
         trace!("spawning engine thread");
         let engine_handle = thread::spawn(move || {
-            let (script_engine, rule_processor, rules) =
-                Self::load_rules(&config.rule_script, &page_store)?;
+            let mut engine = Self::new(config)?;
 
-            let mut engine = Self {
-                rt,
-                config,
-                renderers,
-                broker,
-                devserver: None,
-
-                rules,
-                rule_processor,
-                page_store,
-                script_engine,
-            };
+            let devserver =
+                engine.start_devserver(bind, debounce_ms, &engine.config, broker.clone())?;
 
             loop {
-                match &engine.broker.recv_engine_msg_sync() {
+                match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::FilesystemUpdate(_) => {
                             // TODO: handle individual file updates
@@ -197,25 +182,39 @@ impl Engine {
                         EngineMsg::ReloadUserConfig => {
                             engine.reload_rules()?;
                         }
-                        EngineMsg::StartDevServer(bind, debounce_ms) => {
-                            engine.devserver = Some(engine.start_devserver(*bind, *debounce_ms)?);
-                        }
                         EngineMsg::Quit => {
                             break;
                         }
                     },
                     Err(e) => panic!("problem receiving from engine channel"),
                 }
-                if engine.devserver.is_some() {
-                    engine
-                        .broker
-                        .send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
-                }
+                // notify websocket server to reload all connected clients
+                broker.send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
             }
             Ok(())
         });
 
         Ok((engine_handle, broker_clone))
+    }
+
+    #[instrument]
+    pub fn new(config: EngineConfig) -> Result<Engine, anyhow::Error> {
+        let renderers = Renderers::new(&config.template_root);
+
+        let page_store = do_build_page_store(&config.src_root, &renderers)?;
+
+        let (script_engine, rule_processor, rules) =
+            Self::load_rules(&config.rule_script, &page_store)?;
+
+        Ok(Self {
+            config,
+            renderers,
+
+            rules,
+            rule_processor,
+            page_store,
+            script_engine,
+        })
     }
 
     pub fn load_rules<P: AsRef<Path>>(
@@ -497,13 +496,13 @@ impl Engine {
         self.renderers.tera.reload()?;
         self.rebuild_page_store()?;
         self.reload_rules()?;
-        self.process_frontmatter_hooks()?;
         Ok(())
     }
 
     #[instrument(skip_all)]
-    pub fn build_site(&mut self) -> Result<(), anyhow::Error> {
+    pub fn build_site(&self) -> Result<(), anyhow::Error> {
         trace!("running build");
+        self.process_frontmatter_hooks()?;
 
         let rendered = self.render()?;
         trace!("writing rendered pages to disk");
@@ -520,24 +519,24 @@ impl Engine {
         &self,
         bind: SocketAddr,
         debounce_ms: u64,
+        engine_config: &EngineConfig,
+        engine_broker: EngineBroker,
     ) -> Result<DevServer, anyhow::Error> {
         trace!("starting devserver");
         use crate::devserver;
         use std::time::Duration;
 
-        let engine: &Engine = &self;
-
         // spawn filesystem monitoring thread
         {
-            let watch_dirs = vec![&engine.config.template_root, &engine.config.src_root];
+            let watch_dirs = vec![&engine_config.template_root, &engine_config.src_root];
             devserver::fswatcher::start_watching(
                 &watch_dirs,
-                engine.broker.clone(),
+                engine_broker.clone(),
                 Duration::from_millis(debounce_ms),
             )?;
         }
 
-        let devserver = DevServer::run(engine.broker.clone(), &engine.config.output_root, bind);
+        let devserver = DevServer::run(engine_broker.clone(), &engine_config.output_root, bind);
         Ok(devserver)
     }
 }

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
@@ -55,8 +56,6 @@ pub enum EngineMsg {
     Build,
     /// Builds the site using existing configuration, but rescans all source material
     Rebuild,
-    /// Starts the development server
-    StartDevServer(std::net::SocketAddr, u64),
     /// Reloads user configuration
     ReloadUserConfig,
     /// Quits the application
@@ -65,22 +64,22 @@ pub enum EngineMsg {
 
 #[derive(Debug, Clone)]
 pub struct EngineBroker {
-    rt_handle: Handle,
+    rt: Arc<tokio::runtime::Runtime>,
     devserver: (DevServerSender, DevServerReceiver),
     engine: (EngineSender, EngineReceiver),
 }
 
 impl EngineBroker {
-    pub fn new(handle: Handle) -> Self {
+    pub fn new(rt: Arc<tokio::runtime::Runtime>) -> Self {
         Self {
-            rt_handle: handle,
+            rt,
             devserver: async_channel::unbounded(),
             engine: async_channel::unbounded(),
         }
     }
 
     pub fn handle(&self) -> Handle {
-        self.rt_handle.clone()
+        self.rt.handle().clone()
     }
 
     pub async fn send_devserver_msg(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
@@ -92,12 +91,14 @@ impl EngineBroker {
     }
 
     pub fn send_engine_msg_sync(&self, msg: EngineMsg) -> Result<(), anyhow::Error> {
-        self.rt_handle
+        self.rt
+            .handle()
             .block_on(async { self.send_engine_msg(msg).await })
     }
 
     pub fn send_devserver_msg_sync(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
-        self.rt_handle
+        self.rt
+            .handle()
             .block_on(async { self.send_devserver_msg(msg).await })
     }
 
@@ -106,7 +107,8 @@ impl EngineBroker {
     }
 
     pub fn recv_devserver_msg_sync(&self) -> Result<DevServerMsg, anyhow::Error> {
-        self.rt_handle
+        self.rt
+            .handle()
             .block_on(async { self.recv_devserver_msg().await })
     }
 
@@ -115,7 +117,8 @@ impl EngineBroker {
     }
 
     pub fn recv_engine_msg_sync(&self) -> Result<EngineMsg, anyhow::Error> {
-        self.rt_handle
+        self.rt
+            .handle()
             .block_on(async { self.recv_engine_msg().await })
     }
 }

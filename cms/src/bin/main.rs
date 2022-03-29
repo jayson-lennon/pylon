@@ -80,19 +80,17 @@ fn main() -> Result<(), anyhow::Error> {
         &args.rule_script,
     );
 
-    let (engine, broker) = Engine::new(config)?;
-
     match args.command {
         Command::Serve(opt) => {
+            let (handle, broker) = Engine::with_broker(config, opt.bind, opt.debounce_ms)?;
             broker.send_engine_msg_sync(EngineMsg::Build)?;
-            broker.send_engine_msg_sync(EngineMsg::StartDevServer(opt.bind, opt.debounce_ms))?;
+            println!("{:?}", handle.join());
         }
         Command::Build => {
-            broker.send_engine_msg_sync(EngineMsg::Build)?;
-            broker.send_engine_msg_sync(EngineMsg::Quit)?;
+            let engine = Engine::new(config)?;
+            engine.build_site()?;
         }
     }
-    println!("{:?}", engine.join());
 
     Ok(())
 }
