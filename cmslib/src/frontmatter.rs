@@ -29,8 +29,11 @@ pub mod script {
         use rhai::serde::to_dynamic;
 
         #[rhai_fn(get = "template_path")]
-        pub fn template_path(frontmatter: &mut FrontMatter) -> Option<String> {
-            frontmatter.template_path.clone()
+        pub fn template_path(frontmatter: &mut FrontMatter) -> String {
+            frontmatter
+                .template_path
+                .clone()
+                .unwrap_or_else(|| "".into())
         }
 
         #[rhai_fn(get = "use_file_url")]
@@ -38,6 +41,7 @@ pub mod script {
             frontmatter.use_file_url
         }
 
+        /// Returns all attached metadata.
         #[rhai_fn(get = "meta", return_raw)]
         pub fn all_meta(
             frontmatter: &mut FrontMatter,
@@ -45,6 +49,7 @@ pub mod script {
             to_dynamic(frontmatter.meta.clone())
         }
 
+        /// Returns the value found at the provided key. Returns `()` if the key wasn't found.
         #[rhai_fn(name = "meta")]
         pub fn get_meta(frontmatter: &mut FrontMatter, key: &str) -> rhai::Dynamic {
             frontmatter

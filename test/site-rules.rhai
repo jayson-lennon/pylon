@@ -4,25 +4,29 @@ let sample_ctx = #{
   sup: "hi"
 };
 
-rules.add_page_context("/index.md", |db, page| {
+print(1);
+print(PAGES);
+print(2);
+print(type_of(PAGES.get("/index.md")));
+print(3);
+print(PAGES.get("/index.md").meta("sample"));
+print(4);
+print("OMG");
+
+let my_global = 10;
+
+rules.add_page_context("/index.md", |page| {
   print(page.frontmatter.meta);
   print(page.meta);
   let hm = page.frontmatter.meta("sampl");
   print(type_of(hm));
   print(type_of("test"));
 
-  print("test".len());
-  print(hm.len());
-  debug("test");
-  debug(hm);
-
   print(hm == "test");
   if page.frontmatter.meta("sample")  == "test" {
     print("getgot");
     new_context(#{
-      a: "b",
-      c: "d",
-      e: sample_ctx,
+      script_context: my_global,
     })
   } else {
     print("nope");

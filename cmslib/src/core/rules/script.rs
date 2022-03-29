@@ -21,6 +21,8 @@ mod rules {
         Rules::new()
     }
 
+    /// Associates the closure with the given matcher. This closure will be called
+    /// and the returned context from the closure will be available in the page template.
     #[instrument(skip(rules, generator))]
     #[rhai_fn(name = "add_page_context", return_raw)]
     pub fn add_page_context(
@@ -36,6 +38,7 @@ mod rules {
         Ok(())
     }
 
+    /// Generates a new context for use within the page template.
     #[instrument(ret)]
     #[rhai_fn(name = "new_context", return_raw)]
     pub fn new_context(map: rhai::Map) -> Result<Vec<ContextItem>, Box<EvalAltResult>> {
@@ -47,11 +50,6 @@ mod rules {
         }
         Ok(context_items)
     }
-
-    #[rhai_fn(name = "increment")]
-    pub fn increment(db: Database) {
-        db.increment();
-    }
 }
 
 // Define the custom package 'MyCustomPackage'.
@@ -62,8 +60,9 @@ def_package! {
       StandardPackage::init(module);
 
      combine_with_exported_module!(module, "rules", rules);
-     combine_with_exported_module!(module, "frontmatter", crate::frontmatter::rhai_module);
-     combine_with_exported_module!(module, "page", crate::page::rhai_module);
+     combine_with_exported_module!(module, "frontmatter", crate::frontmatter::script::rhai_module);
+     combine_with_exported_module!(module, "page", crate::page::script::rhai_module);
+    //  combine_with_exported_module!(module, "pagestore", crate::pagestore::rhai_module);
 
       // custom functions go here
   }
@@ -95,13 +94,13 @@ impl ScriptEngineConfig {
 }
 
 #[derive(Debug)]
-pub struct RuleEngine {
+pub struct RuleProcessor {
     engine: rhai::Engine,
     script: String,
     ast: rhai::AST,
 }
 
-impl RuleEngine {
+impl RuleProcessor {
     #[must_use]
     pub fn new<S: AsRef<str>>(engine: rhai::Engine, script: S) -> Result<Self, anyhow::Error> {
         let script = script.as_ref();
@@ -139,6 +138,10 @@ impl ScriptEngine {
         }
     }
 
+    fn register_types(engine: &mut rhai::Engine) {
+        crate::pagestore::script::register_type(engine);
+    }
+
     fn new_engine(packages: &[rhai::Shared<Module>]) -> rhai::Engine {
         let mut engine = rhai::Engine::new_raw();
         for pkg in packages {
@@ -154,6 +157,8 @@ impl ScriptEngine {
             println!("{} @ {:?} > {}", src.unwrap_or("unknown"), pos, s);
         });
 
+        ScriptEngine::register_types(&mut engine);
+
         engine
     }
 
@@ -161,37 +166,28 @@ impl ScriptEngine {
         Self::new_engine(&self.packages)
     }
 
-    pub fn new_fn_runner<S: AsRef<str>>(&self, script: S) -> Result<RuleEngine, anyhow::Error> {
+    pub fn new_fn_runner<S: AsRef<str>>(&self, script: S) -> Result<RuleProcessor, anyhow::Error> {
         let engine = Self::new_engine(&self.packages);
-        RuleEngine::new(engine, script.as_ref())
+        RuleProcessor::new(engine, script.as_ref())
     }
 
     pub fn build_rules<S: AsRef<str>>(
         &self,
+        page_store: &PageStore,
         script: S,
-    ) -> Result<(RuleEngine, Rules), anyhow::Error> {
+    ) -> Result<(RuleProcessor, Rules), anyhow::Error> {
         let script = script.as_ref();
         let ast = self.engine.compile(script)?;
 
-        // let mut fn_ptr = FnPtr::new("foo")?;
-
-        // Curry values into the function pointer
-        // fn_ptr.set_curry(vec!["abc".into()]);
-
-        // Values are only needed for non-curried parameters
-        // let result: i64 = fn_ptr.call(&engine, &ast, (39_i64,))?;
-        let db = Database {
-            inner: Arc::new(RwLock::new(NotClonable(5))),
-        };
-
         let mut scope = Scope::new();
         scope.push("rules", Rules::new());
+        scope.push("PAGES", page_store.clone());
 
         let rules = self.engine.eval_ast_with_scope::<Rules>(&mut scope, &ast)?;
 
         let runner = {
             let new_engine = Self::new_engine(&self.packages);
-            RuleEngine::new(new_engine, script)?
+            RuleProcessor::new(new_engine, script)?
         };
         Ok((runner, rules))
 
@@ -248,9 +244,8 @@ impl Database {
 
 #[instrument(skip_all, fields(page = ?for_page.canonical_path.to_string()))]
 pub fn build_context(
-    script_fn_runner: &RuleEngine,
+    script_fn_runner: &RuleProcessor,
     generators: &Generators,
-    page_store: Arc<RwLock<PageStore>>,
     for_page: &Page,
 ) -> Result<Vec<ContextItem>, anyhow::Error> {
     trace!("building page-specific context");
@@ -259,7 +254,7 @@ pub fn build_context(
         .find_generators(for_page)
         .iter()
         .filter_map(|key| generators.get(*key))
-        .map(|ptr| script_fn_runner.run(ptr, (page_store.clone(), for_page.clone())))
+        .map(|ptr| script_fn_runner.run(ptr, (for_page.clone(),)))
         .try_collect()?;
     let contexts = contexts.into_iter().flatten().collect::<Vec<_>>();
 

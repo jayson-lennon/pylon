@@ -2,6 +2,10 @@
 
 {% block body %}
 
+{{ sample }}
+
+{{ script_context }}
+
 <h1>here is e</h1>
 
 {{ content | safe }}

@@ -26,7 +26,7 @@ use super::{
     broker::EngineBroker,
     config::EngineConfig,
     rules::{
-        script::{RuleEngine, ScriptEngine},
+        script::{RuleProcessor, ScriptEngine},
         Rules,
     },
 };
@@ -124,20 +124,20 @@ impl RenderedPageCollection {
 
 #[derive(Debug)]
 pub struct Engine {
-    // These don't change after being initialized
+    // these don't change after being initialized
     rt: Arc<tokio::runtime::Runtime>,
     config: EngineConfig,
-    script_engine: ScriptEngine,
     renderers: Renderers,
     broker: EngineBroker,
     devserver: Option<DevServer>,
 
-    // reset when the user script is updated
+    // these are reset when the user script is updated
+    script_engine: ScriptEngine,
     rules: Rules,
-    // reset when the user script is updated
-    rule_engine: RuleEngine,
+    rule_processor: RuleProcessor,
+
     // reset when content is updated
-    page_store: Arc<RwLock<PageStore>>,
+    page_store: PageStore,
 }
 
 impl Engine {
@@ -164,12 +164,8 @@ impl Engine {
 
         trace!("spawning engine thread");
         let engine_handle = thread::spawn(move || {
-            let script_engine_config = ScriptEngineConfig::new();
-            let script_engine = ScriptEngine::new(&script_engine_config.modules());
-
-            let rule_script = std::fs::read_to_string(&config.rule_script)?;
-
-            let (rule_engine, rules) = script_engine.build_rules(rule_script)?;
+            let (script_engine, rule_processor, rules) =
+                Self::load_rules(&config.rule_script, &page_store)?;
 
             let mut engine = Self {
                 rt,
@@ -179,7 +175,7 @@ impl Engine {
                 devserver: None,
 
                 rules,
-                rule_engine,
+                rule_processor,
                 page_store,
                 script_engine,
             };
@@ -189,16 +185,17 @@ impl Engine {
                     Ok(msg) => match msg {
                         EngineMsg::FilesystemUpdate(_) => {
                             // TODO: handle individual file updates
-                            engine.rebuild()?;
+                            engine.re_init()?;
+                            engine.build_site()?;
                         }
                         EngineMsg::Build => {
-                            engine.build()?;
+                            engine.build_site()?;
                         }
                         EngineMsg::Rebuild => {
-                            engine.rebuild()?;
+                            engine.re_init()?;
                         }
                         EngineMsg::ReloadUserConfig => {
-                            engine.process_user_script()?;
+                            engine.reload_rules()?;
                         }
                         EngineMsg::StartDevServer(bind, debounce_ms) => {
                             engine.devserver = Some(engine.start_devserver(*bind, *debounce_ms)?);
@@ -219,6 +216,29 @@ impl Engine {
         });
 
         Ok((engine_handle, broker_clone))
+    }
+
+    pub fn load_rules<P: AsRef<Path>>(
+        rule_script: P,
+        page_store: &PageStore,
+    ) -> Result<(ScriptEngine, RuleProcessor, Rules), anyhow::Error> {
+        let script_engine_config = ScriptEngineConfig::new();
+        let script_engine = ScriptEngine::new(&script_engine_config.modules());
+
+        let rule_script = std::fs::read_to_string(&rule_script)?;
+
+        let (rule_processor, rules) = script_engine.build_rules(&page_store, rule_script)?;
+
+        Ok((script_engine, rule_processor, rules))
+    }
+
+    pub fn reload_rules(&mut self) -> Result<(), anyhow::Error> {
+        let (script_engine, rule_processor, rules) =
+            Self::load_rules(&self.config.rule_script, &self.page_store)?;
+        self.script_engine = script_engine;
+        self.rule_processor = rule_processor;
+        self.rules = rules;
+        Ok(())
     }
 
     pub fn rules(&mut self) -> &mut Rules {
@@ -312,7 +332,6 @@ impl Engine {
         Ok(RenderedPageCollection {
             pages: engine
                 .page_store
-                .read()
                 .iter()
                 .map(|page| match page.frontmatter.template_path.as_ref() {
                     Some(template) => {
@@ -320,7 +339,7 @@ impl Engine {
                         tera_ctx.insert("site", &site_ctx);
                         tera_ctx.insert("content", &page.markdown);
                         tera_ctx.insert("page_store", {
-                            &engine.page_store.read().iter().collect::<Vec<_>>()
+                            &engine.page_store.iter().collect::<Vec<_>>()
                         });
                         if let Some(global) = engine.rules.global_context() {
                             tera_ctx.insert("global", global);
@@ -332,9 +351,8 @@ impl Engine {
 
                         let user_ctx_generators = engine.rules.page_context();
                         let user_ctx = crate::core::rules::script::build_context(
-                            &self.rule_engine,
+                            &self.rule_processor,
                             user_ctx_generators,
-                            self.page_store.clone(),
                             page,
                         )?;
                         dbg!(&user_ctx);
@@ -385,13 +403,6 @@ impl Engine {
                 })
                 .try_collect()?,
         })
-    }
-
-    #[instrument(skip_all)]
-    pub fn unload_user_config(&mut self) -> Result<(), anyhow::Error> {
-        trace!("user configuration unloaded");
-        self.rules = Rules::new();
-        Ok(())
     }
 
     #[instrument(skip_all)]
@@ -481,17 +492,18 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn rebuild(&mut self) -> Result<(), anyhow::Error> {
+    pub fn re_init(&mut self) -> Result<(), anyhow::Error> {
         trace!("rebuilding everything");
         self.renderers.tera.reload()?;
         self.rebuild_page_store()?;
-        self.build()
+        self.reload_rules()?;
+        self.process_frontmatter_hooks()?;
+        Ok(())
     }
 
     #[instrument(skip_all)]
-    pub fn build(&mut self) -> Result<(), anyhow::Error> {
+    pub fn build_site(&mut self) -> Result<(), anyhow::Error> {
         trace!("running build");
-        self.process_frontmatter_hooks()?;
 
         let rendered = self.render()?;
         trace!("writing rendered pages to disk");
@@ -539,7 +551,7 @@ fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<(), std:
 fn do_build_page_store<P: AsRef<Path>>(
     src_root: P,
     renderers: &Renderers,
-) -> Result<Arc<RwLock<PageStore>>, anyhow::Error> {
+) -> Result<PageStore, anyhow::Error> {
     let src_root = src_root.as_ref();
     let mut pages: Vec<_> = crate::discover::get_all_paths(src_root, &|path: &Path| -> bool {
         path.extension() == Some(OsStr::new("md"))
@@ -555,8 +567,6 @@ fn do_build_page_store<P: AsRef<Path>>(
 
     let mut page_store = PageStore::new(&src_root);
     page_store.insert_batch(pages);
-
-    let page_store = Arc::new(RwLock::new(page_store));
 
     Ok(page_store)
 }

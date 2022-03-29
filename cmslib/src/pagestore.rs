@@ -6,7 +6,7 @@ use std::{
 };
 use tracing::{instrument, trace};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PageStore {
     src_root: PathBuf,
     pages: SlotMap<PageKey, Page>,
@@ -41,7 +41,7 @@ impl PageStore {
     #[instrument(skip_all, fields(page=%page.canonical_path.to_string()))]
     pub fn insert(&mut self, page: Page) -> PageKey {
         trace!("inserting page into page store");
-        let search_key = page.system_path.to_path_buf();
+        let search_key = page.canonical_path.as_str().to_owned();
 
         let page_key = self.pages.insert_with_key(|key| {
             let mut page = page;
@@ -49,7 +49,7 @@ impl PageStore {
             page
         });
 
-        self.key_store.insert(search_key, page_key);
+        self.key_store.insert(search_key.into(), page_key);
 
         page_key
     }
@@ -62,5 +62,41 @@ impl PageStore {
 
     pub fn iter(&self) -> impl Iterator<Item = &Page> {
         self.pages.iter().map(|(_, page)| page)
+    }
+}
+
+impl IntoIterator for PageStore {
+    type Item = Page;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.pages
+            .iter()
+            .map(|(_, page)| page)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+}
+
+pub mod script {
+    use super::PageStore;
+    use rhai::plugin::*;
+
+    impl PageStore {
+        /// Returns the page at the given `path`. Returns `()` if the page was not found.
+        fn _script_get(&mut self, path: &str) -> rhai::Dynamic {
+            self.get(path)
+                .cloned()
+                .map(|p| Dynamic::from(p))
+                .unwrap_or_else(|| ().into())
+        }
+    }
+
+    pub fn register_type(engine: &mut rhai::Engine) {
+        engine
+            .register_type::<PageStore>()
+            .register_fn("get", PageStore::_script_get)
+            .register_iterator::<PageStore>();
     }
 }

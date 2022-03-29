@@ -9,8 +9,6 @@ use std::{
 };
 use tracing::{instrument, trace_span};
 
-pub use script::rhai_module;
-
 slotmap::new_key_type! {
     pub struct PageKey;
 }
@@ -153,11 +151,13 @@ pub mod script {
             page.frontmatter.clone()
         }
 
+        /// Returns all attached metadata.
         #[rhai_fn(get = "meta", return_raw)]
         pub fn all_meta(page: &mut Page) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
             to_dynamic(page.frontmatter.meta.clone())
         }
 
+        /// Returns the value found at the provided key. Returns `()` if the key wasn't found.
         #[rhai_fn(name = "meta")]
         pub fn meta(page: &mut Page, key: &str) -> rhai::Dynamic {
             page.frontmatter
