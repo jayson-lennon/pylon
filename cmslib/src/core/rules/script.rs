@@ -48,11 +48,6 @@ mod rules {
         Ok(context_items)
     }
 
-    #[rhai_fn(name = "canonical_path")]
-    pub fn canonical_path(page: &mut Page) -> String {
-        page.canonical_path().to_string()
-    }
-
     #[rhai_fn(name = "increment")]
     pub fn increment(db: Database) {
         db.increment();
@@ -67,6 +62,8 @@ def_package! {
       StandardPackage::init(module);
 
      combine_with_exported_module!(module, "rules", rules);
+     combine_with_exported_module!(module, "frontmatter", crate::frontmatter::rhai_module);
+     combine_with_exported_module!(module, "page", crate::page::rhai_module);
 
       // custom functions go here
   }
@@ -152,6 +149,10 @@ impl ScriptEngine {
         engine.set_max_call_levels(64);
         engine.set_max_operations(5000);
         engine.set_max_modules(100);
+        engine.on_print(|x| println!("script engine: {}", x));
+        engine.on_debug(move |s, src, pos| {
+            println!("{} @ {:?} > {}", src.unwrap_or("unknown"), pos, s);
+        });
 
         engine
     }

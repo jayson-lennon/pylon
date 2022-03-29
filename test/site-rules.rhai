@@ -5,13 +5,27 @@ let sample_ctx = #{
 };
 
 rules.add_page_context("/index.md", |db, page| {
-  if page.canonical_path()[0] == "/" {
+  print(page.frontmatter.meta);
+  print(page.meta);
+  let hm = page.frontmatter.meta("sampl");
+  print(type_of(hm));
+  print(type_of("test"));
+
+  print("test".len());
+  print(hm.len());
+  debug("test");
+  debug(hm);
+
+  print(hm == "test");
+  if page.frontmatter.meta("sample")  == "test" {
+    print("getgot");
     new_context(#{
       a: "b",
       c: "d",
       e: sample_ctx,
     })
   } else {
+    print("nope");
     new_context(#{
       nop: "yup",
     })

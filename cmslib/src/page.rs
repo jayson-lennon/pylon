@@ -9,6 +9,8 @@ use std::{
 };
 use tracing::{instrument, trace_span};
 
+pub use script::rhai_module;
+
 slotmap::new_key_type! {
     pub struct PageKey;
 }
@@ -129,5 +131,41 @@ fn split_document(raw: &str) -> Result<(&str, &str), anyhow::Error> {
             Ok((frontmatter, markdown))
         }
         None => Err(anyhow!("improperly formed document"))?,
+    }
+}
+
+pub mod script {
+    use rhai::plugin::*;
+
+    #[rhai::export_module]
+    pub mod rhai_module {
+        use crate::frontmatter::FrontMatter;
+        use crate::page::Page;
+        use rhai::serde::to_dynamic;
+
+        #[rhai_fn(name = "canonical_path")]
+        pub fn canonical_path(page: &mut Page) -> String {
+            page.canonical_path().to_string()
+        }
+
+        #[rhai_fn(get = "frontmatter")]
+        pub fn frontmatter(page: &mut Page) -> FrontMatter {
+            page.frontmatter.clone()
+        }
+
+        #[rhai_fn(get = "meta", return_raw)]
+        pub fn all_meta(page: &mut Page) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
+            to_dynamic(page.frontmatter.meta.clone())
+        }
+
+        #[rhai_fn(name = "meta")]
+        pub fn meta(page: &mut Page, key: &str) -> rhai::Dynamic {
+            page.frontmatter
+                .meta
+                .get(key)
+                .map(|v| to_dynamic(v).ok())
+                .flatten()
+                .unwrap_or_default()
+        }
     }
 }

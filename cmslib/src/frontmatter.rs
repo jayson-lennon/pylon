@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+pub use script::rhai_module;
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct FrontMatter {
@@ -14,6 +16,43 @@ impl FrontMatter {
         match &self.template_path {
             Some(p) => p.clone(),
             None => format!(""),
+        }
+    }
+}
+
+pub mod script {
+    use rhai::plugin::*;
+
+    #[rhai::export_module]
+    pub mod rhai_module {
+        use crate::frontmatter::FrontMatter;
+        use rhai::serde::to_dynamic;
+
+        #[rhai_fn(get = "template_path")]
+        pub fn template_path(frontmatter: &mut FrontMatter) -> Option<String> {
+            frontmatter.template_path.clone()
+        }
+
+        #[rhai_fn(get = "use_file_url")]
+        pub fn use_file_url(frontmatter: &mut FrontMatter) -> bool {
+            frontmatter.use_file_url
+        }
+
+        #[rhai_fn(get = "meta", return_raw)]
+        pub fn all_meta(
+            frontmatter: &mut FrontMatter,
+        ) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
+            to_dynamic(frontmatter.meta.clone())
+        }
+
+        #[rhai_fn(name = "meta")]
+        pub fn get_meta(frontmatter: &mut FrontMatter, key: &str) -> rhai::Dynamic {
+            frontmatter
+                .meta
+                .get(key)
+                .map(|v| to_dynamic(v).ok())
+                .flatten()
+                .unwrap_or_default()
         }
     }
 }
