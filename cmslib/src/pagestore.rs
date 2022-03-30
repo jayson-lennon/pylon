@@ -27,8 +27,11 @@ impl PageStore {
     }
 
     pub fn get<P: AsRef<Path>>(&self, path: P) -> Option<&Page> {
-        let path = path.as_ref();
-        let page_key = self.key_store.get(path)?;
+        let mut path = path.as_ref().to_path_buf();
+        path.set_extension("md");
+        dbg!(&path);
+        let page_key = self.key_store.get(&path)?;
+        dbg!(&page_key);
         self.pages.get(*page_key)
     }
 

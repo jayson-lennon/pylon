@@ -71,7 +71,7 @@ async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + 
     let output_root = output_root.as_ref().to_string_lossy().to_string();
     let bind = bind.into();
 
-    let connected_clients = livereload::ClientBroker::new(broker);
+    let connected_clients = livereload::ClientBroker::new(broker.clone());
 
     let app = Route::new()
         .at(
@@ -80,6 +80,7 @@ async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + 
         )
         .at("/*path", get(staticfiles::handle))
         .with(AddData::new(staticfiles::OutputRootDir(output_root)))
+        .with(AddData::new(broker))
         .with(AddData::new(connected_clients));
 
     Ok(Server::new(TcpListener::bind(bind.to_string()))

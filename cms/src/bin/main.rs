@@ -83,7 +83,7 @@ fn main() -> Result<(), anyhow::Error> {
     match args.command {
         Command::Serve(opt) => {
             let (handle, broker) = Engine::with_broker(config, opt.bind, opt.debounce_ms)?;
-            broker.send_engine_msg_sync(EngineMsg::Build)?;
+            // broker.send_engine_msg_sync(EngineMsg::Build)?;
             println!("{:?}", handle.join());
         }
         Command::Build => {

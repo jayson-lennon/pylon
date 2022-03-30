@@ -155,7 +155,7 @@ impl Engine {
                 .build()?,
         );
 
-        let broker = EngineBroker::new(rt);
+        let broker = EngineBroker::new(rt.clone());
         let broker_clone = broker.clone();
 
         trace!("spawning engine thread");
@@ -168,10 +168,24 @@ impl Engine {
             loop {
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
+                        EngineMsg::RenderPage(request) => {
+                            dbg!(&request);
+                            dbg!(&engine.page_store);
+                            let page: Option<RenderedPage> = if let Some(page) =
+                                engine.page_store.get(request.canonical_path.as_str())
+                            {
+                                dbg!("rendering");
+                                Some(engine.render(page)?)
+                            } else {
+                                None
+                            };
+                            request.send_sync(rt.handle().clone(), page)?
+                        }
+
                         EngineMsg::FilesystemUpdate(_) => {
                             // TODO: handle individual file updates
-                            engine.re_init()?;
-                            engine.build_site()?;
+                            // engine.re_init()?;
+                            // engine.build_site()?;
                         }
                         EngineMsg::Build => {
                             engine.build_site()?;
@@ -321,85 +335,94 @@ impl Engine {
         // }
     }
 
-    #[instrument(skip_all)]
-    pub fn render(&self) -> Result<RenderedPageCollection, anyhow::Error> {
-        trace!("rendering pages");
+    #[instrument(skip(self))]
+    pub fn render(&self, page: &Page) -> Result<RenderedPage, anyhow::Error> {
+        trace!("rendering page");
 
         let engine: &Engine = &self;
         let site_ctx = SiteContext::new("sample");
+
+        match page.frontmatter.template_path.as_ref() {
+            Some(template) => {
+                let mut tera_ctx = tera::Context::new();
+                tera_ctx.insert("site", &site_ctx);
+                tera_ctx.insert("content", &page.markdown);
+                tera_ctx.insert("page_store", {
+                    &engine.page_store.iter().collect::<Vec<_>>()
+                });
+                if let Some(global) = engine.rules.global_context() {
+                    tera_ctx.insert("global", global);
+                }
+
+                let meta_ctx = tera::Context::from_serialize(&page.frontmatter.meta)
+                    .expect("failed converting page metadata into tera context");
+                tera_ctx.extend(meta_ctx);
+
+                let user_ctx_generators = engine.rules.page_context();
+                let user_ctx = crate::core::rules::script::build_context(
+                    &self.rule_processor,
+                    user_ctx_generators,
+                    page,
+                )?;
+                dbg!(&user_ctx);
+
+                for ctx in user_ctx {
+                    let mut user_ctx = tera::Context::new();
+                    user_ctx.insert(ctx.identifier, &ctx.data);
+                    tera_ctx.extend(user_ctx);
+                }
+
+                let renderer = &engine.renderers.tera;
+                renderer
+                    .render(template, &tera_ctx)
+                    .map(|html| {
+                        // change file extension to 'html'
+                        let target_path = {
+                            if page.canonical_path.as_str().ends_with("index.md") {
+                                page.system_path
+                                    .with_root::<&Path>(&engine.config.output_root)
+                                    .with_extension("html")
+                            } else {
+                                // will require linking directly to file
+                                if page.frontmatter.use_file_url {
+                                    page.system_path
+                                        .with_root::<&Path>(&engine.config.output_root)
+                                        .with_extension("html")
+                                } else {
+                                    // uses index.html and a subdirectory with the
+                                    // page name will be created so no direct
+                                    // file link is needed
+                                    let mut path = page
+                                        .system_path
+                                        .with_root::<&Path>(&engine.config.output_root)
+                                        .with_extension("");
+                                    path.push_path("index.html");
+                                    path
+                                }
+                            }
+                        };
+                        RenderedPage::new(html, &target_path)
+                    })
+                    .map_err(|e| anyhow!("{}", e))
+            }
+            None => Err(anyhow!(
+                "no template declared for page '{}'",
+                page.canonical_path.to_string()
+            )),
+        }
+    }
+
+    #[instrument(skip_all)]
+    pub fn render_all(&self) -> Result<RenderedPageCollection, anyhow::Error> {
+        trace!("rendering pages");
+
+        let engine: &Engine = &self;
 
         Ok(RenderedPageCollection {
             pages: engine
                 .page_store
                 .iter()
-                .map(|page| match page.frontmatter.template_path.as_ref() {
-                    Some(template) => {
-                        let mut tera_ctx = tera::Context::new();
-                        tera_ctx.insert("site", &site_ctx);
-                        tera_ctx.insert("content", &page.markdown);
-                        tera_ctx.insert("page_store", {
-                            &engine.page_store.iter().collect::<Vec<_>>()
-                        });
-                        if let Some(global) = engine.rules.global_context() {
-                            tera_ctx.insert("global", global);
-                        }
-
-                        let meta_ctx = tera::Context::from_serialize(&page.frontmatter.meta)
-                            .expect("failed converting page metadata into tera context");
-                        tera_ctx.extend(meta_ctx);
-
-                        let user_ctx_generators = engine.rules.page_context();
-                        let user_ctx = crate::core::rules::script::build_context(
-                            &self.rule_processor,
-                            user_ctx_generators,
-                            page,
-                        )?;
-                        dbg!(&user_ctx);
-
-                        for ctx in user_ctx {
-                            let mut user_ctx = tera::Context::new();
-                            user_ctx.insert(ctx.identifier, &ctx.data);
-                            tera_ctx.extend(user_ctx);
-                        }
-
-                        let renderer = &engine.renderers.tera;
-                        renderer
-                            .render(template, &tera_ctx)
-                            .map(|html| {
-                                // change file extension to 'html'
-                                let target_path = {
-                                    if page.canonical_path.as_str().ends_with("index.md") {
-                                        page.system_path
-                                            .with_root::<&Path>(&engine.config.output_root)
-                                            .with_extension("html")
-                                    } else {
-                                        // will require linking directly to file
-                                        if page.frontmatter.use_file_url {
-                                            page.system_path
-                                                .with_root::<&Path>(&engine.config.output_root)
-                                                .with_extension("html")
-                                        } else {
-                                            // uses index.html and a subdirectory with the
-                                            // page name will be created so no direct
-                                            // file link is needed
-                                            let mut path = page
-                                                .system_path
-                                                .with_root::<&Path>(&engine.config.output_root)
-                                                .with_extension("");
-                                            path.push_path("index.html");
-                                            path
-                                        }
-                                    }
-                                };
-                                RenderedPage::new(html, &target_path)
-                            })
-                            .map_err(|e| anyhow!("{}", e))
-                    }
-                    None => Err(anyhow!(
-                        "no template declared for page '{}'",
-                        page.canonical_path.to_string()
-                    )),
-                })
+                .map(|page| self.render(page))
                 .try_collect()?,
         })
     }
@@ -504,7 +527,7 @@ impl Engine {
         trace!("running build");
         self.process_frontmatter_hooks()?;
 
-        let rendered = self.render()?;
+        let rendered = self.render_all()?;
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
 
@@ -514,7 +537,7 @@ impl Engine {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, engine_broker))]
     pub fn start_devserver(
         &self,
         bind: SocketAddr,

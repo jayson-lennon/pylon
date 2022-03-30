@@ -2,10 +2,39 @@ use std::sync::Arc;
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
+use crate::CanonicalPath;
 use tokio::runtime::Handle;
+
+use crate::core::engine::RenderedPage;
 
 type EngineSender = async_channel::Sender<EngineMsg>;
 type EngineReceiver = async_channel::Receiver<EngineMsg>;
+
+#[derive(Debug)]
+pub struct RenderPageRequest {
+    tx: async_channel::Sender<Option<RenderedPage>>,
+    pub canonical_path: CanonicalPath,
+}
+
+impl RenderPageRequest {
+    pub fn new(
+        canonical_path: CanonicalPath,
+    ) -> (Self, async_channel::Receiver<Option<RenderedPage>>) {
+        let (tx, rx) = async_channel::bounded(1);
+        (Self { tx, canonical_path }, rx)
+    }
+
+    pub async fn send(&self, page: Option<RenderedPage>) -> Result<(), anyhow::Error> {
+        Ok(self.tx.send(page).await?)
+    }
+    pub fn send_sync(
+        &self,
+        handle: Handle,
+        page: Option<RenderedPage>,
+    ) -> Result<(), anyhow::Error> {
+        handle.block_on(async { Ok(self.tx.send(page).await?) })
+    }
+}
 
 #[derive(Debug)]
 pub struct FilesystemUpdateEvents {
@@ -52,9 +81,11 @@ impl FilesystemUpdateEvents {
 #[derive(Debug)]
 pub enum EngineMsg {
     FilesystemUpdate(FilesystemUpdateEvents),
+    RenderPage(RenderPageRequest),
     /// Builds the site using existing configuration and source material
     Build,
-    /// Builds the site using existing configuration, but rescans all source material
+    /// Rescans all source files and templates, reloads the user config,
+    /// then builds the site
     Rebuild,
     /// Reloads user configuration
     ReloadUserConfig,
