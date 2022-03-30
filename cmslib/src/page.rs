@@ -1,4 +1,5 @@
 use crate::frontmatter::FrontMatter;
+use crate::util;
 use crate::util::RetargetablePathBuf;
 use crate::{CanonicalPath, Renderers};
 use anyhow::anyhow;
@@ -7,7 +8,7 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
-use tracing::{instrument, trace_span};
+use tracing::{instrument, trace, trace_span};
 
 slotmap::new_key_type! {
     pub struct PageKey;
@@ -129,6 +130,107 @@ fn split_document(raw: &str) -> Result<(&str, &str), anyhow::Error> {
             Ok((frontmatter, markdown))
         }
         None => Err(anyhow!("improperly formed document"))?,
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Default, Eq, PartialEq, Hash)]
+pub struct LinkedAsset {
+    target: PathBuf,
+}
+
+impl LinkedAsset {
+    pub fn new<P: AsRef<Path>>(asset: P) -> Self {
+        Self {
+            target: asset.as_ref().to_path_buf(),
+        }
+    }
+
+    pub fn target(&self) -> &Path {
+        self.target.as_path()
+    }
+}
+
+#[derive(Debug)]
+pub struct LinkedAssets {
+    assets: HashSet<LinkedAsset>,
+}
+
+impl LinkedAssets {
+    pub fn new(assets: HashSet<LinkedAsset>) -> Self {
+        Self { assets }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &LinkedAsset> {
+        self.assets.iter()
+    }
+}
+
+#[derive(Debug)]
+pub struct RenderedPage {
+    pub html: String,
+    pub target: RetargetablePathBuf,
+}
+
+impl RenderedPage {
+    pub fn new<S: Into<String> + std::fmt::Debug>(html: S, target: &RetargetablePathBuf) -> Self {
+        Self {
+            html: html.into(),
+            target: target.clone(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RenderedPageCollection {
+    pages: Vec<RenderedPage>,
+}
+
+impl RenderedPageCollection {
+    pub fn from_iterable<T: Iterator<Item = RenderedPage>>(iterable: T) -> Self {
+        Self {
+            pages: iterable.collect::<Vec<_>>(),
+        }
+    }
+
+    pub fn from_vec(pages: Vec<RenderedPage>) -> Self {
+        Self { pages }
+    }
+
+    pub fn write_to_disk(&self) -> Result<(), std::io::Error> {
+        use std::fs;
+        for page in self.pages.iter() {
+            let target = page.target.to_path_buf();
+            util::make_parent_dirs(target.parent().expect("should have a parent path"))?;
+            let _ = fs::write(&target, &page.html)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn iter<'a>(&'a self) -> std::slice::Iter<'a, RenderedPage> {
+        self.pages.iter()
+    }
+
+    pub fn as_slice(&self) -> &[RenderedPage] {
+        self.pages.as_slice()
+    }
+}
+
+impl IntoIterator for RenderedPageCollection {
+    type Item = RenderedPage;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.pages.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a RenderedPageCollection {
+    type Item = &'a RenderedPage;
+    type IntoIter = std::slice::Iter<'a, RenderedPage>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 

@@ -2,10 +2,9 @@ use std::sync::Arc;
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
+use crate::page::RenderedPage;
 use crate::CanonicalPath;
 use tokio::runtime::Handle;
-
-use crate::core::engine::RenderedPage;
 
 type EngineSender = async_channel::Sender<EngineMsg>;
 type EngineReceiver = async_channel::Receiver<EngineMsg>;
@@ -80,7 +79,13 @@ impl FilesystemUpdateEvents {
 
 #[derive(Debug)]
 pub enum EngineMsg {
+    /// A group of files have been updated. This will trigger a page
+    /// reload after processing is complete. Events are batched by
+    /// the filesystem watcher using debouncing, so only one reload
+    /// message is fired for multiple changes.
     FilesystemUpdate(FilesystemUpdateEvents),
+    /// Renders a page and then returns it on the channel supplied in
+    /// the request.
     RenderPage(RenderPageRequest),
     /// Builds the site using existing configuration and source material
     Build,

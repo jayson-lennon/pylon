@@ -1,8 +1,9 @@
 use crate::util::{Glob, GlobCandidate};
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::str::FromStr;
-use tracing::{info_span, instrument, trace, trace_span};
+use tracing::{error, info_span, instrument, trace, trace_span};
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
@@ -172,16 +173,26 @@ impl Pipeline {
                             .replace("$OUTPUT", artifact_path.to_string_lossy().as_ref())
                     };
                     {
-                        let mut command = std::process::Command::new("sh")
+                        let output = std::process::Command::new("sh")
                             .arg("-c")
                             .arg(&command)
-                            .spawn()
+                            .stdout(Stdio::piped())
+                            .stderr(Stdio::piped())
+                            .output()
                             .with_context(|| {
                                 format!("Failed running shell pipeline command: '{command}'")
                             })?;
-                        command.wait().with_context(|| {
-                            format!("Failed waiting for child process in shell pipeline processing")
-                        })?;
+                        if !output.status.success() {
+                            let stdout = String::from_utf8_lossy(&output.stdout);
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            error!(
+                                command = %command,
+                                stderr = %stderr,
+                                stdout = %stdout,
+                                "Pipeline command failed"
+                            );
+                            return Err(anyhow!("pipeline processing failure"));
+                        }
                     }
                     input_path = artifact_path;
                 }

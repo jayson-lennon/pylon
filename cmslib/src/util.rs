@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use tempfile::NamedTempFile;
-use tracing::instrument;
+use tracing::{instrument, trace};
 
 #[macro_export]
 macro_rules! static_regex {
@@ -35,6 +35,12 @@ pub fn get_all_templates(template_root: PathBuf) -> Result<Vec<PathBuf>, anyhow:
                 .unwrap_or_else(|| false)
         },
     )?)
+}
+
+#[instrument]
+pub fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<(), std::io::Error> {
+    trace!("create parent directories");
+    std::fs::create_dir_all(dir)
 }
 
 pub fn strip_root<P: AsRef<Path>>(root: P, path: P) -> PathBuf {
