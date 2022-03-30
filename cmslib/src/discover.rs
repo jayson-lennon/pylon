@@ -7,6 +7,10 @@ use std::path::PathBuf;
 use tracing::instrument;
 use tracing::trace;
 
+use crate::page::LinkedAsset;
+use crate::page::LinkedAssets;
+use crate::page::RenderedPage;
+
 pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Result<Vec<PathBuf>> {
     let mut paths = vec![];
     if root.is_dir() {
@@ -25,7 +29,7 @@ pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Resu
 }
 
 #[instrument(level = "trace", ret)]
-pub fn find_assets<T: AsRef<str> + std::fmt::Debug>(html: T) -> HashSet<String> {
+fn assets_in_html<T: AsRef<str> + std::fmt::Debug>(html: T) -> HashSet<String> {
     use scraper::{Html, Selector};
 
     let selectors = [
@@ -55,4 +59,34 @@ pub fn find_assets<T: AsRef<str> + std::fmt::Debug>(html: T) -> HashSet<String> 
         }
     }
     assets
+}
+
+#[instrument(skip_all)]
+pub fn linked_assets(pages: &[RenderedPage]) -> Result<LinkedAssets, anyhow::Error> {
+    trace!("searching for linked external assets in rendered pages");
+    let mut all_assets = HashSet::new();
+    for page in pages.iter() {
+        let page_assets = assets_in_html(&page.html)
+            .iter()
+            .map(|asset| {
+                if asset.starts_with("/") {
+                    // absolute path assets don't need any modifications
+                    LinkedAsset::new(PathBuf::from(asset))
+                } else {
+                    // relative path assets need the parent directory of the page applied
+                    let mut target = page
+                        .target
+                        .as_target()
+                        .parent()
+                        .expect("should have a parent")
+                        .to_path_buf();
+                    target.push(asset);
+                    LinkedAsset::new(target)
+                }
+            })
+            .collect::<HashSet<_>>();
+        all_assets.extend(page_assets);
+    }
+
+    Ok(LinkedAssets::new(all_assets))
 }

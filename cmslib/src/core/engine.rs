@@ -1,9 +1,7 @@
 use anyhow::anyhow;
 use itertools::Itertools;
-use parking_lot::RwLock;
-use serde::Serialize;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     ffi::OsStr,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -15,11 +13,11 @@ use tracing::{instrument, trace};
 use crate::{
     core::{broker::EngineMsg, rules::script::ScriptEngineConfig},
     devserver::{DevServer, DevServerMsg},
-    page::Page,
+    page::{LinkedAssets, Page, RenderedPage, RenderedPageCollection},
     pagestore::PageStore,
     render::Renderers,
     site_context::SiteContext,
-    util::RetargetablePathBuf,
+    util,
 };
 
 use super::{
@@ -30,97 +28,6 @@ use super::{
         Rules,
     },
 };
-
-#[derive(Clone, Debug, Serialize, Default, Eq, PartialEq, Hash)]
-pub struct LinkedAsset {
-    target: PathBuf,
-}
-
-impl LinkedAsset {
-    pub fn new<P: AsRef<Path>>(asset: P) -> Self {
-        Self {
-            target: asset.as_ref().to_path_buf(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct LinkedAssets {
-    assets: HashSet<LinkedAsset>,
-}
-
-impl LinkedAssets {
-    pub fn new(assets: HashSet<LinkedAsset>) -> Self {
-        Self { assets }
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &LinkedAsset> {
-        self.assets.iter()
-    }
-}
-
-#[derive(Debug)]
-pub struct RenderedPage {
-    pub html: String,
-    pub target: RetargetablePathBuf,
-}
-
-impl RenderedPage {
-    pub fn new<S: Into<String> + std::fmt::Debug>(html: S, target: &RetargetablePathBuf) -> Self {
-        Self {
-            html: html.into(),
-            target: target.clone(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct RenderedPageCollection {
-    pages: Vec<RenderedPage>,
-}
-
-impl RenderedPageCollection {
-    pub fn write_to_disk(&self) -> Result<(), std::io::Error> {
-        use std::fs;
-        for page in self.pages.iter() {
-            let target = page.target.to_path_buf();
-            make_parent_dirs(target.parent().expect("should have a parent path"))?;
-            let _ = fs::write(&target, &page.html)?;
-        }
-
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    pub fn find_assets(&self) -> Result<LinkedAssets, anyhow::Error> {
-        trace!("searching for linked external assets in rendered pages");
-        let mut all_assets = HashSet::new();
-        for page in self.pages.iter() {
-            let page_assets = crate::discover::find_assets(&page.html)
-                .iter()
-                .map(|asset| {
-                    if asset.starts_with("/") {
-                        // absolute path assets don't need any modifications
-                        LinkedAsset::new(PathBuf::from(asset))
-                    } else {
-                        // relative path assets need the parent directory of the page applied
-                        let mut target = page
-                            .target
-                            .as_target()
-                            .parent()
-                            .expect("should have a parent")
-                            .to_path_buf();
-                        target.push(asset);
-                        LinkedAsset::new(target)
-                    }
-                })
-                .collect::<HashSet<_>>();
-            all_assets.extend(page_assets);
-        }
-
-        Ok(LinkedAssets::new(all_assets))
-    }
-}
 
 #[derive(Debug)]
 pub struct Engine {
@@ -168,10 +75,16 @@ impl Engine {
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::RenderPage(request) => {
+                            trace!(request = ?request, "receive render page message");
                             let page: Option<RenderedPage> = if let Some(page) =
                                 engine.page_store.get(request.canonical_path.as_str())
                             {
-                                Some(engine.render(page)?)
+                                let rendered = engine.render(page)?;
+                                let linked_assets = crate::discover::linked_assets(
+                                    std::slice::from_ref(&rendered),
+                                )?;
+                                engine.run_pipelines(&linked_assets)?;
+                                Some(rendered)
                             } else {
                                 None
                             };
@@ -179,6 +92,7 @@ impl Engine {
                         }
 
                         EngineMsg::FilesystemUpdate(events) => {
+                            trace!(events = ?events, "receive file system update message");
                             let mut reload_templates = false;
                             let mut reload_rules = false;
                             for changed in events.changed() {
@@ -189,7 +103,6 @@ impl Engine {
                                     let cwd = std::env::current_dir()?;
                                     changed.strip_prefix(cwd)?
                                 };
-                                dbg!(&path);
                                 if path.starts_with(&engine.config.src_root) {
                                     if path.extension().unwrap_or_default().to_string_lossy()
                                         == "md"
@@ -202,19 +115,24 @@ impl Engine {
                                         engine.page_store.update(page);
                                     }
                                 }
+
                                 if path.starts_with(&engine.config.template_root) {
                                     reload_templates = true;
                                 }
+
                                 if path == &engine.config.rule_script {
                                     reload_rules = true;
                                 }
                             }
+
                             if reload_templates {
                                 engine.reload_template_engines()?;
                             }
+
                             if reload_rules {
                                 engine.reload_rules()?;
                             }
+                            // notify websocket server to reload all connected clients
                             broker.send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
                         }
                         EngineMsg::Build => {
@@ -232,8 +150,6 @@ impl Engine {
                     },
                     Err(e) => panic!("problem receiving from engine channel"),
                 }
-                // notify websocket server to reload all connected clients
-                broker.send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
             }
             Ok(())
         });
@@ -300,17 +216,17 @@ impl Engine {
         let engine: &Engine = &self;
         for pipeline in engine.rules.pipelines() {
             for asset in linked_assets.iter() {
-                if pipeline.is_match(asset.target.to_string_lossy().to_string()) {
+                if pipeline.is_match(asset.target().to_string_lossy().to_string()) {
                     // Make a new target in order to create directories for the asset.
                     let mut target_dir = PathBuf::from(&engine.config.output_root);
-                    let target_asset = if let Ok(path) = asset.target.strip_prefix("/") {
+                    let target_asset = if let Ok(path) = asset.target().strip_prefix("/") {
                         path
                     } else {
-                        &asset.target
+                        &asset.target()
                     };
                     target_dir.push(target_asset);
                     let target_dir = target_dir.parent().expect("should have parent directory");
-                    make_parent_dirs(target_dir)?;
+                    util::make_parent_dirs(target_dir)?;
 
                     pipeline.run(
                         &engine.config.src_root,
@@ -452,13 +368,13 @@ impl Engine {
 
         let engine: &Engine = &self;
 
-        Ok(RenderedPageCollection {
-            pages: engine
-                .page_store
-                .iter()
-                .map(|page| self.render(page))
-                .try_collect()?,
-        })
+        let rendered: Vec<RenderedPage> = engine
+            .page_store
+            .iter()
+            .map(|(_, page)| self.render(page))
+            .try_collect()?;
+
+        Ok(RenderedPageCollection::from_vec(rendered))
     }
 
     #[instrument(skip_all)]
@@ -565,7 +481,7 @@ impl Engine {
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
 
-        let assets = rendered.find_assets()?;
+        let assets = crate::discover::linked_assets(rendered.as_slice())?;
 
         self.run_pipelines(&assets)?;
         Ok(())
@@ -600,12 +516,6 @@ impl Engine {
         let devserver = DevServer::run(engine_broker.clone(), &engine_config.output_root, bind);
         Ok(devserver)
     }
-}
-
-#[instrument]
-fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<(), std::io::Error> {
-    trace!("create parent directories");
-    std::fs::create_dir_all(dir)
 }
 
 fn do_build_page_store<P: AsRef<Path>>(

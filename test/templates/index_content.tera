@@ -17,7 +17,6 @@ script_context:
 {{ content | safe }}
 
 <pre><code>
-{{ __tera_context }}
 </code></pre>
 
 {% endblock body %}
