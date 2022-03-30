@@ -189,6 +189,7 @@ impl Engine {
                                     let cwd = std::env::current_dir()?;
                                     changed.strip_prefix(cwd)?
                                 };
+                                dbg!(&path);
                                 if path.starts_with(&engine.config.src_root) {
                                     if path.extension().unwrap_or_default().to_string_lossy()
                                         == "md"
@@ -584,7 +585,11 @@ impl Engine {
 
         // spawn filesystem monitoring thread
         {
-            let watch_dirs = vec![&engine_config.template_root, &engine_config.src_root];
+            let watch_dirs = vec![
+                &engine_config.template_root,
+                &engine_config.src_root,
+                &engine_config.rule_script,
+            ];
             devserver::fswatcher::start_watching(
                 &watch_dirs,
                 engine_broker.clone(),

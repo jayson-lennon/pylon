@@ -2,9 +2,15 @@
 
 {% block body %}
 
+<pre>
+sample:
 {{ sample }}
+</pre>
 
+<pre>
+script_context:
 {{ script_context }}
+</pre>
 
 <h1>here is e</h1>
 

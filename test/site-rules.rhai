@@ -26,12 +26,12 @@ rules.add_page_context("/index.md", |page| {
   if page.frontmatter.meta("sample")  == "test" {
     print("getgot");
     new_context(#{
-      script_context: my_global,
+      script_context: "sample == test",
     })
   } else {
     print("nope");
     new_context(#{
-      nop: "yup",
+      script_context: "sample is something else (" + page.frontmatter.meta("sample") + ")"
     })
   }
 });
