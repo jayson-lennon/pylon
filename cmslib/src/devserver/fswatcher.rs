@@ -63,6 +63,7 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
                     add_event(&mut events, ev);
                 }
                 Err(_) => {
+                    trace!(events = ?events, "sending filesystem update events");
                     broker
                         .send_engine_msg_sync(EngineMsg::FilesystemUpdate(events))
                         .expect("error communicating with engine from filesystem watcher");

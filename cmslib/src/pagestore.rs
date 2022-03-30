@@ -75,8 +75,8 @@ impl PageStore {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Page> {
-        self.pages.iter().map(|(_, page)| page)
+    pub fn iter<'a>(&'a self) -> slotmap::basic::Iter<'a, PageKey, Page> {
+        self.pages.iter()
     }
 }
 
@@ -91,6 +91,15 @@ impl IntoIterator for PageStore {
             .cloned()
             .collect::<Vec<_>>()
             .into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a PageStore {
+    type Item = (PageKey, &'a Page);
+    type IntoIter = slotmap::basic::Iter<'a, PageKey, Page>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
