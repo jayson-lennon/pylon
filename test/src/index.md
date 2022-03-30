@@ -8,4 +8,6 @@ sample = "lol"
 
 *root/index markdown content!*
 
-here is some content
+here is some contentsample
+
+![link](sample.txt)

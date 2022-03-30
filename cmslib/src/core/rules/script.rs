@@ -14,44 +14,6 @@ use crate::pagestore::PageStore;
 use super::gctx::{ContextItem, Generators, Matcher};
 use super::Rules;
 
-#[export_module]
-mod rules {
-    #[rhai_fn()]
-    pub fn new_rules() -> Rules {
-        Rules::new()
-    }
-
-    /// Associates the closure with the given matcher. This closure will be called
-    /// and the returned context from the closure will be available in the page template.
-    #[instrument(skip(rules, generator))]
-    #[rhai_fn(name = "add_page_context", return_raw)]
-    pub fn add_page_context(
-        rules: &mut Rules,
-        matcher: &str,
-        generator: FnPtr,
-    ) -> Result<(), Box<EvalAltResult>> {
-        let matcher = crate::util::Glob::try_from(matcher)
-            .map_err(|e| EvalAltResult::ErrorSystem("failed processing glob".into(), e.into()))?;
-        let matcher = Matcher::Glob(vec![matcher]);
-        trace!("add context generator");
-        rules.add_context_generator(matcher, generator);
-        Ok(())
-    }
-
-    /// Generates a new context for use within the page template.
-    #[instrument(ret)]
-    #[rhai_fn(name = "new_context", return_raw)]
-    pub fn new_context(map: rhai::Map) -> Result<Vec<ContextItem>, Box<EvalAltResult>> {
-        let mut context_items = vec![];
-        for (k, v) in map {
-            let value: serde_json::Value = rhai::serde::from_dynamic(&v)?;
-            let item = ContextItem::new(k, value);
-            context_items.push(item);
-        }
-        Ok(context_items)
-    }
-}
-
 // Define the custom package 'MyCustomPackage'.
 def_package! {
     /// My own personal super-duper custom package
@@ -59,7 +21,7 @@ def_package! {
       // Aggregate other packages simply by calling 'init' on each.
       StandardPackage::init(module);
 
-     combine_with_exported_module!(module, "rules", rules);
+     combine_with_exported_module!(module, "rules", crate::core::rules::rules::script::rhai_module);
      combine_with_exported_module!(module, "frontmatter", crate::frontmatter::script::rhai_module);
      combine_with_exported_module!(module, "page", crate::page::script::rhai_module);
     //  combine_with_exported_module!(module, "pagestore", crate::pagestore::rhai_module);

@@ -6,27 +6,6 @@
 
 <h3>db/landing.tera</h3>
 
-<pre class="checking section">
-{% if section %}
-    {{ section }}
-{% endif %}
-</pre>
-
-<pre class="checking global">
-{{ global }}
-</pre>
-
-<pre class="content">
-{{ content | safe}}
-</pre>
-
-<pre class="all pages">
-{% for page in page_store %}
-  {% if page.frontmatter.meta.section %}
-    {{ page.canonical_path }} : {{ page.frontmatter.meta.section }}
-  {%- endif -%}
-{% endfor %}
-</pre>
 
 <pre class="context">
   {{ __tera_context | striptags }}

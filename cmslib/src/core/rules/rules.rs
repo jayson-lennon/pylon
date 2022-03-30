@@ -81,3 +81,79 @@ impl FrontmatterHooks {
         self.inner.push(hook);
     }
 }
+
+pub mod script {
+    use rhai::plugin::*;
+
+    #[rhai::export_module]
+    pub mod rhai_module {
+        use crate::core::rules::gctx::{ContextItem, Generators, Matcher};
+        use crate::core::rules::Rules;
+        use rhai::FnPtr;
+        use tracing::{instrument, trace};
+
+        #[rhai_fn()]
+        pub fn new_rules() -> Rules {
+            Rules::new()
+        }
+
+        #[rhai_fn(name = "add_pipeline", return_raw)]
+        pub fn add_pipeline(
+            rules: &mut Rules,
+            target_glob: &str,
+            source_glob: &str,
+            ops: rhai::Array,
+        ) -> Result<(), Box<EvalAltResult>> {
+            use crate::pipeline::{AutorunTrigger, Operation, Pipeline};
+            use std::str::FromStr;
+
+            let autorun_trigger = AutorunTrigger::from_str(source_glob).map_err(|e| {
+                EvalAltResult::ErrorSystem("failed processing source glob".into(), e.into())
+            })?;
+
+            let mut parsed_ops = vec![];
+            for op in ops.into_iter() {
+                let op: String = op.into_string()?;
+                let op = Operation::from_str(&op)?;
+                parsed_ops.push(op);
+            }
+            let pipeline =
+                Pipeline::with_ops(target_glob, autorun_trigger, &parsed_ops).map_err(|e| {
+                    EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
+                })?;
+            dbg!(&pipeline);
+            rules.add_pipeline(pipeline);
+
+            dbg!("pipeline added");
+
+            Ok(())
+        }
+
+        #[rhai_fn(name = "add_pipeline", return_raw)]
+        pub fn add_pipeline_same_autorun(
+            rules: &mut Rules,
+            target_glob: &str,
+            ops: rhai::Array,
+        ) -> Result<(), Box<EvalAltResult>> {
+            add_pipeline(rules, target_glob, "[TARGET]", ops)
+        }
+
+        /// Associates the closure with the given matcher. This closure will be called
+        /// and the returned context from the closure will be available in the page template.
+        #[instrument(skip(rules, generator))]
+        #[rhai_fn(return_raw)]
+        pub fn add_page_context(
+            rules: &mut Rules,
+            matcher: &str,
+            generator: FnPtr,
+        ) -> Result<(), Box<EvalAltResult>> {
+            let matcher = crate::util::Glob::try_from(matcher).map_err(|e| {
+                EvalAltResult::ErrorSystem("failed processing glob".into(), e.into())
+            })?;
+            let matcher = Matcher::Glob(vec![matcher]);
+            trace!("add context generator");
+            rules.add_context_generator(matcher, generator);
+            Ok(())
+        }
+    }
+}

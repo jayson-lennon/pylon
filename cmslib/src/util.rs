@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use tempfile::NamedTempFile;
+use tracing::instrument;
 
 #[macro_export]
 macro_rules! static_regex {
@@ -154,6 +155,8 @@ impl Glob {
 
 impl TryFrom<String> for Glob {
     type Error = globset::Error;
+
+    #[instrument(ret)]
     fn try_from(s: String) -> Result<Glob, Self::Error> {
         let glob = globset::GlobBuilder::new(&s)
             .literal_separator(true)
@@ -165,6 +168,8 @@ impl TryFrom<String> for Glob {
 
 impl TryFrom<&str> for Glob {
     type Error = globset::Error;
+
+    #[instrument(ret)]
     fn try_from(s: &str) -> Result<Glob, Self::Error> {
         let glob = globset::GlobBuilder::new(s)
             .literal_separator(true)

@@ -1,6 +1,7 @@
 use crate::util::{Glob, GlobCandidate};
 use anyhow::Context;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use tracing::{info_span, instrument, trace, trace_span};
 
 #[derive(Clone, Debug)]
@@ -25,10 +26,34 @@ pub enum Operation {
     Shell(ShellCommand),
 }
 
+impl FromStr for Operation {
+    type Err = &'static str;
+
+    #[instrument(ret)]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "[COPY]" => Ok(Self::Copy),
+            other => Ok(Self::Shell(ShellCommand(other.to_owned()))),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum AutorunTrigger {
     CustomGlob(Glob),
     TargetGlob,
+}
+
+impl FromStr for AutorunTrigger {
+    type Err = anyhow::Error;
+
+    #[instrument(ret)]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "[TARGET]" => Ok(Self::TargetGlob),
+            other => Ok(Self::CustomGlob(other.try_into()?)),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -39,22 +64,36 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    #[instrument(skip_all)]
+    #[instrument(skip(target_glob))]
     pub fn new<G: TryInto<Glob, Error = globset::Error>>(
         target_glob: G,
         autorun: AutorunTrigger,
     ) -> Result<Self, anyhow::Error> {
         let target_glob = target_glob.try_into()?;
-        trace!(
-            "make new pipeline using glob target {} and autorun trigger {:?}",
-            target_glob.glob(),
-            autorun
-        );
+
+        trace!("make new pipeline using glob target {}", target_glob.glob());
 
         Ok(Self {
             target_glob,
             autorun,
             ops: vec![],
+        })
+    }
+
+    #[instrument(skip(target_glob))]
+    pub fn with_ops<G: TryInto<Glob, Error = globset::Error>>(
+        target_glob: G,
+        autorun: AutorunTrigger,
+        ops: &[Operation],
+    ) -> Result<Self, anyhow::Error> {
+        let target_glob = target_glob.try_into()?;
+
+        trace!("make new pipeline using glob target {}", target_glob.glob());
+
+        Ok(Self {
+            target_glob,
+            autorun,
+            ops: ops.into(),
         })
     }
 
@@ -82,7 +121,6 @@ impl Pipeline {
         O: AsRef<Path> + std::fmt::Debug,
         T: AsRef<Path> + std::fmt::Debug,
     {
-        trace!("run pipeline");
         let src_root = src_root.as_ref();
         let output_root = output_root.as_ref();
         let target_asset = target_asset.as_ref();
@@ -149,16 +187,18 @@ impl Pipeline {
                 }
             }
         }
-        let _span = trace_span!("clean up temp files").entered();
-        trace!(files = ?tmp_files);
-        for f in tmp_files {
-            trace!("remove {}", f.to_string_lossy());
-            std::fs::remove_file(&f).with_context(|| {
-                format!(
-                    "Failed to clean up temporary file: '{}'",
-                    f.to_string_lossy()
-                )
-            })?;
+
+        if !tmp_files.is_empty() {
+            let _span = trace_span!("clean up temp files").entered();
+            trace!(files = ?tmp_files);
+            for f in tmp_files {
+                std::fs::remove_file(&f).with_context(|| {
+                    format!(
+                        "Failed to clean up temporary file: '{}'",
+                        f.to_string_lossy()
+                    )
+                })?;
+            }
         }
 
         Ok(())

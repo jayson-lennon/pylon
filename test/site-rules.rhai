@@ -1,5 +1,13 @@
 let rules = new_rules();
 
+let copy_op = "[COPY]";
+
+rules.add_pipeline("**/*.png", [copy_op]);
+rules.add_pipeline("*.txt", [
+  "sed 's/hello/goodbye/g' $INPUT > $OUTPUT",
+  copy_op
+]);
+
 let sample_ctx = #{
   sup: "hi"
 };

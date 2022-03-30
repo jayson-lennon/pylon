@@ -6,17 +6,13 @@
 
 
 <div class="checking section">
-{% if section %}
+    {% if section %}
     {{ section }}
-{% endif %}
-</pre>
+    {% endif %}
+    </pre>
 
-<div class="checking global">
-{{ global.globular }}
-</div>
+    <div class="content">
+        {{ content | safe}}
+        <hr>
 
-<div class="content">
-{{ content | safe}}
-<hr>
-
-{% endblock body %}
+        {% endblock body %}

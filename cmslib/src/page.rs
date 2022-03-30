@@ -137,9 +137,13 @@ pub mod script {
 
     #[rhai::export_module]
     pub mod rhai_module {
+        use crate::core::rules::gctx::{ContextItem, Generators, Matcher};
+        use crate::core::rules::Rules;
         use crate::frontmatter::FrontMatter;
         use crate::page::Page;
         use rhai::serde::to_dynamic;
+        use rhai::FnPtr;
+        use tracing::{instrument, trace};
 
         #[rhai_fn(name = "canonical_path")]
         pub fn canonical_path(page: &mut Page) -> String {
@@ -158,7 +162,7 @@ pub mod script {
         }
 
         /// Returns the value found at the provided key. Returns `()` if the key wasn't found.
-        #[rhai_fn(name = "meta")]
+        #[rhai_fn()]
         pub fn meta(page: &mut Page, key: &str) -> rhai::Dynamic {
             page.frontmatter
                 .meta
@@ -166,6 +170,19 @@ pub mod script {
                 .map(|v| to_dynamic(v).ok())
                 .flatten()
                 .unwrap_or_default()
+        }
+
+        /// Generates a new context for use within the page template.
+        #[instrument(ret)]
+        #[rhai_fn(return_raw)]
+        pub fn new_context(map: rhai::Map) -> Result<Vec<ContextItem>, Box<EvalAltResult>> {
+            let mut context_items = vec![];
+            for (k, v) in map {
+                let value: serde_json::Value = rhai::serde::from_dynamic(&v)?;
+                let item = ContextItem::new(k, value);
+                context_items.push(item);
+            }
+            Ok(context_items)
         }
     }
 }

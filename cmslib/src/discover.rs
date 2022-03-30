@@ -24,8 +24,8 @@ pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Resu
     Ok(paths)
 }
 
-#[instrument(skip_all, ret)]
-pub fn find_assets<T: AsRef<str>>(html: T) -> HashSet<String> {
+#[instrument(level = "trace", ret)]
+pub fn find_assets<T: AsRef<str> + std::fmt::Debug>(html: T) -> HashSet<String> {
     use scraper::{Html, Selector};
 
     let selectors = [
