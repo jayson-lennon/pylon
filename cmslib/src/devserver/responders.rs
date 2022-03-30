@@ -94,9 +94,7 @@ pub async fn try_rendered_file(
 
     trace!("try to serve rendered file");
 
-    dbg!(&path);
     let path = CanonicalPath::new(path);
-    dbg!(&path);
     let (req, page) = RenderPageRequest::new(path);
     broker.send_engine_msg(EngineMsg::RenderPage(req)).await?;
     match page.recv().await? {

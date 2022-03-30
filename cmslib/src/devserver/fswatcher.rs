@@ -78,12 +78,12 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
 fn add_event(events: &mut FilesystemUpdateEvents, ev: Event) {
     use Event::*;
     match ev {
-        Create(path) => events.added(path),
-        Remove(path) => events.deleted(path),
-        Write(path) => events.changed(path),
+        Create(path) => events.create(path),
+        Remove(path) => events.delete(path),
+        Write(path) => events.change(path),
         Rename(src, dst) => {
-            events.deleted(src);
-            events.added(dst);
+            events.delete(src);
+            events.create(dst);
         }
         _ => (),
     }

@@ -124,7 +124,6 @@ impl RenderedPageCollection {
 
 #[derive(Debug)]
 pub struct Engine {
-    // these don't change after being initialized
     config: EngineConfig,
     renderers: Renderers,
 
@@ -169,12 +168,9 @@ impl Engine {
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::RenderPage(request) => {
-                            dbg!(&request);
-                            dbg!(&engine.page_store);
                             let page: Option<RenderedPage> = if let Some(page) =
                                 engine.page_store.get(request.canonical_path.as_str())
                             {
-                                dbg!("rendering");
                                 Some(engine.render(page)?)
                             } else {
                                 None
@@ -182,19 +178,52 @@ impl Engine {
                             request.send_sync(rt.handle().clone(), page)?
                         }
 
-                        EngineMsg::FilesystemUpdate(_) => {
-                            // TODO: handle individual file updates
-                            // engine.re_init()?;
-                            // engine.build_site()?;
+                        EngineMsg::FilesystemUpdate(events) => {
+                            let mut reload_templates = false;
+                            let mut reload_rules = false;
+                            for changed in events.changed() {
+                                // These paths come in as absolute paths. We need to convert
+                                // them to paths relative to our site content and then into
+                                // CanonicalPaths.
+                                let path = {
+                                    let cwd = std::env::current_dir()?;
+                                    changed.strip_prefix(cwd)?
+                                };
+                                if path.starts_with(&engine.config.src_root) {
+                                    if path.extension().unwrap_or_default().to_string_lossy()
+                                        == "md"
+                                    {
+                                        let page = Page::new(
+                                            path,
+                                            &engine.config.src_root,
+                                            &engine.renderers,
+                                        )?;
+                                        engine.page_store.update(page);
+                                    }
+                                }
+                                if path.starts_with(&engine.config.template_root) {
+                                    reload_templates = true;
+                                }
+                                if path == &engine.config.rule_script {
+                                    reload_rules = true;
+                                }
+                            }
+                            if reload_templates {
+                                engine.reload_template_engines()?;
+                            }
+                            if reload_rules {
+                                engine.reload_rules()?;
+                            }
+                            broker.send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
                         }
                         EngineMsg::Build => {
-                            engine.build_site()?;
+                            // engine.build_site()?;
                         }
                         EngineMsg::Rebuild => {
-                            engine.re_init()?;
+                            // engine.re_init()?;
                         }
                         EngineMsg::ReloadUserConfig => {
-                            engine.reload_rules()?;
+                            // engine.reload_rules()?;
                         }
                         EngineMsg::Quit => {
                             break;
@@ -251,6 +280,11 @@ impl Engine {
         self.script_engine = script_engine;
         self.rule_processor = rule_processor;
         self.rules = rules;
+        Ok(())
+    }
+
+    pub fn reload_template_engines(&mut self) -> Result<(), anyhow::Error> {
+        self.renderers.tera.reload()?;
         Ok(())
     }
 
@@ -335,7 +369,7 @@ impl Engine {
         // }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self), fields(page=?page.canonical_path.to_string()))]
     pub fn render(&self, page: &Page) -> Result<RenderedPage, anyhow::Error> {
         trace!("rendering page");
 
@@ -364,7 +398,6 @@ impl Engine {
                     user_ctx_generators,
                     page,
                 )?;
-                dbg!(&user_ctx);
 
                 for ctx in user_ctx {
                     let mut user_ctx = tera::Context::new();
@@ -516,7 +549,7 @@ impl Engine {
     #[instrument(skip_all)]
     pub fn re_init(&mut self) -> Result<(), anyhow::Error> {
         trace!("rebuilding everything");
-        self.renderers.tera.reload()?;
+        self.reload_template_engines()?;
         self.rebuild_page_store()?;
         self.reload_rules()?;
         Ok(())

@@ -40,7 +40,7 @@ impl RenderPageRequest {
 pub struct FilesystemUpdateEvents {
     changed: HashSet<PathBuf>,
     deleted: HashSet<PathBuf>,
-    added: HashSet<PathBuf>,
+    created: HashSet<PathBuf>,
 }
 
 impl FilesystemUpdateEvents {
@@ -49,32 +49,32 @@ impl FilesystemUpdateEvents {
         Self {
             changed: HashSet::new(),
             deleted: HashSet::new(),
-            added: HashSet::new(),
+            created: HashSet::new(),
         }
     }
 
-    pub fn changed<P: Into<PathBuf>>(&mut self, path: P) {
+    pub fn change<P: Into<PathBuf>>(&mut self, path: P) {
         self.changed.insert(path.into());
     }
 
-    pub fn deleted<P: Into<PathBuf>>(&mut self, path: P) {
+    pub fn delete<P: Into<PathBuf>>(&mut self, path: P) {
         self.deleted.insert(path.into());
     }
 
-    pub fn added<P: Into<PathBuf>>(&mut self, path: P) {
-        self.added.insert(path.into());
+    pub fn create<P: Into<PathBuf>>(&mut self, path: P) {
+        self.created.insert(path.into());
     }
 
-    pub fn get_changed(&self) -> impl Iterator<Item = &PathBuf> {
+    pub fn changed(&self) -> impl Iterator<Item = &PathBuf> {
         self.changed.iter()
     }
 
-    pub fn get_deleted(&self) -> impl Iterator<Item = &PathBuf> {
+    pub fn deleted(&self) -> impl Iterator<Item = &PathBuf> {
         self.deleted.iter()
     }
 
-    pub fn get_added(&self) -> impl Iterator<Item = &PathBuf> {
-        self.added.iter()
+    pub fn created(&self) -> impl Iterator<Item = &PathBuf> {
+        self.created.iter()
     }
 }
 

@@ -1,6 +1,6 @@
 pub mod fswatcher;
 mod livereload;
-mod staticfiles;
+mod responders;
 
 use crate::core::broker::EngineBroker;
 pub use livereload::DevServerMsg;
@@ -78,8 +78,8 @@ async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + 
             "/ws",
             get(livereload::handle.data(tokio::sync::broadcast::channel::<String>(8).0)),
         )
-        .at("/*path", get(staticfiles::handle))
-        .with(AddData::new(staticfiles::OutputRootDir(output_root)))
+        .at("/*path", get(responders::handle))
+        .with(AddData::new(responders::OutputRootDir(output_root)))
         .with(AddData::new(broker))
         .with(AddData::new(connected_clients));
 

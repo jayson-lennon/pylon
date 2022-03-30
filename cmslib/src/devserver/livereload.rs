@@ -124,30 +124,27 @@ pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse 
         // each client will listen on their respective channel
         tokio::spawn(async move {
             trace!("spawned livereload websocket task");
-            loop {
-                if let Ok(msg) = clients
-                    .receiver(client_id)
-                    .await
-                    .expect("receiver should exist for client connection. this is a bug")
-                    .recv()
-                    .await
-                {
-                    match msg {
-                        DevServerMsg::ReloadPage => {
-                            trace!("live reload message sent to client {:?}", client_id);
-                            if let Err(e) = sink.send(Message::Text(format!("RELOAD"))).await {
-                                trace!("error sending message to live reload client: {}. terminating websocket connection (probably left page)", e);
-                                clients.remove(client_id).await;
-                                return;
-                            }
+            if let Ok(msg) = clients
+                .receiver(client_id)
+                .await
+                .expect("receiver should exist for client connection. this is a bug")
+                .recv()
+                .await
+            {
+                match msg {
+                    DevServerMsg::ReloadPage => {
+                        trace!("live reload message sent to client {:?}", client_id);
+                        if let Err(e) = sink.send(Message::Text(format!("RELOAD"))).await {
+                            trace!("error sending message to live reload client: {}", e);
                         }
                     }
-                } else {
-                    trace!("reading from client channel should never fail; closing corresponding websocket connection");
-                    clients.remove(client_id).await;
-                    return;
                 }
+            } else {
+                trace!("reading from client channel should never fail");
             }
+            // Always remove clients on all events, otherwise, pending events may be sent
+            // to new clients that are given an old client id.
+            clients.remove(client_id).await;
         });
     })
 }

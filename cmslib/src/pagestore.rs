@@ -29,9 +29,7 @@ impl PageStore {
     pub fn get<P: AsRef<Path>>(&self, path: P) -> Option<&Page> {
         let mut path = path.as_ref().to_path_buf();
         path.set_extension("md");
-        dbg!(&path);
         let page_key = self.key_store.get(&path)?;
-        dbg!(&page_key);
         self.pages.get(*page_key)
     }
 
@@ -39,6 +37,20 @@ impl PageStore {
         let path = path.as_ref();
         let page_key = self.key_store.get(path)?;
         self.pages.get_mut(*page_key)
+    }
+
+    #[instrument(skip_all, fields(page=%page.canonical_path.to_string()))]
+    pub fn update(&mut self, page: Page) -> PageKey {
+        trace!("updating existing page");
+        if let Some(old) = self.get_mut(page.canonical_path.as_str()) {
+            let mut page = page;
+            page.page_key = old.page_key;
+            *old = page;
+            old.page_key.clone()
+        } else {
+            trace!("page not found for update");
+            self.insert(page)
+        }
     }
 
     #[instrument(skip_all, fields(page=%page.canonical_path.to_string()))]

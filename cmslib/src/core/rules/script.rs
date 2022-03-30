@@ -249,7 +249,6 @@ pub fn build_context(
     for_page: &Page,
 ) -> Result<Vec<ContextItem>, anyhow::Error> {
     trace!("building page-specific context");
-    dbg!(generators);
     let contexts: Vec<Vec<ContextItem>> = generators
         .find_generators(for_page)
         .iter()
@@ -258,7 +257,6 @@ pub fn build_context(
         .try_collect()?;
     let contexts = contexts.into_iter().flatten().collect::<Vec<_>>();
 
-    dbg!(&contexts);
     let mut identifiers = HashSet::new();
     for ctx in contexts.iter() {
         if !identifiers.insert(ctx.identifier.as_str()) {
