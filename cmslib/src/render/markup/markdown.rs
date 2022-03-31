@@ -6,11 +6,11 @@ impl MarkdownRenderer {
         Self
     }
     pub fn render<M: AsRef<str>>(&self, raw_markdown: M) -> String {
-        do_render(raw_markdown)
+        render(raw_markdown)
     }
 }
 
-fn do_render<M: AsRef<str>>(raw_markdown: M) -> String {
+fn render<M: AsRef<str>>(raw_markdown: M) -> String {
     use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag};
 
     let raw_markdown = raw_markdown.as_ref();
