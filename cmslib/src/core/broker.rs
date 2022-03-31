@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
-use crate::page::RenderedPage;
+use crate::render::page::RenderedPage;
 use crate::CanonicalPath;
 use tokio::runtime::Handle;
 
