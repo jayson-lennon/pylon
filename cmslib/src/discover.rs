@@ -7,9 +7,8 @@ use std::path::PathBuf;
 use tracing::instrument;
 use tracing::trace;
 
-use crate::page::LinkedAsset;
-use crate::page::LinkedAssets;
-use crate::page::RenderedPage;
+use crate::page::{LinkedAsset, LinkedAssets};
+use crate::render::page::RenderedPage;
 
 pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Result<Vec<PathBuf>> {
     let mut paths = vec![];
