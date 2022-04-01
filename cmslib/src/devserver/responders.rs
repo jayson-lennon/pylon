@@ -56,6 +56,7 @@ pub async fn try_static_file(path: String, mount_point: &Data<&OutputRootDir>) -
 
     // determine the path on the system
     let system_path = PathBuf::from(format!("{}/{}", mount_point.0, path));
+    trace!(path = ?system_path, "using path");
 
     // determine MIME
     let mime_type = {
@@ -65,21 +66,23 @@ pub async fn try_static_file(path: String, mount_point: &Data<&OutputRootDir>) -
         }
     };
 
+    trace!(mime = ?mime_type);
+
     // serve file
-    match std::fs::read_to_string(system_path) {
+    match std::fs::read(system_path) {
         Ok(file) => {
-            let file = {
-                let mime_type = mime_type.essence_str();
-                if mime_type == mime::HTML
-                    || mime_type == mime::TEXT_HTML
-                    || mime_type == mime::TEXT_HTML_UTF_8
-                {
-                    html_with_live_reload_script(&file)
-                } else {
-                    file
-                }
-            };
-            Some(Response::builder().content_type(mime_type).body(file))
+            trace!("getgot");
+            let mime_type = mime_type.essence_str();
+            if mime_type == mime::HTML
+                || mime_type == mime::TEXT_HTML
+                || mime_type == mime::TEXT_HTML_UTF_8
+            {
+                let page = String::from_utf8_lossy(&file);
+                let page = html_with_live_reload_script(&page);
+                Some(Response::builder().content_type(mime_type).body(page))
+            } else {
+                Some(Response::builder().content_type(mime_type).body(file))
+            }
         }
         Err(_) => None,
     }
