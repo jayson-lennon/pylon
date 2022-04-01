@@ -1,5 +1,6 @@
 +++
 title = "blog title"
+template_path = "blog/page.tera"
 +++
 
 hello friend
@@ -45,3 +46,5 @@ edited md file
 [link to localhost](localhost:8080/)
 
 [link to 127.0.0.1](127.0.0.1:8080/)
+
+![relative link](box.png)

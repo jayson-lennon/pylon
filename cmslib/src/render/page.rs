@@ -5,7 +5,7 @@ use tracing::{error, instrument, trace};
 
 use crate::{
     core::{engine::Engine, rules::gctx::ContextItem},
-    page::Page,
+    page::{Page, PageKey},
     site_context::SiteContext,
     util::RetargetablePathBuf,
 };
@@ -68,25 +68,12 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
                                 .with_root::<&Path>(&engine.config().output_root)
                                 .with_extension("html")
                         } else {
-                            // will require linking directly to file
-                            if page.frontmatter.use_file_url {
-                                page.system_path
-                                    .with_root::<&Path>(&engine.config().output_root)
-                                    .with_extension("html")
-                            } else {
-                                // uses index.html and a subdirectory with the
-                                // page name will be created so no direct
-                                // file link is needed
-                                let mut path = page
-                                    .system_path
-                                    .with_root::<&Path>(&engine.config().output_root)
-                                    .with_extension("");
-                                path.push_path("index.html");
-                                path
-                            }
+                            page.system_path
+                                .with_root::<&Path>(&engine.config().output_root)
+                                .with_extension("html")
                         }
                     };
-                    RenderedPage::new(html, &target_path)
+                    RenderedPage::new(page.page_key, html, &target_path)
                 })
                 .map_err(|e| anyhow!("{}", e))
         }
@@ -99,13 +86,19 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
 
 #[derive(Debug)]
 pub struct RenderedPage {
+    pub page_key: PageKey,
     pub html: String,
     pub target: RetargetablePathBuf,
 }
 
 impl RenderedPage {
-    pub fn new<S: Into<String> + std::fmt::Debug>(html: S, target: &RetargetablePathBuf) -> Self {
+    pub fn new<S: Into<String> + std::fmt::Debug>(
+        page_key: PageKey,
+        html: S,
+        target: &RetargetablePathBuf,
+    ) -> Self {
         Self {
+            page_key,
             html: html.into(),
             target: target.clone(),
         }
@@ -145,6 +138,10 @@ impl RenderedPageCollection {
 
     pub fn as_slice(&self) -> &[RenderedPage] {
         self.pages.as_slice()
+    }
+
+    pub fn as_mut_slice(&mut self) -> &mut [RenderedPage] {
+        self.pages.as_mut_slice()
     }
 }
 

@@ -61,7 +61,8 @@ fn assets_in_html<T: AsRef<str> + std::fmt::Debug>(html: T) -> HashSet<String> {
 }
 
 #[instrument(skip_all)]
-pub fn linked_assets(pages: &[RenderedPage]) -> Result<LinkedAssets, anyhow::Error> {
+/// This function rewrites the asset location if applicable
+pub fn linked_assets(pages: &mut [RenderedPage]) -> Result<LinkedAssets, anyhow::Error> {
     trace!("searching for linked external assets in rendered pages");
     let mut all_assets = HashSet::new();
     for page in pages.iter() {

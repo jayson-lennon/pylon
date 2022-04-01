@@ -46,7 +46,7 @@ rules.add_page_context("/index.md", |page| {
 
 rules.add_page_context("/index.md", |page| {
   new_context(#{
-    global: "crash"
+    global_: "crash"
   })
 });
 rules

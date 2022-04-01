@@ -98,12 +98,13 @@ impl Engine {
                     Ok(msg) => match msg {
                         EngineMsg::RenderPage(request) => {
                             trace!(request = ?request, "receive render page message");
+                            dbg!(&engine.page_store);
                             let page: Option<RenderedPage> = if let Some(page) =
                                 engine.page_store.get(request.canonical_path.as_str())
                             {
-                                let rendered = engine.render(page)?;
+                                let mut rendered = engine.render(page)?;
                                 let linked_assets = crate::discover::linked_assets(
-                                    std::slice::from_ref(&rendered),
+                                    std::slice::from_mut(&mut rendered),
                                 )?;
                                 engine.run_pipelines(&linked_assets)?;
                                 Some(rendered)
@@ -424,11 +425,11 @@ impl Engine {
         trace!("running build");
         self.process_frontmatter_hooks()?;
 
-        let rendered = self.render_all()?;
+        let mut rendered = self.render_all()?;
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
 
-        let assets = crate::discover::linked_assets(rendered.as_slice())?;
+        let assets = crate::discover::linked_assets(rendered.as_mut_slice())?;
 
         self.run_pipelines(&assets)?;
         Ok(())
