@@ -11,12 +11,10 @@ use std::{
 use tracing::{instrument, trace};
 
 use crate::{
-    core::{broker::EngineMsg, rules::script::ScriptEngineConfig},
+    core::{broker::EngineMsg, rules::script::ScriptEngineConfig, LinkedAssets, Page, PageStore},
     devserver::{DevServer, DevServerMsg},
-    page::{LinkedAssets, Page},
-    pagestore::PageStore,
     render::{
-        page::{RenderedPage, RenderedPageCollection},
+        rendered_page::{RenderedPage, RenderedPageCollection},
         Renderers,
     },
     site_context::SiteContext,
@@ -99,17 +97,19 @@ impl Engine {
                         EngineMsg::RenderPage(request) => {
                             trace!(request = ?request, "receive render page message");
                             dbg!(&engine.page_store);
-                            let page: Option<RenderedPage> = if let Some(page) =
-                                engine.page_store.get(request.canonical_path.as_str())
-                            {
-                                let mut rendered = engine.render(page)?;
-                                let linked_assets = crate::discover::linked_assets(
-                                    std::slice::from_mut(&mut rendered),
-                                )?;
-                                engine.run_pipelines(&linked_assets)?;
-                                Some(rendered)
-                            } else {
-                                None
+                            let page: Option<RenderedPage> = {
+                                panic!("{}", request.uri());
+                                // TODO: make sure this works
+                                // if let Some(page) = engine.page_store.get(request.uri()) {
+                                //     let mut rendered = engine.render(page)?;
+                                //     let linked_assets = crate::discover::linked_assets(
+                                //         std::slice::from_mut(&mut rendered),
+                                //     )?;
+                                //     engine.run_pipelines(&linked_assets)?;
+                                //     Some(rendered)
+                                // } else {
+                                //     None
+                                // }
                             };
                             request.send_sync(rt.handle().clone(), page)?
                         }
@@ -130,10 +130,11 @@ impl Engine {
                                     if path.extension().unwrap_or_default().to_string_lossy()
                                         == "md"
                                     {
-                                        let page = Page::new(
-                                            path,
-                                            &engine.config.src_root,
-                                            &engine.renderers,
+                                        let page = Page::from_file(
+                                            &engine.config.src_root.as_path(),
+                                            &engine.config.target_root.as_path(),
+                                            &path,
+                                            &engine.renderers(),
                                         )?;
                                         engine.page_store.update(page);
                                     }
@@ -184,7 +185,7 @@ impl Engine {
     pub fn new(config: EngineConfig) -> Result<Engine, anyhow::Error> {
         let renderers = Renderers::new(&config.template_root);
 
-        let page_store = do_build_page_store(&config.src_root, &renderers)?;
+        let page_store = do_build_page_store(&config.src_root, &config.target_root, &renderers)?;
 
         let (script_engine, rule_processor, rules) =
             Self::load_rules(&config.rule_script, &page_store)?;
@@ -200,7 +201,8 @@ impl Engine {
         })
     }
 
-    pub fn load_rules<P: AsRef<Path>>(
+    #[instrument(ret)]
+    pub fn load_rules<P: AsRef<Path> + std::fmt::Debug>(
         rule_script: P,
         page_store: &PageStore,
     ) -> Result<(ScriptEngine, RuleProcessor, Rules), anyhow::Error> {
@@ -214,6 +216,7 @@ impl Engine {
         Ok((script_engine, rule_processor, rules))
     }
 
+    #[instrument(skip(self), ret)]
     pub fn reload_rules(&mut self) -> Result<(), anyhow::Error> {
         let (script_engine, rule_processor, rules) =
             Self::load_rules(&self.config.rule_script, &self.page_store)?;
@@ -223,6 +226,7 @@ impl Engine {
         Ok(())
     }
 
+    #[instrument(skip(self), ret)]
     pub fn reload_template_engines(&mut self) -> Result<(), anyhow::Error> {
         self.renderers.tera.reload()?;
         Ok(())
@@ -232,25 +236,24 @@ impl Engine {
     pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<(), anyhow::Error> {
         trace!("running pipelines");
 
+        // TODO: fix this
+        panic!();
+
         let engine: &Engine = &self;
         for pipeline in engine.rules.pipelines() {
             for asset in linked_assets.iter() {
-                if pipeline.is_match(asset.target().to_string_lossy().to_string()) {
+                if pipeline.is_match(asset.as_str()) {
+                    let relative_asset = &asset.as_str()[1..];
                     // Make a new target in order to create directories for the asset.
-                    let mut target_dir = PathBuf::from(&engine.config.output_root);
-                    let target_asset = if let Ok(path) = asset.target().strip_prefix("/") {
-                        path
-                    } else {
-                        &asset.target()
-                    };
-                    target_dir.push(target_asset);
+                    let mut target_dir = PathBuf::from(&engine.config.target_root);
+                    target_dir.push(relative_asset);
                     let target_dir = target_dir.parent().expect("should have parent directory");
                     util::make_parent_dirs(target_dir)?;
 
                     pipeline.run(
                         &engine.config.src_root,
-                        &engine.config.output_root,
-                        target_asset,
+                        &engine.config.target_root,
+                        relative_asset,
                     )?;
                 }
             }
@@ -305,9 +308,9 @@ impl Engine {
         // }
     }
 
-    #[instrument(skip(self), fields(page=?page.canonical_path.to_string()))]
+    #[instrument(skip(self), fields(page=%page.uri()))]
     pub fn render(&self, page: &Page) -> Result<RenderedPage, anyhow::Error> {
-        crate::render::page::render(&self, page)
+        crate::render::rendered_page::render(&self, page)
     }
 
     #[instrument(skip_all)]
@@ -407,7 +410,11 @@ impl Engine {
     #[instrument(skip_all)]
     pub fn rebuild_page_store(&mut self) -> Result<(), anyhow::Error> {
         trace!("rebuilding the page store");
-        self.page_store = do_build_page_store(&self.config.src_root, &self.renderers)?;
+        self.page_store = do_build_page_store(
+            &self.config.src_root,
+            &self.config.target_root,
+            &self.renderers,
+        )?;
         Ok(())
     }
 
@@ -422,14 +429,18 @@ impl Engine {
 
     #[instrument(skip_all)]
     pub fn build_site(&self) -> Result<(), anyhow::Error> {
+        use crate::render::rendered_page::rewrite_asset_targets;
+
         trace!("running build");
         self.process_frontmatter_hooks()?;
 
         let mut rendered = self.render_all()?;
+
+        trace!("rewriting asset links");
+        let assets = rewrite_asset_targets(rendered.as_mut_slice(), self.page_store())?;
+
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
-
-        let assets = crate::discover::linked_assets(rendered.as_mut_slice())?;
 
         self.run_pipelines(&assets)?;
         Ok(())
@@ -461,21 +472,27 @@ impl Engine {
             )?;
         }
 
-        let devserver = DevServer::run(engine_broker.clone(), &engine_config.output_root, bind);
+        let devserver = DevServer::run(engine_broker.clone(), &engine_config.target_root, bind);
         Ok(devserver)
     }
 }
 
-fn do_build_page_store<P: AsRef<Path>>(
+#[instrument(skip(renderers), ret)]
+fn do_build_page_store<P: AsRef<Path> + std::fmt::Debug>(
     src_root: P,
+    target_root: P,
     renderers: &Renderers,
 ) -> Result<PageStore, anyhow::Error> {
     let src_root = src_root.as_ref();
+    let target_root = target_root.as_ref();
     let mut pages: Vec<_> = crate::discover::get_all_paths(src_root, &|path: &Path| -> bool {
         path.extension() == Some(OsStr::new("md"))
     })?
     .iter()
-    .map(|path| Page::new(path.as_path(), &src_root, &renderers))
+    .map(|path| {
+        let path = path.strip_prefix(src_root).unwrap();
+        Page::from_file(src_root, target_root, path, &renderers)
+    })
     .try_collect()?;
 
     let template_names = renderers.tera.get_template_names().collect::<HashSet<_>>();
@@ -483,7 +500,7 @@ fn do_build_page_store<P: AsRef<Path>>(
         page.set_template(&template_names)?;
     }
 
-    let mut page_store = PageStore::new(&src_root);
+    let mut page_store = PageStore::new();
     page_store.insert_batch(pages);
 
     Ok(page_store)

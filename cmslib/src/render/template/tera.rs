@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use tera::Tera;
 
+use super::TemplateName;
+
 #[derive(Debug)]
 pub struct TeraRenderer {
     renderer: Tera,
@@ -16,9 +18,9 @@ impl TeraRenderer {
 
         Self { renderer: r }
     }
-    pub fn render<T: AsRef<str>>(
+    pub fn render(
         &self,
-        template: T,
+        template: &TemplateName,
         context: &tera::Context,
     ) -> Result<String, tera::Error> {
         Ok(self.renderer.render(template.as_ref(), context)?)
