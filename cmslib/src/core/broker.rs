@@ -2,9 +2,10 @@ use std::sync::Arc;
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
-use crate::render::page::RenderedPage;
-use crate::CanonicalPath;
+use crate::render::rendered_page::RenderedPage;
 use tokio::runtime::Handle;
+
+use super::Uri;
 
 type EngineSender = async_channel::Sender<EngineMsg>;
 type EngineReceiver = async_channel::Receiver<EngineMsg>;
@@ -12,15 +13,17 @@ type EngineReceiver = async_channel::Receiver<EngineMsg>;
 #[derive(Debug)]
 pub struct RenderPageRequest {
     tx: async_channel::Sender<Option<RenderedPage>>,
-    pub canonical_path: CanonicalPath,
+    pub uri: Uri,
 }
 
 impl RenderPageRequest {
-    pub fn new(
-        canonical_path: CanonicalPath,
-    ) -> (Self, async_channel::Receiver<Option<RenderedPage>>) {
+    pub fn new(uri: Uri) -> (Self, async_channel::Receiver<Option<RenderedPage>>) {
         let (tx, rx) = async_channel::bounded(1);
-        (Self { tx, canonical_path }, rx)
+        (Self { tx, uri }, rx)
+    }
+
+    pub fn uri(&self) -> &Uri {
+        &self.uri
     }
 
     pub async fn send(&self, page: Option<RenderedPage>) -> Result<(), anyhow::Error> {

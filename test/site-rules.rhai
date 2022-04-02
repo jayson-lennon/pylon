@@ -15,15 +15,15 @@ let sample_ctx = #{
 print(1);
 print(PAGES);
 print(2);
-print(type_of(PAGES.get("/index.md")));
+print(type_of(PAGES.get("index.md")));
 print(3);
-print(PAGES.get("/index.md").meta("sample"));
+print(PAGES.get("index.md").meta("sample"));
 print(4);
 print("OMG");
 
 let my_global = 10;
 
-rules.add_page_context("/index.md", |page| {
+rules.add_page_context("index.md", |page| {
   print(page.frontmatter.meta);
   print(page.meta);
   let hm = page.frontmatter.meta("sampl");
@@ -44,7 +44,7 @@ rules.add_page_context("/index.md", |page| {
   }
 });
 
-rules.add_page_context("/index.md", |page| {
+rules.add_page_context("index.md", |page| {
   new_context(#{
     global_: "crash"
   })

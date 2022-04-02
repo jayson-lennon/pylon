@@ -1,7 +1,6 @@
 use crate::{
+    core::{Page, PageStore},
     frontmatter::FrontMatter,
-    page::Page,
-    pagestore::PageStore,
     util::{Glob, GlobCandidate},
 };
 use anyhow::anyhow;
@@ -82,7 +81,7 @@ impl Generators {
             .filter_map(|(matcher, generator_key)| match matcher {
                 Matcher::Glob(globs) => {
                     trace!("using glob match");
-                    let candidate = GlobCandidate::new(page.canonical_path.as_str());
+                    let candidate = GlobCandidate::new(page.uri.as_str());
 
                     let mut is_match = false;
                     for g in globs {
