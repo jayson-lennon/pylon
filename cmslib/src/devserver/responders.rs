@@ -1,4 +1,5 @@
 use crate::core::broker::EngineBroker;
+use crate::core::Uri;
 use poem::http::StatusCode;
 use poem::{
     handler,
@@ -93,12 +94,11 @@ pub async fn try_rendered_file(
     broker: Data<&EngineBroker>,
 ) -> Result<Option<Response>, anyhow::Error> {
     use crate::core::broker::{EngineMsg, RenderPageRequest};
-    use crate::CanonicalPath;
 
     trace!("try to serve rendered file");
 
-    let path = CanonicalPath::new(path);
-    let (req, page) = RenderPageRequest::new(path);
+    let uri = Uri::new(path)?;
+    let (req, page) = RenderPageRequest::new(uri);
     broker.send_engine_msg(EngineMsg::RenderPage(req)).await?;
     match page.recv().await? {
         Some(page) => Ok(Some(

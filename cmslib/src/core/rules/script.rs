@@ -8,8 +8,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{instrument, trace};
 
-use crate::page::Page;
-use crate::pagestore::PageStore;
+use crate::core::{Page, PageStore};
 
 use super::gctx::{ContextItem, Generators, Matcher};
 use super::Rules;
@@ -23,7 +22,7 @@ def_package! {
 
      combine_with_exported_module!(module, "rules", crate::core::rules::rules::script::rhai_module);
      combine_with_exported_module!(module, "frontmatter", crate::frontmatter::script::rhai_module);
-     combine_with_exported_module!(module, "page", crate::page::script::rhai_module);
+     combine_with_exported_module!(module, "page", crate::core::page::script::rhai_module);
     //  combine_with_exported_module!(module, "pagestore", crate::pagestore::rhai_module);
 
       // custom functions go here
@@ -101,7 +100,7 @@ impl ScriptEngine {
     }
 
     fn register_types(engine: &mut rhai::Engine) {
-        crate::pagestore::script::register_type(engine);
+        crate::core::pagestore::script::register_type(engine);
     }
 
     fn new_engine(packages: &[rhai::Shared<Module>]) -> rhai::Engine {
@@ -144,6 +143,7 @@ impl ScriptEngine {
         let mut scope = Scope::new();
         scope.push("rules", Rules::new());
         scope.push("PAGES", page_store.clone());
+        dbg!(&page_store);
 
         let rules = self.engine.eval_ast_with_scope::<Rules>(&mut scope, &ast)?;
 
@@ -204,7 +204,7 @@ impl Database {
 //     Ok(())
 // }
 
-#[instrument(skip_all, fields(page = ?for_page.canonical_path.to_string()))]
+#[instrument(skip_all, fields(page = %for_page.uri()))]
 pub fn build_context(
     script_fn_runner: &RuleProcessor,
     generators: &Generators,

@@ -3,21 +3,21 @@ use std::collections::HashMap;
 
 pub use script::rhai_module;
 
+use crate::render::template::TemplateName;
+
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct FrontMatter {
-    pub template_path: Option<String>,
-    pub use_file_url: bool,
-    pub meta: HashMap<String, serde_json::Value>,
-}
+    pub template_name: Option<TemplateName>,
 
-impl FrontMatter {
-    pub fn script_get_template_path(&mut self) -> String {
-        match &self.template_path {
-            Some(p) => p.clone(),
-            None => format!(""),
-        }
-    }
+    #[serde(default = "default_true")]
+    pub use_index: bool,
+
+    pub meta: HashMap<String, serde_json::Value>,
 }
 
 pub mod script {
@@ -31,14 +31,15 @@ pub mod script {
         #[rhai_fn(get = "template_path")]
         pub fn template_path(frontmatter: &mut FrontMatter) -> String {
             frontmatter
-                .template_path
+                .template_name
                 .clone()
+                .map(|n| n.into_string())
                 .unwrap_or_else(|| "".into())
         }
 
-        #[rhai_fn(get = "use_file_url")]
-        pub fn use_file_url(frontmatter: &mut FrontMatter) -> bool {
-            frontmatter.use_file_url
+        #[rhai_fn(get = "use_index")]
+        pub fn use_index(frontmatter: &mut FrontMatter) -> bool {
+            frontmatter.use_index
         }
 
         /// Returns all attached metadata.

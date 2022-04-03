@@ -1,6 +1,6 @@
 use super::gctx::{Generators, Matcher};
 use crate::core::rules::script::ScriptEngine;
-use crate::{page::Page, pipeline::Pipeline};
+use crate::{core::Page, pipeline::Pipeline};
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
