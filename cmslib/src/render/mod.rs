@@ -1,7 +1,7 @@
 use std::path::Path;
 
 pub mod markup;
-pub mod page;
+pub mod rendered_page;
 pub mod template;
 
 #[derive(Debug)]

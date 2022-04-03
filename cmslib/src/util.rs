@@ -1,7 +1,8 @@
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use serde::Serialize;
 use std::{
     ffi::OsStr,
+    fmt,
     path::{Path, PathBuf},
 };
 use tempfile::NamedTempFile;
@@ -52,83 +53,6 @@ pub fn strip_root<P: AsRef<Path>>(root: P, path: P) -> PathBuf {
         i += 1;
     }
     PathBuf::from_iter(path[i..].iter())
-}
-
-/// A path buffer that allows for easy modification of root paths and
-/// changes to file names and extensions.
-///
-/// This is used to map source file document paths into template file paths
-/// and for reverse discovery of assets.
-#[derive(Clone, Debug, Serialize, Default)]
-pub struct RetargetablePathBuf {
-    root: PathBuf,
-    target: PathBuf,
-}
-
-impl RetargetablePathBuf {
-    pub fn script_get(&mut self) -> String {
-        self.to_string()
-    }
-    pub fn new<R: AsRef<Path>, P: AsRef<Path>>(root: R, target: P) -> Self {
-        Self {
-            root: PathBuf::from(root.as_ref()),
-            target: PathBuf::from(target.as_ref()),
-        }
-    }
-
-    pub fn to_string(&self) -> String {
-        self.to_path_buf().to_string_lossy().to_string()
-    }
-
-    pub fn as_target(&self) -> &Path {
-        self.target.as_path()
-    }
-
-    pub fn to_path_buf(&self) -> PathBuf {
-        let mut full = PathBuf::from(&self.root);
-        full.push(&self.target);
-        full
-    }
-
-    pub fn change_root<P: AsRef<Path>>(&mut self, path: P) {
-        self.root = path.as_ref().to_path_buf();
-    }
-
-    pub fn set_file_name<S: AsRef<OsStr>>(&mut self, file_name: S) {
-        self.target.set_file_name(file_name);
-    }
-
-    pub fn set_extension<S: AsRef<OsStr>>(&mut self, extension: S) {
-        self.target.set_extension(extension);
-    }
-
-    pub fn push_path<P: AsRef<Path>>(&mut self, path: P) {
-        self.target.push(path);
-    }
-
-    pub fn to_parent(&self) -> Self {
-        let mut new_buf = self.clone();
-        new_buf.target.pop();
-        new_buf
-    }
-
-    pub fn with_root<P: AsRef<Path>>(&self, root: &Path) -> Self {
-        let mut new_buf = self.clone();
-        new_buf.change_root(root);
-        new_buf
-    }
-
-    pub fn with_file_name<S: AsRef<OsStr>>(&self, file_name: S) -> Self {
-        let mut new_buf = self.clone();
-        new_buf.set_file_name(file_name);
-        new_buf
-    }
-
-    pub fn with_extension<S: AsRef<OsStr>>(&self, extension: S) -> Self {
-        let mut new_buf = self.clone();
-        new_buf.set_extension(extension);
-        new_buf
-    }
 }
 
 #[derive(Debug)]

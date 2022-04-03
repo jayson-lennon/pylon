@@ -12,7 +12,6 @@ path = "src/cmslib.rs"
 [dependencies]
 tempfile = "3.3"
 regex = "1.5"
-scraper = "0.12"
 pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"] }
 once_cell = "1.10"
 anyhow = { version = "1.0", features = ["std"] }
@@ -38,3 +37,4 @@ crossbeam-channel = "0.5"
 globset = "0.4"
 rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
 parking_lot = "0.12"
+lol_html = "0.3"
