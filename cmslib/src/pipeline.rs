@@ -215,3 +215,101 @@ impl Pipeline {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{AutorunTrigger, Operation, Pipeline, ShellCommand};
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use tempfile::tempdir;
+
+    fn gen_file_path(dir: &Path, name: &str) -> PathBuf {
+        let mut path = PathBuf::from(dir);
+        path.push(name);
+
+        path
+    }
+
+    #[test]
+    fn op_copy() {
+        let mut pipeline = Pipeline::new("*.txt", AutorunTrigger::TargetGlob).unwrap();
+        pipeline.push_op(Operation::Copy);
+
+        let src_root = tempdir().unwrap();
+        let output_root = tempdir().unwrap();
+        let target_asset = "test.txt";
+
+        let src_path = gen_file_path(src_root.path(), "test.txt");
+        fs::write(&src_path, b"test data").unwrap();
+
+        pipeline
+            .run(src_root.path(), output_root.path(), target_asset)
+            .unwrap();
+
+        let target_path = gen_file_path(output_root.path(), "test.txt");
+        assert!(target_path.exists());
+
+        let target_content = fs::read_to_string(target_path).unwrap();
+        assert_eq!(&target_content, "test data");
+    }
+
+    #[test]
+    fn multiple_ops() {
+        let mut pipeline = Pipeline::new("*.txt", AutorunTrigger::TargetGlob).unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/old/new/g' $INPUT > $OUTPUT"#,
+        )));
+        pipeline.push_op(Operation::Copy);
+
+        let src_root = tempdir().unwrap();
+        let output_root = tempdir().unwrap();
+        let target_asset = "test.txt";
+
+        let src_path = gen_file_path(src_root.path(), "test.txt");
+        fs::write(&src_path, b"old").unwrap();
+
+        pipeline
+            .run(src_root.path(), output_root.path(), target_asset)
+            .unwrap();
+
+        let target_path = gen_file_path(output_root.path(), "test.txt");
+        assert!(target_path.exists());
+
+        let target_content = fs::read_to_string(target_path).unwrap();
+        assert_eq!(&target_content, "new");
+    }
+
+    #[test]
+    fn autoruntrigger_fromstr_impl() {
+        use std::str::FromStr;
+
+        let trigger = AutorunTrigger::from_str("[TARGET]").unwrap();
+        match trigger {
+            AutorunTrigger::TargetGlob => (),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn operation_fromstr_impl() {
+        use std::str::FromStr;
+
+        let operation = Operation::from_str("[COPY]").unwrap();
+        match operation {
+            Operation::Copy => (),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn shell_command_has_input() {
+        let cmd = ShellCommand::new("echo $INPUT");
+        assert!(cmd.has_input());
+    }
+
+    #[test]
+    fn shell_command_has_output() {
+        let cmd = ShellCommand::new("echo $OUTPUT");
+        assert!(cmd.has_output());
+    }
+}
