@@ -116,7 +116,7 @@ impl Pipeline {
             buf
         };
 
-        for op in self.ops.iter() {
+        for op in &self.ops {
             let _span = info_span!("perform pipeline operation").entered();
             match op {
                 Operation::Copy => {
@@ -129,7 +129,8 @@ impl Pipeline {
                         if command.has_output() {
                             let tmp = crate::util::gen_temp_file()
                                 .with_context(|| {
-                                    "Failed to generate temp file for pipeline shell operation".to_string()
+                                    "Failed to generate temp file for pipeline shell operation"
+                                        .to_string()
                                 })?
                                 .path()
                                 .to_path_buf();
@@ -194,6 +195,9 @@ fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<(), anyhow::Error> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::all)]
+    #![allow(clippy::pedantic)]
+
     use super::{Operation, Pipeline, ShellCommand};
     use std::fs;
     use std::path::{Path, PathBuf};

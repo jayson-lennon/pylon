@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use itertools::Itertools;
 use rhai::packages::{Package, StandardPackage};
+#[allow(clippy::wildcard_imports)]
 use rhai::plugin::*;
 use rhai::{def_package, Scope};
 use std::collections::HashSet;
@@ -135,12 +136,12 @@ pub fn build_context(
         .find_generators(for_page)
         .iter()
         .filter_map(|key| generators.get(*key))
-        .map(|ptr| script_fn_runner.run(ptr, (for_page.clone(),)))
+        .map(|ptr| script_fn_runner.run(&ptr, (for_page.clone(),)))
         .try_collect()?;
     let contexts = contexts.into_iter().flatten().collect::<Vec<_>>();
 
     let mut identifiers = HashSet::new();
-    for ctx in contexts.iter() {
+    for ctx in &contexts {
         if !identifiers.insert(ctx.identifier.as_str()) {
             return Err(anyhow!(
                 "duplicate context identifier encountered in page context generation: {}",

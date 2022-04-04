@@ -48,7 +48,7 @@ impl DevServer {
             broker_clone
                 .handle()
                 .block_on(async move { run(broker_clone, output_root, bind).await })
-                .expect("failed to start dev server")
+                .expect("failed to start dev server");
         });
 
         Self {
@@ -64,11 +64,11 @@ async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + 
     output_root: R,
     bind: B,
 ) -> Result<(), anyhow::Error> {
-    trace!("starting dev server");
-
     use poem::listener::TcpListener;
     use poem::middleware::AddData;
     use poem::{get, Route, Server};
+
+    trace!("starting dev server");
 
     let output_root = output_root.as_ref().to_string_lossy().to_string();
     let bind = bind.into();

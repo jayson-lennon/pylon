@@ -90,7 +90,7 @@ impl ClientBroker {
     pub fn send_sync(&self, msg: DevServerMsg) {
         self.engine_broker
             .handle()
-            .block_on(async { self.send(msg).await })
+            .block_on(async { self.send(msg).await });
     }
 
     pub async fn receiver(&self, id: WsClientId) -> Option<async_channel::Receiver<DevServerMsg>> {
@@ -102,8 +102,9 @@ impl ClientBroker {
 #[instrument(skip_all)]
 #[handler]
 pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse {
-    trace!("incoming websocket connection");
     use futures_util::{SinkExt, StreamExt};
+
+    trace!("incoming websocket connection");
 
     let clients = clients.clone();
 

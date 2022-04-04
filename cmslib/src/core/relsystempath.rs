@@ -13,6 +13,7 @@ pub struct RelSystemPath {
 }
 
 impl RelSystemPath {
+    #[must_use]
     pub fn new<P: Into<PathBuf> + std::fmt::Debug>(base: P, target: P) -> Self {
         let base = base.into();
         let target = target.into();
@@ -20,6 +21,7 @@ impl RelSystemPath {
         Self { base, target }
     }
 
+    #[must_use]
     pub fn with_base<P: Into<PathBuf>>(&self, base: P) -> Self {
         let base = base.into();
         Self {
@@ -28,6 +30,7 @@ impl RelSystemPath {
         }
     }
 
+    #[must_use]
     pub fn with_extension<S: AsRef<str>>(&self, extension: S) -> Self {
         let extension: &str = extension.as_ref();
         let mut target = self.target.clone();
@@ -38,6 +41,7 @@ impl RelSystemPath {
         }
     }
 
+    #[must_use]
     pub fn with_file_name<S: AsRef<str>>(&self, name: S) -> Self {
         let name: &str = name.as_ref();
         let mut target = self.target.clone();
@@ -48,6 +52,7 @@ impl RelSystemPath {
         }
     }
 
+    #[must_use]
     pub fn add_parent<P: AsRef<Path>>(&self, parent: P) -> Self {
         let name = self.target.clone();
         let name = name.file_name().unwrap();
@@ -62,6 +67,7 @@ impl RelSystemPath {
         }
     }
 
+    #[must_use]
     pub fn remove_parent(&self) -> Self {
         let name = self.target.clone();
         let name = name.file_name().unwrap();
@@ -76,6 +82,7 @@ impl RelSystemPath {
         }
     }
 
+    #[must_use]
     pub fn with_file_stem<S: AsRef<Path>>(&self, stem: S) -> Self {
         let extension = self.target.clone();
         let extension = extension.extension().unwrap();
@@ -90,6 +97,7 @@ impl RelSystemPath {
         }
     }
 
+    #[must_use]
     pub fn pop(&self) -> Self {
         let mut target = self.target.clone();
         target.pop();

@@ -12,7 +12,8 @@ use tracing::{instrument, trace};
 #[derive(Clone, Debug)]
 pub struct OutputRootDir(pub String);
 
-fn path_to_file(path: String) -> String {
+fn path_to_file<S: AsRef<str>>(path: S) -> String {
+    let path = path.as_ref();
     // remove relative paths
     let path = path.replace("../", "");
 
@@ -36,8 +37,13 @@ fn html_with_live_reload_script(html: &str) -> String {
     )
 }
 
-pub async fn try_static_file(path: String, mount_point: &Data<&OutputRootDir>) -> Option<Response> {
+pub fn try_static_file<S: AsRef<str>>(
+    path: S,
+    mount_point: &Data<&OutputRootDir>,
+) -> Option<Response> {
     trace!("try to serve static file");
+
+    let path = path.as_ref();
 
     let mount_point = mount_point.0;
 
@@ -121,7 +127,7 @@ pub async fn handle(
 
     let path = path_to_file(path.to_string());
 
-    if let Some(res) = try_static_file(path.clone(), &mount_point).await {
+    if let Some(res) = try_static_file(path.clone(), &mount_point) {
         Ok(res)
     } else {
         trace!("static file not found");

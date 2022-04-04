@@ -109,7 +109,7 @@ impl RenderedPageCollection {
     #[instrument(ret)]
     pub fn write_to_disk(&self) -> Result<(), std::io::Error> {
         use std::fs;
-        for page in self.pages.iter() {
+        for page in &self.pages {
             let target = PathBuf::from(&page.target);
             crate::util::make_parent_dirs(
                 target
@@ -117,7 +117,7 @@ impl RenderedPageCollection {
                     .parent()
                     .expect("should have a parent path"),
             )?;
-            let _ = fs::write(&target, &page.html)?;
+            fs::write(&target, &page.html)?;
         }
 
         Ok(())
@@ -280,7 +280,7 @@ pub fn rewrite_asset_targets(
             // No rewrite take place for this branch. We already saved the assets
             // in the closure, but we still need to call this function to start
             // the process.
-            let _ = rewrite_str(
+            rewrite_str(
                 &rendered_page.html,
                 RewriteStrSettings {
                     element_content_handlers,
