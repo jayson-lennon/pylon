@@ -149,7 +149,7 @@ fn register_types(engine: &mut Engine) {
 
     engine
         .register_type_with_name::<FrontMatter>("FrontMatter")
-        .register_get("template_path", FrontMatter::script_get_template_path)
+        .register_get("template_name", FrontMatter::script_get_template_name)
         .register_get("use_file_url", FrontMatter::use_file_url)
         .register_get("meta", FrontMatter::meta);
 

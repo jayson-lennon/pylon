@@ -95,21 +95,21 @@ impl Engine {
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::RenderPage(request) => {
+                            use crate::render::rendered_page::rewrite_asset_targets;
                             trace!(request = ?request, "receive render page message");
                             dbg!(&engine.page_store);
                             let page: Option<RenderedPage> = {
-                                panic!("{}", request.uri());
-                                // TODO: make sure this works
-                                // if let Some(page) = engine.page_store.get(request.uri()) {
-                                //     let mut rendered = engine.render(page)?;
-                                //     let linked_assets = crate::discover::linked_assets(
-                                //         std::slice::from_mut(&mut rendered),
-                                //     )?;
-                                //     engine.run_pipelines(&linked_assets)?;
-                                //     Some(rendered)
-                                // } else {
-                                //     None
-                                // }
+                                if let Some(page) = engine.page_store.get(request.uri()) {
+                                    let mut rendered = engine.render(page)?;
+                                    let linked_assets = rewrite_asset_targets(
+                                        std::slice::from_mut(&mut rendered),
+                                        &engine.page_store(),
+                                    )?;
+                                    engine.run_pipelines(&linked_assets)?;
+                                    Some(rendered)
+                                } else {
+                                    None
+                                }
                             };
                             request.send_sync(rt.handle().clone(), page)?
                         }
@@ -491,11 +491,6 @@ fn do_build_page_store<P: AsRef<Path> + std::fmt::Debug>(
         Page::from_file(src_root, target_root, path, &renderers)
     })
     .try_collect()?;
-
-    let template_names = renderers.tera.get_template_names().collect::<HashSet<_>>();
-    for page in pages.iter_mut() {
-        page.set_template(&template_names)?;
-    }
 
     let mut page_store = PageStore::new();
     page_store.insert_batch(pages);

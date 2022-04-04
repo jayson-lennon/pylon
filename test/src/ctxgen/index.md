@@ -1,6 +1,6 @@
 +++
 title = "ctxgen index"
-template_path = "index_content.tera"
+template_name = "index_content.tera"
 +++
 
 ctxgen index page
