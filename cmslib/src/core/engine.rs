@@ -103,7 +103,7 @@ impl Engine {
                                     None
                                 }
                             };
-                            request.send_sync(rt.handle().clone(), page)?
+                            request.send_sync(rt.handle(), page)?;
                         }
 
                         EngineMsg::FilesystemUpdate(events) => {
@@ -154,7 +154,7 @@ impl Engine {
                             break;
                         }
                     },
-                    Err(_e) => panic!("problem receiving from engine channel"),
+                    Err(e) => panic!("problem receiving from engine channel: {e}"),
                 }
             }
             Ok(())
@@ -176,10 +176,11 @@ impl Engine {
             config,
             renderers,
 
+            script_engine,
             rules,
             rule_processor,
+
             page_store,
-            script_engine,
         })
     }
 
@@ -306,9 +307,10 @@ impl Engine {
         engine_config: &EngineConfig,
         engine_broker: EngineBroker,
     ) -> Result<DevServer, anyhow::Error> {
-        trace!("starting devserver");
         use crate::devserver;
         use std::time::Duration;
+
+        trace!("starting devserver");
 
         // spawn filesystem monitoring thread
         {

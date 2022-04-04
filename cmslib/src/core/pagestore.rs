@@ -76,7 +76,7 @@ impl PageStore {
             page
         });
 
-        for key in search_keys.into_iter() {
+        for key in search_keys {
             self.key_map.insert(key, page_key);
         }
 
@@ -147,6 +147,8 @@ pub mod script {
     use crate::core::Uri;
 
     use super::PageStore;
+
+    #[allow(clippy::wildcard_imports)]
     use rhai::plugin::*;
 
     impl PageStore {
@@ -160,8 +162,7 @@ pub mod script {
             let k = self
                 .get(&uri)
                 .cloned()
-                .map(Dynamic::from)
-                .unwrap_or_else(|| ().into());
+                .map_or_else(|| ().into(), Dynamic::from);
             dbg!(&k);
             Ok(k)
         }

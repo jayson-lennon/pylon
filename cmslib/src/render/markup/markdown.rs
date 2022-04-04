@@ -5,6 +5,7 @@ impl MarkdownRenderer {
     pub fn new() -> Self {
         Self
     }
+    #[allow(clippy::unused_self)]
     pub fn render<M: AsRef<str>>(&self, raw_markdown: M) -> String {
         render(raw_markdown)
     }

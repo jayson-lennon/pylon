@@ -234,6 +234,7 @@ fn split_document(raw: &str) -> Result<(&str, &str), anyhow::Error> {
 }
 
 pub mod script {
+    #[allow(clippy::wildcard_imports)]
     use rhai::plugin::*;
 
     #[rhai::export_module]
@@ -289,6 +290,7 @@ pub mod script {
 
 #[cfg(test)]
 pub mod test {
+    #![allow(clippy::missing_panics_doc)]
 
     use std::io;
 

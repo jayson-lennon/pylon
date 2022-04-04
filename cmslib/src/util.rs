@@ -1,8 +1,6 @@
-use anyhow::{Context};
+use anyhow::Context;
 
-use std::{
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 use tempfile::NamedTempFile;
 use tracing::{instrument, trace};
 
@@ -25,32 +23,10 @@ pub fn gen_temp_file() -> Result<NamedTempFile, anyhow::Error> {
         .with_context(|| "failed creating temporary file for shell processing".to_string())
 }
 
-pub fn get_all_templates(template_root: PathBuf) -> Result<Vec<PathBuf>, anyhow::Error> {
-    Ok(crate::discover::get_all_paths(
-        &template_root,
-        &|path: &Path| -> bool {
-            path.extension()
-                .map(|ext| ext == "tera")
-                .unwrap_or_else(|| false)
-        },
-    )?)
-}
-
 #[instrument]
 pub fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<(), std::io::Error> {
     trace!("create parent directories");
     std::fs::create_dir_all(dir)
-}
-
-pub fn strip_root<P: AsRef<Path>>(root: P, path: P) -> PathBuf {
-    let root = root.as_ref().iter().collect::<Vec<_>>();
-    let path = path.as_ref().iter().collect::<Vec<_>>();
-
-    let mut i = 0;
-    while root.get(i) == path.get(i) {
-        i += 1;
-    }
-    PathBuf::from_iter(path[i..].iter())
 }
 
 #[derive(Debug)]

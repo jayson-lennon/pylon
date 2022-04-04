@@ -24,7 +24,7 @@ impl Rules {
     }
 
     pub fn add_context_generator(&mut self, matcher: Matcher, generator: rhai::FnPtr) {
-        self.page_context.add_generator(matcher, generator)
+        self.page_context.add_generator(matcher, generator);
     }
 
     pub fn pipelines(&self) -> impl Iterator<Item = &Pipeline> {
@@ -76,7 +76,7 @@ impl RuleProcessor {
 
     pub fn run<T: Clone + Send + Sync + 'static, A: rhai::FuncArgs>(
         &self,
-        ptr: rhai::FnPtr,
+        ptr: &rhai::FnPtr,
         args: A,
     ) -> Result<T, anyhow::Error> {
         Ok(ptr.call(&self.engine, &self.ast, args)?)
@@ -84,6 +84,7 @@ impl RuleProcessor {
 }
 
 pub mod script {
+    #[allow(clippy::wildcard_imports)]
     use rhai::plugin::*;
 
     #[rhai::export_module]
@@ -108,7 +109,7 @@ pub mod script {
             use std::str::FromStr;
 
             let mut parsed_ops = vec![];
-            for op in ops.into_iter() {
+            for op in ops {
                 let op: String = op.into_string()?;
                 let op = Operation::from_str(&op)?;
                 parsed_ops.push(op);

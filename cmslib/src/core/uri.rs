@@ -1,4 +1,4 @@
-use std::path::{Path};
+use std::path::Path;
 
 use anyhow::anyhow;
 use serde::Serialize;
@@ -9,10 +9,10 @@ pub struct Uri(String);
 impl Uri {
     pub fn new<S: Into<String>>(uri: S) -> Result<Self, anyhow::Error> {
         let uri = uri.into();
-        if !uri.starts_with('/') {
-            Err(anyhow!("Uri must start with a slash (/)"))
-        } else {
+        if uri.starts_with('/') {
             Ok(Self(uri))
+        } else {
+            Err(anyhow!("Uri must start with a slash (/)"))
         }
     }
 

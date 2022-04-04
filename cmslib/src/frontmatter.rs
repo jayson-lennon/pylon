@@ -21,11 +21,13 @@ pub struct FrontMatter {
 }
 
 pub mod script {
+    #[allow(clippy::wildcard_imports)]
     use rhai::plugin::*;
 
     #[rhai::export_module]
     pub mod rhai_module {
         use crate::frontmatter::FrontMatter;
+        use crate::render::template::TemplateName;
         use rhai::serde::to_dynamic;
 
         #[rhai_fn(get = "template_name")]
@@ -33,8 +35,7 @@ pub mod script {
             frontmatter
                 .template_name
                 .clone()
-                .map(|n| n.into_string())
-                .unwrap_or_else(|| "".into())
+                .map_or_else(|| "".into(), TemplateName::into_string)
         }
 
         #[rhai_fn(get = "use_index")]
@@ -55,7 +56,8 @@ pub mod script {
         pub fn get_meta(frontmatter: &mut FrontMatter, key: &str) -> rhai::Dynamic {
             frontmatter
                 .meta
-                .get(key).and_then(|v| to_dynamic(v).ok())
+                .get(key)
+                .and_then(|v| to_dynamic(v).ok())
                 .unwrap_or_default()
         }
     }

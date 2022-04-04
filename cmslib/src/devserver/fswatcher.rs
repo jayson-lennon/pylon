@@ -31,7 +31,7 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
         let mut hotwatch = Hotwatch::new_with_custom_delay(Duration::from_secs(0))
             .expect("hotwatch failed to initialize!");
 
-        for dir in dirs.iter() {
+        for dir in &dirs {
             let engine_relay_tx = engine_relay_tx.clone();
             hotwatch
                 .watch(dir, move |ev: Event| {
@@ -78,6 +78,7 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
 
 fn add_event(events: &mut FilesystemUpdateEvents, ev: Event) {
     use Event::*;
+
     match ev {
         Create(path) => events.create(path),
         Remove(path) => events.delete(path),

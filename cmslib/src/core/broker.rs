@@ -31,7 +31,7 @@ impl RenderPageRequest {
     }
     pub fn send_sync(
         &self,
-        handle: Handle,
+        handle: &Handle,
         page: Option<RenderedPage>,
     ) -> Result<(), anyhow::Error> {
         handle.block_on(async { Ok(self.tx.send(page).await?) })
