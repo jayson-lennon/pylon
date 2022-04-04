@@ -18,11 +18,11 @@ macro_rules! static_regex {
 pub(crate) use static_regex;
 
 pub fn gen_temp_file() -> Result<NamedTempFile, anyhow::Error> {
-    Ok(tempfile::Builder::new()
+    tempfile::Builder::new()
         .prefix("pipeworks-artifact_")
         .rand_bytes(12)
         .tempfile()
-        .with_context(|| format!("failed creating temporary file for shell processing"))?)
+        .with_context(|| "failed creating temporary file for shell processing".to_string())
 }
 
 pub fn get_all_templates(template_root: PathBuf) -> Result<Vec<PathBuf>, anyhow::Error> {

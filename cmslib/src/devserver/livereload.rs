@@ -70,7 +70,7 @@ impl ClientBroker {
 
     pub async fn add(&self) -> WsClientId {
         let mut clients = self.clients.lock().await;
-        clients.insert_with_key(|k| (WsClient::new(k)))
+        clients.insert_with_key(WsClient::new)
     }
 
     pub async fn remove(&self, id: WsClientId) {
@@ -128,7 +128,7 @@ pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse 
                 match msg {
                     DevServerMsg::ReloadPage => {
                         trace!("live reload message sent to client {:?}", client_id);
-                        if let Err(e) = sink.send(Message::Text(format!("RELOAD"))).await {
+                        if let Err(e) = sink.send(Message::Text("RELOAD".to_string())).await {
                             trace!("error sending message to live reload client: {}", e);
                         }
                     }

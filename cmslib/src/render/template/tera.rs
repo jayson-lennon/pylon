@@ -23,7 +23,7 @@ impl TeraRenderer {
         template: &TemplateName,
         context: &tera::Context,
     ) -> Result<String, tera::Error> {
-        Ok(self.renderer.render(template.as_ref(), context)?)
+        self.renderer.render(template.as_ref(), context)
     }
 
     pub fn get_template_names(&self) -> impl Iterator<Item = &str> {

@@ -53,7 +53,7 @@ impl Page {
         let src_path = src_path(src_root, file_path);
 
         let mut file = std::fs::File::open(&PathBuf::from(&src_path))
-            .with_context(|| format!("failed opening source file {}", src_path.to_string()))?;
+            .with_context(|| format!("failed opening source file {}", src_path))?;
 
         Self::from_reader(src_root, target_root, file_path, &mut file, renderers)
     }
@@ -77,15 +77,12 @@ impl Page {
         let src_path = src_path(src_root, file_path);
 
         let mut raw_doc = String::new();
-        reader.read_to_string(&mut raw_doc).with_context(|| {
-            format!(
-                "error reading document into string for path {}",
-                src_path.to_string()
-            )
-        })?;
+        reader
+            .read_to_string(&mut raw_doc)
+            .with_context(|| format!("error reading document into string for path {}", src_path))?;
 
         let (mut frontmatter, markdown) = parsed_raw_document(&raw_doc, renderers)
-            .with_context(|| format!("failed parsing raw document for {}", src_path.to_string()))?;
+            .with_context(|| format!("failed parsing raw document for {}", src_path))?;
 
         let target_path = target_path(&src_path, target_root, frontmatter.use_index);
 
@@ -144,7 +141,7 @@ fn parsed_raw_document<S: AsRef<str>>(
 ) -> Result<(FrontMatter, Markdown), anyhow::Error> {
     let raw = raw.as_ref();
 
-    let (raw_frontmatter, raw_markdown) = split_document(&raw)
+    let (raw_frontmatter, raw_markdown) = split_document(raw)
         .with_context(|| String::from("failed to split raw document into component parts"))?;
 
     let frontmatter: FrontMatter = toml::from_str(raw_frontmatter)
@@ -200,7 +197,7 @@ fn get_default_template_name(
     // This function chomps the page path until no more components are remaining.
     let mut ancestors = rel_system_path.target().ancestors();
 
-    while let Some(path) = ancestors.next() {
+    for path in ancestors.by_ref() {
         let template_name = {
             // Add the default page name ("page.tera") to the new path.
             let mut template_name = PathBuf::from(path);
@@ -232,7 +229,7 @@ fn split_document(raw: &str) -> Result<(&str, &str), anyhow::Error> {
                 .ok_or_else(|| anyhow!("unable to read markdown"))?;
             Ok((frontmatter, markdown))
         }
-        None => Err(anyhow!("improperly formed document"))?,
+        None => Err(anyhow!("improperly formed document")),
     }
 }
 
@@ -271,8 +268,7 @@ pub mod script {
             page.frontmatter
                 .meta
                 .get(key)
-                .map(|v| to_dynamic(v).ok())
-                .flatten()
+                .and_then(|v| to_dynamic(v).ok())
                 .unwrap_or_default()
         }
 
@@ -306,56 +302,56 @@ pub mod test {
 
     pub mod doc {
         pub mod broken {
-            pub const MALFORMED_FRONTMATTER: &'static str = r#"
+            pub const MALFORMED_FRONTMATTER: &str = r#"
                 +++
                 whoops = 
                 +++
                 content"#;
-            pub const MISSING_OPENING_DELIMITER: &'static str = r#"
+            pub const MISSING_OPENING_DELIMITER: &str = r#"
                 whoops = 
                 +++
                 content"#;
 
-            pub const MISSING_CLOSING_DELIMITER: &'static str = r#"
+            pub const MISSING_CLOSING_DELIMITER: &str = r#"
                 +++
                 whoops = 
                 content"#;
 
-            pub const WRONG_DELIMETERS: &'static str = r#"
+            pub const WRONG_DELIMETERS: &str = r#"
                 ++
                 whoops = 
                 content
                 ++"#;
-            pub const INVALID_STARTING_CHARACTERS: &'static str = r#"
+            pub const INVALID_STARTING_CHARACTERS: &str = r#"
                 whoops
                 +++
                 whoops = 
                 +++
                 content"#;
         }
-        pub const MINIMAL: &'static str = r#"
+        pub const MINIMAL: &str = r#"
             +++
             template_name = "empty.tera"
             +++
             content"#;
-        pub const NO_CONTENT: &'static str = r#"
+        pub const NO_CONTENT: &str = r#"
             +++
             template_name = "empty.tera"
             +++"#;
 
-        pub const EMPTY_LINE_CONTENT: &'static str = r#"
+        pub const EMPTY_LINE_CONTENT: &str = r#"
             +++
             template_name = "empty.tera"
             +++"#;
 
-        pub const EMPTY_FRONTMATTER_WITH_NEWLINES: &'static str = r#"
+        pub const EMPTY_FRONTMATTER_WITH_NEWLINES: &str = r#"
                     
             +++
 
             +++
             content"#;
 
-        pub const EMPTY_FRONTMATTER: &'static str = r#"
+        pub const EMPTY_FRONTMATTER: &str = r#"
             +++
             +++
             content"#;

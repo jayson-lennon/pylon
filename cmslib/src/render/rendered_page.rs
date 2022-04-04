@@ -39,7 +39,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
             let user_ctx = {
                 let user_ctx_generators = engine.rules().page_context();
                 crate::core::rules::script::build_context(
-                    &engine.rule_processor(),
+                    engine.rule_processor(),
                     user_ctx_generators,
                     page,
                 )?
@@ -312,7 +312,7 @@ fn get_asset_uri_when_using_index<A: AsRef<str>>(
         .get_attribute(attr)
         .ok_or_else(|| anyhow!("missing '{}' attribute in HTML tag. this is a bug", attr))?;
     // assets using an absolute path don't need to be modified
-    if attr_value.starts_with("/") {
+    if attr_value.starts_with('/') {
         Ok(Uri::from_path(&attr_value))
     } else {
         // Here we are setting the parent directory of all assets
@@ -346,7 +346,7 @@ fn get_asset_uri_without_index<A: AsRef<str>>(
         .get_attribute(attr)
         .ok_or_else(|| anyhow!("missing '{}' attribute in HTML tag. this is a bug", attr))?;
     // assets using an absolute path don't need to be modified
-    if attr_value.starts_with("/") {
+    if attr_value.starts_with('/') {
         Ok(Uri::from_path(&attr_value))
     } else {
         // Here we are setting the parent directory of all assets
