@@ -4,7 +4,7 @@
 <head></head>
 
 <body>
-  <h1>rando root page</h1>
+  <h1>default page template in root</h1>
 
 
   {% block body %}{% endblock body %}
