@@ -11,13 +11,13 @@ impl MarkdownRenderer {
 }
 
 fn render<M: AsRef<str>>(raw_markdown: M) -> String {
-    use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag};
+    use pulldown_cmark::{html, Options, Parser};
 
     let raw_markdown = raw_markdown.as_ref();
     let options = Options::all();
     let mut buf = String::new();
 
-    let href_re = crate::util::static_regex!(r#"(^[[:alnum:]]*:.*)|(^[[:digit:]]*\..*)|(^/.*)"#);
+    let _href_re = crate::util::static_regex!(r#"(^[[:alnum:]]*:.*)|(^[[:digit:]]*\..*)|(^/.*)"#);
 
     // let parser = Parser::new_ext(raw_markdown, options).map(|ev| match ev {
     //     Event::Start(Tag::Link(LinkType::Inline, href, title)) => {

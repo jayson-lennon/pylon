@@ -1,8 +1,6 @@
-use anyhow::{anyhow, Context};
-use serde::Serialize;
+use anyhow::{Context};
+
 use std::{
-    ffi::OsStr,
-    fmt,
     path::{Path, PathBuf},
 };
 use tempfile::NamedTempFile;

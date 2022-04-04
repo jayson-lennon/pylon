@@ -1,5 +1,5 @@
 use super::gctx::{Generators, Matcher};
-use crate::core::rules::script::ScriptEngine;
+
 use crate::{core::Page, pipeline::Pipeline};
 use serde::Serialize;
 
@@ -87,7 +87,7 @@ pub mod script {
 
     #[rhai::export_module]
     pub mod rhai_module {
-        use crate::core::rules::gctx::{ContextItem, Generators, Matcher};
+        use crate::core::rules::gctx::{Matcher};
         use crate::core::rules::Rules;
         use rhai::FnPtr;
         use tracing::{instrument, trace};

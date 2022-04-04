@@ -2,15 +2,15 @@ use anyhow::anyhow;
 use itertools::Itertools;
 use parking_lot::RwLock;
 use rhai::packages::{Package, StandardPackage};
-use rhai::{def_package, Engine, ImmutableString, Scope};
-use rhai::{plugin::*, FnPtr};
+use rhai::{def_package, Scope};
+use rhai::{plugin::*};
 use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{instrument, trace};
 
 use crate::core::{Page, PageStore};
 
-use super::gctx::{ContextItem, Generators, Matcher};
+use super::gctx::{ContextItem, Generators};
 use super::Rules;
 
 // Define the custom package 'MyCustomPackage'.

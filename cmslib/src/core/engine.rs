@@ -1,7 +1,6 @@
-use anyhow::anyhow;
+
 use itertools::Itertools;
 use std::{
-    collections::HashSet,
     ffi::OsStr,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -17,7 +16,6 @@ use crate::{
         rendered_page::{RenderedPage, RenderedPageCollection},
         Renderers,
     },
-    site_context::SiteContext,
     util,
 };
 
@@ -88,7 +86,7 @@ impl Engine {
         let engine_handle = thread::spawn(move || {
             let mut engine = Self::new(config)?;
 
-            let devserver =
+            let _devserver =
                 engine.start_devserver(bind, debounce_ms, &engine.config, broker.clone())?;
 
             loop {
@@ -172,7 +170,7 @@ impl Engine {
                             break;
                         }
                     },
-                    Err(e) => panic!("problem receiving from engine channel"),
+                    Err(_e) => panic!("problem receiving from engine channel"),
                 }
             }
             Ok(())
@@ -482,7 +480,7 @@ fn do_build_page_store<P: AsRef<Path> + std::fmt::Debug>(
 ) -> Result<PageStore, anyhow::Error> {
     let src_root = src_root.as_ref();
     let target_root = target_root.as_ref();
-    let mut pages: Vec<_> = crate::discover::get_all_paths(src_root, &|path: &Path| -> bool {
+    let pages: Vec<_> = crate::discover::get_all_paths(src_root, &|path: &Path| -> bool {
         path.extension() == Some(OsStr::new("md"))
     })?
     .iter()

@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{PathBuf},
 };
 
 use tracing::{error, instrument, trace};
@@ -179,12 +179,12 @@ pub fn rewrite_asset_targets(
     rendered_pages: &mut [RenderedPage],
     store: &PageStore,
 ) -> Result<LinkedAssets, anyhow::Error> {
-    use crate::core::uri::Uri;
+    
     use lol_html::{
-        rewrite_str, DocumentContentHandlers, ElementContentHandlers, RewriteStrSettings, Selector,
+        rewrite_str, RewriteStrSettings,
     };
     use parking_lot::Mutex;
-    use std::borrow::Cow;
+    
     use std::sync::Arc;
 
     macro_rules! use_index_handlers {
