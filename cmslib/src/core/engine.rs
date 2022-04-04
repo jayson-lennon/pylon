@@ -116,9 +116,9 @@ impl Engine {
                             let mut reload_templates = false;
                             let mut reload_rules = false;
                             for changed in events.changed() {
-                                // These paths come in as absolute paths. We need to convert
-                                // them to paths relative to our site content and then into
-                                // CanonicalPaths.
+                                // These paths come in as absolute paths. Use strip_prefix
+                                // to transform them into relative paths which can then
+                                // be used with the engine config.
                                 let path = {
                                     let cwd = std::env::current_dir()?;
                                     changed.strip_prefix(cwd)?
