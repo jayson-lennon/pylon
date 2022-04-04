@@ -46,7 +46,7 @@ impl PageStore {
             let mut page = page;
             page.page_key = old.page_key;
             *old = page;
-            Some(old.page_key.clone())
+            Some(old.page_key)
         } else {
             trace!("page not found for update");
             None
@@ -143,7 +143,7 @@ pub mod script {
             let k = self
                 .get(&uri)
                 .cloned()
-                .map(|p| Dynamic::from(p))
+                .map(Dynamic::from)
                 .unwrap_or_else(|| ().into());
             dbg!(&k);
             Ok(k)
