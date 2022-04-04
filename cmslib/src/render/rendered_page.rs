@@ -240,6 +240,7 @@ pub fn rewrite_asset_targets(
         // processing.
         if page.frontmatter.use_index && page.src_path().file_stem() != "index" {
             let element_content_handlers = use_index_handlers!(all_assets, &page.target_path();
+                "a[href]"        "href",
                 "audio[src]"     "src",
                 "embed[src]"     "src",
                 "img[src]"       "src",
@@ -264,6 +265,7 @@ pub fn rewrite_asset_targets(
             rendered_page.html = rewritten;
         } else {
             let element_content_handlers = no_index_handlers!(all_assets, &page.target_path();
+                "a[href]"        "href",
                 "audio[src]"     "src",
                 "embed[src]"     "src",
                 "img[src]"       "src",
@@ -415,6 +417,7 @@ mod test {
     test_rewriter!(index_defers_to_no_index_when_page_is_named_index:
     true, page="file_path/is/index.html"
     vec![
+        (r#"<a href="test.png">"#, r#"<a href="test.png">"#, "/file_path/is/test.png"),
         (r#"<audio src="test.png">"#, r#"<audio src="test.png">"#, "/file_path/is/test.png"),
         (r#"<embed src="test.png">"#, r#"<embed src="test.png">"#, "/file_path/is/test.png"),
         (r#"<img src="test.png">"#, r#"<img src="test.png">"#, "/file_path/is/test.png"),
@@ -430,6 +433,7 @@ mod test {
     test_rewriter!(index_get_assets:
     true, page="file_path/is/page.html"
     vec![
+        (r#"<a href="test.png">"#, r#"<a href="/file_path/is/test.png">"#, "/file_path/is/test.png"),
         (r#"<audio src="test.png">"#, r#"<audio src="/file_path/is/test.png">"#, "/file_path/is/test.png"),
         (r#"<embed src="test.png">"#, r#"<embed src="/file_path/is/test.png">"#, "/file_path/is/test.png"),
         (r#"<img src="test.png">"#, r#"<img src="/file_path/is/test.png">"#, "/file_path/is/test.png"),
@@ -445,6 +449,7 @@ mod test {
     test_rewriter!(index_get_assets_when_at_root:
     true, page="page.html"
     vec![
+        (r#"<a href="test.png">"#, r#"<a href="/test.png">"#, "/test.png"),
         (r#"<audio src="test.png">"#, r#"<audio src="/test.png">"#, "/test.png"),
         (r#"<embed src="test.png">"#, r#"<embed src="/test.png">"#, "/test.png"),
         (r#"<img src="test.png">"#, r#"<img src="/test.png">"#, "/test.png"),
@@ -460,6 +465,7 @@ mod test {
     test_rewriter!(index_get_assets_when_one_level_deep:
     true, page="dir1/page.html"
     vec![
+        (r#"<a href="test.png">"#, r#"<a href="/dir1/test.png">"#, "/dir1/test.png"),
         (r#"<audio src="test.png">"#, r#"<audio src="/dir1/test.png">"#, "/dir1/test.png"),
         (r#"<embed src="test.png">"#, r#"<embed src="/dir1/test.png">"#, "/dir1/test.png"),
         (r#"<img src="test.png">"#, r#"<img src="/dir1/test.png">"#, "/dir1/test.png"),
@@ -475,6 +481,7 @@ mod test {
     test_rewriter!(index_get_assets_within_subdirs:
     true, page="file_path/a/b/page.html"
     vec![
+        (r#"<a href="test.png">"#, r#"<a href="/file_path/a/b/test.png">"#, "/file_path/a/b/test.png"),
         (r#"<audio src="test.png">"#, r#"<audio src="/file_path/a/b/test.png">"#, "/file_path/a/b/test.png"),
         (r#"<embed src="test.png">"#, r#"<embed src="/file_path/a/b/test.png">"#, "/file_path/a/b/test.png"),
         (r#"<img src="test.png">"#, r#"<img src="/file_path/a/b/test.png">"#, "/file_path/a/b/test.png"),
@@ -490,6 +497,7 @@ mod test {
     test_rewriter!(index_get_absolute_path_assets:
     true, page="a/b/page.html"
     vec![
+        (r#"<a href="/test.png">"#, r#"<a href="/test.png">"#, "/test.png"),
         (r#"<audio src="/test.png">"#, r#"<audio src="/test.png">"#, "/test.png"),
         (r#"<embed src="/test.png">"#, r#"<embed src="/test.png">"#, "/test.png"),
         (r#"<img src="/test.png">"#, r#"<img src="/test.png">"#, "/test.png"),
@@ -505,6 +513,7 @@ mod test {
     test_rewriter!(noindex_get_assets_within_subdirs:
     false, page="file_path/is/page.html"
     vec![
+        (r#"<a href="test.png">"#, r#"<a href="test.png">"#, "/file_path/is/test.png"),
         (r#"<audio src="test.png">"#, r#"<audio src="test.png">"#, "/file_path/is/test.png"),
         (r#"<embed src="test.png">"#, r#"<embed src="test.png">"#, "/file_path/is/test.png"),
         (r#"<img src="test.png">"#, r#"<img src="test.png">"#, "/file_path/is/test.png"),
@@ -520,6 +529,7 @@ mod test {
     test_rewriter!(noindex_get_absolute_path_assets:
     false, page="file_path/is/page.html"
     vec![
+        (r#"<a href="/test.png">"#, r#"<a href="/test.png">"#, "/test.png"),
         (r#"<audio src="/test.png">"#, r#"<audio src="/test.png">"#, "/test.png"),
         (r#"<embed src="/test.png">"#, r#"<embed src="/test.png">"#, "/test.png"),
         (r#"<img src="/test.png">"#, r#"<img src="/test.png">"#, "/test.png"),
@@ -535,6 +545,7 @@ mod test {
     test_rewriter!(noindex_get_assets:
     false, page="file_path/is/page.html"
     vec![
+        (r#"<a href="test.png">"#, r#"<a href="test.png">"#, "/file_path/is/test.png"),
         (r#"<audio src="test.png">"#, r#"<audio src="test.png">"#, "/file_path/is/test.png"),
         (r#"<embed src="test.png">"#, r#"<embed src="test.png">"#, "/file_path/is/test.png"),
         (r#"<img src="test.png">"#, r#"<img src="test.png">"#, "/file_path/is/test.png"),
@@ -550,6 +561,7 @@ mod test {
     test_rewriter!(noindex_get_assets_when_at_root:
     false, page="page.html"
     vec![
+        (r#"<a href="test.png">"#, r#"<a href="test.png">"#, "/test.png"),
         (r#"<audio src="test.png">"#, r#"<audio src="test.png">"#, "/test.png"),
         (r#"<embed src="test.png">"#, r#"<embed src="test.png">"#, "/test.png"),
         (r#"<img src="test.png">"#, r#"<img src="test.png">"#, "/test.png"),
