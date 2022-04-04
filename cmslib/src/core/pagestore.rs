@@ -38,16 +38,28 @@ impl PageStore {
     }
 
     #[instrument(skip_all, fields(page=%page.uri()))]
-    pub fn update(&mut self, page: Page) -> Option<PageKey> {
+    pub fn update(&mut self, page: Page) -> bool {
         trace!("updating existing page");
         if let Some(old) = self.get_mut(&page.uri()) {
             let mut page = page;
             page.page_key = old.page_key;
             *old = page;
-            Some(old.page_key)
+            true
         } else {
-            trace!("page not found for update");
-            None
+            false
+        }
+    }
+
+    #[instrument(skip_all, fields(page=%page.uri()))]
+    pub fn upsert(&mut self, page: Page) -> PageKey {
+        trace!("upsert page");
+        if let Some(old) = self.get_mut(&page.uri()) {
+            let mut page = page;
+            page.page_key = old.page_key;
+            *old = page;
+            old.page_key
+        } else {
+            self.insert(page)
         }
     }
 

@@ -1,0 +1,5 @@
++++
++++
+other page
+
+[alt](alt)

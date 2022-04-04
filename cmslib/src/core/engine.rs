@@ -128,7 +128,7 @@ impl Engine {
                                         &path,
                                         engine.renderers(),
                                     )?;
-                                    engine.page_store.update(page);
+                                    engine.page_store.upsert(page);
                                 }
 
                                 if path.starts_with(&engine.config.template_root) {
