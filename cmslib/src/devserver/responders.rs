@@ -62,7 +62,8 @@ pub fn try_static_file<S: AsRef<str>>(
     }
 
     // determine the path on the system
-    let system_path = PathBuf::from(format!("{}/{}", mount_point.0, path));
+    let mut system_path = PathBuf::from(mount_point.0.clone());
+    system_path.push(path);
     trace!(path = ?system_path, "using path");
 
     // determine MIME
