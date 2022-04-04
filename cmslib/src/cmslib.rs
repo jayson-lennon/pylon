@@ -1,3 +1,6 @@
+#![warn(clippy::all)]
+#![warn(clippy::pedantic)]
+
 pub mod core;
 pub mod devserver;
 pub mod discover;
