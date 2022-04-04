@@ -5,7 +5,6 @@ use crate::{
 use slotmap::SlotMap;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
 };
 use tracing::{instrument, trace};
 

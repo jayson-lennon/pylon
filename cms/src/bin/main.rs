@@ -1,5 +1,5 @@
 use clap::Parser;
-use cmslib::core::{broker::EngineMsg, config::EngineConfig, engine::Engine};
+use cmslib::core::{config::EngineConfig, engine::Engine};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -82,7 +82,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     match args.command {
         Command::Serve(opt) => {
-            let (handle, broker) = Engine::with_broker(config, opt.bind, opt.debounce_ms)?;
+            let (handle, _broker) = Engine::with_broker(config, opt.bind, opt.debounce_ms)?;
             // broker.send_engine_msg_sync(EngineMsg::Build)?;
             println!("{:?}", handle.join());
         }

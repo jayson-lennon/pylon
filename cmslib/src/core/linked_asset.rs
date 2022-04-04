@@ -1,9 +1,8 @@
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
 };
 
-use serde::Serialize;
+
 
 use crate::core::uri::Uri;
 

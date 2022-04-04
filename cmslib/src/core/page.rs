@@ -8,7 +8,7 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
-use tracing::{instrument, trace, trace_span};
+use tracing::{instrument, trace_span};
 
 slotmap::new_key_type! {
     pub struct PageKey;
@@ -91,10 +91,12 @@ impl Page {
 
         let uri = uri(&target_path);
 
-        let all_templates = renderers.tera.get_template_names().collect::<HashSet<_>>();
-        let template = get_template_name(&all_templates, &src_path)?;
+        if frontmatter.template_name.is_none() {
+            let all_templates = renderers.tera.get_template_names().collect::<HashSet<_>>();
+            let template = get_template_name(&all_templates, &src_path)?;
 
-        frontmatter.template_name = Some(template);
+            frontmatter.template_name = Some(template);
+        }
 
         Ok(Self {
             src_path,
@@ -245,13 +247,13 @@ pub mod script {
 
     #[rhai::export_module]
     pub mod rhai_module {
-        use crate::core::rules::gctx::{ContextItem, Generators, Matcher};
-        use crate::core::rules::Rules;
+        use crate::core::rules::gctx::ContextItem;
+
         use crate::core::Page;
         use crate::frontmatter::FrontMatter;
         use rhai::serde::to_dynamic;
-        use rhai::FnPtr;
-        use tracing::{instrument, trace};
+
+        use tracing::instrument;
 
         #[rhai_fn(name = "uri")]
         pub fn uri(page: &mut Page) -> String {
@@ -339,20 +341,17 @@ pub mod test {
         }
         pub const MINIMAL: &'static str = r#"
             +++
-            title = "test"
-            template_name = "test"
+            template_name = "empty.tera"
             +++
             content"#;
         pub const NO_CONTENT: &'static str = r#"
             +++
-            title = "test"
-            template_name = "test"
+            template_name = "empty.tera"
             +++"#;
 
         pub const EMPTY_LINE_CONTENT: &'static str = r#"
             +++
-            title = "test"
-            template_name = "test"
+            template_name = "empty.tera"
             +++"#;
 
         pub const EMPTY_FRONTMATTER_WITH_NEWLINES: &'static str = r#"
@@ -378,18 +377,18 @@ pub mod test {
         target: &str,
         path: &str,
     ) -> Result<Page, anyhow::Error> {
-        let renderers = Renderers::new("test/templates/**/*");
+        let renderers = Renderers::new("test/templates");
         let mut reader = io::Cursor::new(doc.as_bytes());
         Page::from_reader(src, target, path, &mut reader, &renderers)
     }
 
     pub fn page_from_doc(doc: &str) -> Result<Page, anyhow::Error> {
-        let renderers = Renderers::new("test/templates/**/*");
+        let renderers = Renderers::new("test/templates");
         let mut reader = io::Cursor::new(doc.as_bytes());
         Page::from_reader(
             "src_root",
             "target_root",
-            "file_path/is/test.ext",
+            "sample/stem.ext",
             &mut reader,
             &renderers,
         )
@@ -422,8 +421,8 @@ pub mod test {
     new_page_err!(err_on_extra_characters => doc::broken::INVALID_STARTING_CHARACTERS);
     new_page_err!(err_with_empty_frontmatter => doc::EMPTY_FRONTMATTER);
 
-    new_page_ok!(ok_with_newlines_in_frontmatter => doc::EMPTY_FRONTMATTER_WITH_NEWLINES);
     new_page_ok!(ok_with_no_content => doc::NO_CONTENT);
+    new_page_ok!(ok_with_newlines_in_frontmatter => doc::EMPTY_FRONTMATTER_WITH_NEWLINES);
     new_page_ok!(ok_with_newline_content => doc::EMPTY_LINE_CONTENT);
 
     #[test]
@@ -432,20 +431,17 @@ pub mod test {
 
         assert_eq!(
             page.src_path(),
-            RelSystemPath::new("src_root", "file_path/is/test.ext")
+            RelSystemPath::new("src_root", "sample/stem.ext")
         );
 
         assert_eq!(
             page.target_path(),
-            RelSystemPath::new("target_root", "file_path/is/test/index.html")
+            RelSystemPath::new("target_root", "sample/stem/index.html")
         );
 
-        assert_eq!(
-            page.uri(),
-            Uri::new("/file_path/is/test/index.html").unwrap()
-        );
+        assert_eq!(page.uri(), Uri::new("/sample/stem/index.html").unwrap());
 
-        assert_eq!(page.template_name(), TemplateName::new("test"));
+        assert_eq!(page.template_name(), TemplateName::new("empty.tera"));
     }
 
     #[test]
@@ -466,14 +462,13 @@ pub mod test {
     fn proper_target_without_use_index() {
         let doc = r#"
 +++
-title = "test"
-template_name = "template"
+template_name = "empty.tera"
 use_index = false
 +++"#;
         let page = page_from_doc(doc).unwrap();
         assert_eq!(
             page.target_path(),
-            RelSystemPath::new("target_root", "file_path/is/test.html")
+            RelSystemPath::new("target_root", "sample/stem.html")
         );
     }
 
@@ -481,13 +476,12 @@ use_index = false
     fn proper_uri_without_use_index() {
         let doc = r#"
 +++
-title = "test"
-template_name = "template"
+template_name = "empty.tera"
 use_index = false
 +++"#;
 
         let page = page_from_doc(doc).unwrap();
 
-        assert_eq!(page.uri(), Uri::from_path("/file_path/is/test.html"));
+        assert_eq!(page.uri(), Uri::from_path("/sample/stem.html"));
     }
 }

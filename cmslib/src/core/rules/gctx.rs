@@ -1,13 +1,12 @@
 use crate::{
-    core::{Page, PageStore},
-    frontmatter::FrontMatter,
+    core::{Page},
     util::{Glob, GlobCandidate},
 };
-use anyhow::anyhow;
-use rhai::{export_fn, EvalAltResult};
+
+
 use serde::Deserialize;
 use slotmap::SlotMap;
-use std::collections::HashSet;
+
 use tracing::{instrument, trace};
 
 slotmap::new_key_type! {
@@ -97,7 +96,7 @@ impl Generators {
                         None
                     }
                 }
-                Matcher::Metadata(func) => {
+                Matcher::Metadata(_func) => {
                     todo!()
                     // if func(&page.frontmatter) {
                     //     Some(*generator_key)
