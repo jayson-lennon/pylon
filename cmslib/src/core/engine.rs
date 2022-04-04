@@ -9,22 +9,17 @@ use std::{
 use tracing::{instrument, trace};
 
 use crate::{
-    core::{broker::EngineMsg, rules::script::ScriptEngineConfig, LinkedAssets, Page, PageStore},
+    core::broker::EngineBroker,
+    core::config::EngineConfig,
+    core::rules::{RuleProcessor, Rules},
+    core::script_engine::ScriptEngine,
+    core::{broker::EngineMsg, script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
     devserver::{DevServer, DevServerMsg},
     render::{
         rendered_page::{RenderedPage, RenderedPageCollection},
         Renderers,
     },
     util,
-};
-
-use super::{
-    broker::EngineBroker,
-    config::EngineConfig,
-    rules::{
-        script::{RuleProcessor, ScriptEngine},
-        Rules,
-    },
 };
 
 #[derive(Debug)]
@@ -100,7 +95,7 @@ impl Engine {
                                     let mut rendered = engine.render(page)?;
                                     let linked_assets = rewrite_asset_targets(
                                         std::slice::from_mut(&mut rendered),
-                                        &engine.page_store(),
+                                        engine.page_store(),
                                     )?;
                                     engine.run_pipelines(&linked_assets)?;
                                     Some(rendered)
@@ -123,25 +118,24 @@ impl Engine {
                                     let cwd = std::env::current_dir()?;
                                     changed.strip_prefix(cwd)?
                                 };
-                                if path.starts_with(&engine.config.src_root) {
-                                    if path.extension().unwrap_or_default().to_string_lossy()
+                                if path.starts_with(&engine.config.src_root)
+                                    && path.extension().unwrap_or_default().to_string_lossy()
                                         == "md"
-                                    {
-                                        let page = Page::from_file(
-                                            &engine.config.src_root.as_path(),
-                                            &engine.config.target_root.as_path(),
-                                            &path,
-                                            &engine.renderers(),
-                                        )?;
-                                        engine.page_store.update(page);
-                                    }
+                                {
+                                    let page = Page::from_file(
+                                        &engine.config.src_root.as_path(),
+                                        &engine.config.target_root.as_path(),
+                                        &path,
+                                        engine.renderers(),
+                                    )?;
+                                    engine.page_store.update(page);
                                 }
 
                                 if path.starts_with(&engine.config.template_root) {
                                     reload_templates = true;
                                 }
 
-                                if path == &engine.config.rule_script {
+                                if path == engine.config.rule_script {
                                     reload_rules = true;
                                 }
                             }
@@ -199,7 +193,7 @@ impl Engine {
 
         let rule_script = std::fs::read_to_string(&rule_script)?;
 
-        let (rule_processor, rules) = script_engine.build_rules(&page_store, rule_script)?;
+        let (rule_processor, rules) = script_engine.build_rules(page_store, rule_script)?;
 
         Ok((script_engine, rule_processor, rules))
     }
@@ -224,7 +218,7 @@ impl Engine {
     pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<(), anyhow::Error> {
         trace!("running pipelines");
 
-        let engine: &Engine = &self;
+        let engine: &Engine = self;
         for pipeline in engine.rules.pipelines() {
             for asset in linked_assets.iter() {
                 if pipeline.is_match(asset.as_str()) {
@@ -248,14 +242,14 @@ impl Engine {
 
     #[instrument(skip(self), fields(page=%page.uri()))]
     pub fn render(&self, page: &Page) -> Result<RenderedPage, anyhow::Error> {
-        crate::render::rendered_page::render(&self, page)
+        crate::render::rendered_page::render(self, page)
     }
 
     #[instrument(skip_all)]
     pub fn render_all(&self) -> Result<RenderedPageCollection, anyhow::Error> {
         trace!("rendering pages");
 
-        let engine: &Engine = &self;
+        let engine: &Engine = self;
 
         let rendered: Vec<RenderedPage> = engine
             .page_store
@@ -330,7 +324,7 @@ impl Engine {
             )?;
         }
 
-        let devserver = DevServer::run(engine_broker.clone(), &engine_config.target_root, bind);
+        let devserver = DevServer::run(engine_broker, &engine_config.target_root, bind);
         Ok(devserver)
     }
 }
@@ -349,7 +343,7 @@ fn do_build_page_store<P: AsRef<Path> + std::fmt::Debug>(
     .iter()
     .map(|path| {
         let path = path.strip_prefix(src_root).unwrap();
-        Page::from_file(src_root, target_root, path, &renderers)
+        Page::from_file(src_root, target_root, path, renderers)
     })
     .try_collect()?;
 

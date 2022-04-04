@@ -3,9 +3,7 @@ use crate::{
     core::Uri,
 };
 use slotmap::SlotMap;
-use std::{
-    collections::HashMap,
-};
+use std::collections::HashMap;
 use tracing::{instrument, trace};
 
 #[derive(Debug, Clone)]
@@ -46,7 +44,7 @@ impl PageStore {
             let mut page = page;
             page.page_key = old.page_key;
             *old = page;
-            Some(old.page_key.clone())
+            Some(old.page_key)
         } else {
             trace!("page not found for update");
             None
@@ -85,6 +83,12 @@ impl PageStore {
     }
 }
 
+impl Default for PageStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IntoIterator for PageStore {
     type Item = Page;
     type IntoIter = std::vec::IntoIter<Self::Item>;
@@ -109,10 +113,10 @@ impl<'a> IntoIterator for &'a PageStore {
 }
 
 fn build_search_keys(page: &Page) -> Vec<Uri> {
-    let mut search_keys = vec![];
-
-    search_keys.push(page.uri());
-    search_keys.push(Uri::from_path(&page.uri().as_str().replace(".html", ".md")));
+    let mut search_keys = vec![
+        page.uri(),
+        Uri::from_path(&page.uri().as_str().replace(".html", ".md")),
+    ];
 
     if page.frontmatter.use_index {
         let path = page.src_path();
@@ -143,7 +147,7 @@ pub mod script {
             let k = self
                 .get(&uri)
                 .cloned()
-                .map(|p| Dynamic::from(p))
+                .map(Dynamic::from)
                 .unwrap_or_else(|| ().into());
             dbg!(&k);
             Ok(k)

@@ -16,11 +16,11 @@ fn path_to_file(path: String) -> String {
     // remove relative paths
     let path = path.replace("../", "");
 
-    if path == "" {
+    if path.is_empty() {
         String::from("/index.html")
     } else {
         // transform `some_page/` to `some_page/index.html`
-        if path.ends_with("/") || path == "" {
+        if path.ends_with('/') || path.is_empty() {
             trace!("directory requested, serving index.html");
             format!("{}index.html", path)
         } else {

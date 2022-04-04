@@ -1,8 +1,4 @@
-use std::{
-    collections::HashSet,
-};
-
-
+use std::collections::HashSet;
 
 use crate::core::uri::Uri;
 
@@ -23,5 +19,11 @@ impl LinkedAssets {
 
     pub fn iter(&self) -> impl Iterator<Item = &Uri> {
         self.assets.iter()
+    }
+}
+
+impl Default for LinkedAssets {
+    fn default() -> Self {
+        Self::new()
     }
 }

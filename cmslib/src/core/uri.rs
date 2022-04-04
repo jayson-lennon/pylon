@@ -12,7 +12,7 @@ impl Uri {
         if !uri.starts_with('/') {
             Err(anyhow!("Uri must start with a slash (/)"))
         } else {
-            Ok(Self(uri.into()))
+            Ok(Self(uri))
         }
     }
 

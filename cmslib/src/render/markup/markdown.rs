@@ -10,6 +10,12 @@ impl MarkdownRenderer {
     }
 }
 
+impl Default for MarkdownRenderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn render<M: AsRef<str>>(raw_markdown: M) -> String {
     use pulldown_cmark::{html, Options, Parser};
 

@@ -80,6 +80,12 @@ impl FilesystemUpdateEvents {
     }
 }
 
+impl Default for FilesystemUpdateEvents {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug)]
 pub enum EngineMsg {
     /// A group of files have been updated. This will trigger a page

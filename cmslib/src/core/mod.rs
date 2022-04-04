@@ -6,6 +6,7 @@ pub mod page;
 pub mod pagestore;
 pub mod relsystempath;
 pub mod rules;
+pub mod script_engine;
 pub mod uri;
 
 pub use linked_asset::LinkedAssets;
