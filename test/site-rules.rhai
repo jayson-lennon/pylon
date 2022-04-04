@@ -15,9 +15,9 @@ let sample_ctx = #{
 print(1);
 print(PAGES);
 print(2);
-print(type_of(PAGES.get("index.md")));
+print(type_of(PAGES.get("/index.md")));
 print(3);
-print(PAGES.get("index.md").meta("sample"));
+print(PAGES.get("/index.md").meta("sample"));
 print(4);
 print("OMG");
 
