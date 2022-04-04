@@ -199,21 +199,24 @@ impl Pipeline {
             }
         }
 
-        if !tmp_files.is_empty() {
-            let _span = trace_span!("clean up temp files").entered();
-            trace!(files = ?tmp_files);
-            for f in tmp_files {
-                std::fs::remove_file(&f).with_context(|| {
-                    format!(
-                        "Failed to clean up temporary file: '{}'",
-                        f.to_string_lossy()
-                    )
-                })?;
-            }
-        }
+        clean_temp_files(&tmp_files)?;
 
         Ok(())
     }
+}
+
+fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<(), anyhow::Error> {
+    let _span = trace_span!("clean up temp files").entered();
+    trace!(files = ?tmp_files);
+    for f in tmp_files {
+        std::fs::remove_file(&f).with_context(|| {
+            format!(
+                "Failed to clean up temporary file: '{}'",
+                f.to_string_lossy()
+            )
+        })?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
