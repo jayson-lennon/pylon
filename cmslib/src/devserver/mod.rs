@@ -22,7 +22,9 @@ pub type DevServerReceiver = async_channel::Receiver<crate::devserver::DevServer
 
 #[derive(Debug)]
 pub struct DevServer {
+    #[allow(dead_code)]
     server_thread: JoinHandle<()>,
+    #[allow(dead_code)]
     broker: EngineBroker,
 }
 

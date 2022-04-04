@@ -1,12 +1,11 @@
 use super::gctx::{Generators, Matcher};
 
-use crate::{core::Page, pipeline::Pipeline};
+use crate::pipeline::Pipeline;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
 pub struct Rules {
     pipelines: Vec<Pipeline>,
-    frontmatter_hooks: FrontmatterHooks,
     global_context: Option<serde_json::Value>,
     page_context: Generators,
 }
@@ -14,10 +13,6 @@ pub struct Rules {
 impl Rules {
     pub fn add_pipeline(&mut self, pipeline: Pipeline) {
         self.pipelines.push(pipeline);
-    }
-
-    pub fn add_frontmatter_hook(&mut self, hook: rhai::FnPtr) {
-        self.frontmatter_hooks.add(hook);
     }
 
     pub fn set_global_context<S: Serialize>(&mut self, ctx: S) -> Result<(), anyhow::Error> {
@@ -52,7 +47,6 @@ impl Rules {
     pub fn new() -> Self {
         Self {
             pipelines: vec![],
-            frontmatter_hooks: FrontmatterHooks::new(),
             global_context: None,
             page_context: Generators::new(),
         }
@@ -66,28 +60,12 @@ pub enum FrontmatterHookResponse {
     Error(String),
 }
 
-type FrontmatterHook = Box<dyn Fn(&Page) -> FrontmatterHookResponse>;
-
-#[derive(Debug, Clone)]
-pub struct FrontmatterHooks {
-    inner: Vec<rhai::FnPtr>,
-}
-
-impl FrontmatterHooks {
-    pub fn new() -> Self {
-        Self { inner: vec![] }
-    }
-    pub fn add(&mut self, hook: rhai::FnPtr) {
-        self.inner.push(hook);
-    }
-}
-
 pub mod script {
     use rhai::plugin::*;
 
     #[rhai::export_module]
     pub mod rhai_module {
-        use crate::core::rules::gctx::{Matcher};
+        use crate::core::rules::gctx::Matcher;
         use crate::core::rules::Rules;
         use rhai::FnPtr;
         use tracing::{instrument, trace};
@@ -101,15 +79,10 @@ pub mod script {
         pub fn add_pipeline(
             rules: &mut Rules,
             target_glob: &str,
-            source_glob: &str,
             ops: rhai::Array,
         ) -> Result<(), Box<EvalAltResult>> {
-            use crate::pipeline::{AutorunTrigger, Operation, Pipeline};
+            use crate::pipeline::{Operation, Pipeline};
             use std::str::FromStr;
-
-            let autorun_trigger = AutorunTrigger::from_str(source_glob).map_err(|e| {
-                EvalAltResult::ErrorSystem("failed processing source glob".into(), e.into())
-            })?;
 
             let mut parsed_ops = vec![];
             for op in ops.into_iter() {
@@ -117,25 +90,15 @@ pub mod script {
                 let op = Operation::from_str(&op)?;
                 parsed_ops.push(op);
             }
-            let pipeline =
-                Pipeline::with_ops(target_glob, autorun_trigger, &parsed_ops).map_err(|e| {
-                    EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
-                })?;
+            let pipeline = Pipeline::with_ops(target_glob, &parsed_ops).map_err(|e| {
+                EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
+            })?;
             dbg!(&pipeline);
             rules.add_pipeline(pipeline);
 
             dbg!("pipeline added");
 
             Ok(())
-        }
-
-        #[rhai_fn(name = "add_pipeline", return_raw)]
-        pub fn add_pipeline_same_autorun(
-            rules: &mut Rules,
-            target_glob: &str,
-            ops: rhai::Array,
-        ) -> Result<(), Box<EvalAltResult>> {
-            add_pipeline(rules, target_glob, "[TARGET]", ops)
         }
 
         /// Associates the closure with the given matcher. This closure will be called

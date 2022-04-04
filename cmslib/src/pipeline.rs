@@ -39,36 +39,16 @@ impl FromStr for Operation {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum AutorunTrigger {
-    CustomGlob(Glob),
-    TargetGlob,
-}
-
-impl FromStr for AutorunTrigger {
-    type Err = anyhow::Error;
-
-    #[instrument(ret)]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "[TARGET]" => Ok(Self::TargetGlob),
-            other => Ok(Self::CustomGlob(other.try_into()?)),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Pipeline {
     pub target_glob: Glob,
     ops: Vec<Operation>,
-    autorun: AutorunTrigger,
 }
 
 impl Pipeline {
     #[instrument(skip(target_glob))]
     pub fn new<G: TryInto<Glob, Error = globset::Error>>(
         target_glob: G,
-        autorun: AutorunTrigger,
     ) -> Result<Self, anyhow::Error> {
         let target_glob = target_glob.try_into()?;
 
@@ -76,7 +56,6 @@ impl Pipeline {
 
         Ok(Self {
             target_glob,
-            autorun,
             ops: vec![],
         })
     }
@@ -84,7 +63,6 @@ impl Pipeline {
     #[instrument(skip(target_glob))]
     pub fn with_ops<G: TryInto<Glob, Error = globset::Error>>(
         target_glob: G,
-        autorun: AutorunTrigger,
         ops: &[Operation],
     ) -> Result<Self, anyhow::Error> {
         let target_glob = target_glob.try_into()?;
@@ -93,7 +71,6 @@ impl Pipeline {
 
         Ok(Self {
             target_glob,
-            autorun,
             ops: ops.into(),
         })
     }
@@ -139,8 +116,6 @@ impl Pipeline {
             buf
         };
 
-        // let mut input_path = self.dirs.abs_src_asset(target_asset);
-        // let output_path = self.dirs.abs_target_asset(target_asset);
         for op in self.ops.iter() {
             let _span = info_span!("perform pipeline operation").entered();
             match op {
@@ -221,7 +196,7 @@ fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<(), anyhow::Error> {
 
 #[cfg(test)]
 mod test {
-    use super::{AutorunTrigger, Operation, Pipeline, ShellCommand};
+    use super::{Operation, Pipeline, ShellCommand};
     use std::fs;
     use std::path::{Path, PathBuf};
     use tempfile::tempdir;
@@ -235,7 +210,7 @@ mod test {
 
     #[test]
     fn op_copy() {
-        let mut pipeline = Pipeline::new("*.txt", AutorunTrigger::TargetGlob).unwrap();
+        let mut pipeline = Pipeline::new("*.txt").unwrap();
         pipeline.push_op(Operation::Copy);
 
         let src_root = tempdir().unwrap();
@@ -258,7 +233,7 @@ mod test {
 
     #[test]
     fn multiple_ops() {
-        let mut pipeline = Pipeline::new("*.txt", AutorunTrigger::TargetGlob).unwrap();
+        let mut pipeline = Pipeline::new("*.txt").unwrap();
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             r#"sed 's/old/new/g' $INPUT > $OUTPUT"#,
         )));
@@ -280,17 +255,6 @@ mod test {
 
         let target_content = fs::read_to_string(target_path).unwrap();
         assert_eq!(&target_content, "new");
-    }
-
-    #[test]
-    fn autoruntrigger_fromstr_impl() {
-        use std::str::FromStr;
-
-        let trigger = AutorunTrigger::from_str("[TARGET]").unwrap();
-        match trigger {
-            AutorunTrigger::TargetGlob => (),
-            _ => panic!("wrong variant"),
-        }
     }
 
     #[test]

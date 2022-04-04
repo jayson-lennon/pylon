@@ -1,8 +1,7 @@
 use crate::{
-    core::{Page},
+    core::Page,
     util::{Glob, GlobCandidate},
 };
-
 
 use serde::Deserialize;
 use slotmap::SlotMap;
@@ -11,19 +10,6 @@ use tracing::{instrument, trace};
 
 slotmap::new_key_type! {
     pub struct GeneratorKey;
-}
-
-#[derive(Debug, Clone)]
-pub struct Generator {
-    matcher: Matcher,
-    func: rhai::FnPtr,
-}
-
-impl Generator {
-    #[must_use]
-    pub fn new(matcher: Matcher, func: rhai::FnPtr) -> Self {
-        Self { matcher, func }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -46,9 +32,6 @@ impl ContextItem {
 pub enum Matcher {
     // Runs when the canonical path matches some glob(s). Easy to define specific pages.
     Glob(Vec<Glob>),
-    // Runs when the closure returns true. Allows user to define own parameters such
-    // as processing metadata (author, title, etc).
-    Metadata(rhai::FnPtr),
 }
 
 #[derive(Debug, Clone)]
@@ -95,14 +78,6 @@ impl Generators {
                     } else {
                         None
                     }
-                }
-                Matcher::Metadata(_func) => {
-                    todo!()
-                    // if func(&page.frontmatter) {
-                    //     Some(*generator_key)
-                    // } else {
-                    //     None
-                    // }
                 }
             })
             .collect()
