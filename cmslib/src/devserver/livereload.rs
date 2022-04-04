@@ -26,6 +26,7 @@ type WsClientId = slotmap::DefaultKey;
 
 #[derive(Debug)]
 struct WsClient {
+    #[allow(dead_code)]
     id: WsClientId,
     tx: async_channel::Sender<DevServerMsg>,
     rx: async_channel::Receiver<DevServerMsg>,
@@ -36,13 +37,6 @@ impl WsClient {
     pub fn new(id: WsClientId) -> Self {
         let (tx, rx) = async_channel::unbounded();
         Self { id, tx, rx }
-    }
-
-    pub async fn send(
-        &self,
-        msg: DevServerMsg,
-    ) -> Result<(), async_channel::SendError<DevServerMsg>> {
-        self.tx.send(msg).await
     }
 }
 

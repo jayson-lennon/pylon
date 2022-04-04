@@ -6,19 +6,6 @@ use std::path::PathBuf;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
-// fn run_pipeline(dirs: Directories) {
-//     // let mut copy_pipeline = Pipeline::new(dirs, Glob("*.txt".into()), AutorunTrigger::TargetGlob);
-//     // copy_pipeline.push_op(Operation::Copy);
-//     // copy_pipeline.run("sample.txt");
-
-//     let mut sed_pipeline = Pipeline::new(dirs, Glob("*.txt".into()), AutorunTrigger::TargetGlob);
-//     sed_pipeline.push_op(Operation::Shell(ShellCommand::new(
-//         "sed 's/hello/goodbye/g' $INPUT > $OUTPUT",
-//     )));
-//     sed_pipeline.push_op(Operation::Copy);
-//     sed_pipeline.run("sample.txt");
-// }
-
 #[derive(clap::Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -56,8 +43,6 @@ struct ServeOptions {
 }
 
 fn main() -> Result<(), anyhow::Error> {
-    // use cmslib::pipeline::{AutorunTrigger, Glob, Operation, Pipeline};
-
     let args = Args::parse();
 
     // a builder for `FmtSubscriber`.
@@ -83,7 +68,6 @@ fn main() -> Result<(), anyhow::Error> {
     match args.command {
         Command::Serve(opt) => {
             let (handle, _broker) = Engine::with_broker(config, opt.bind, opt.debounce_ms)?;
-            // broker.send_engine_msg_sync(EngineMsg::Build)?;
             println!("{:?}", handle.join());
         }
         Command::Build => {

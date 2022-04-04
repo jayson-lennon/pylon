@@ -90,13 +90,6 @@ pub enum EngineMsg {
     /// Renders a page and then returns it on the channel supplied in
     /// the request.
     RenderPage(RenderPageRequest),
-    /// Builds the site using existing configuration and source material
-    Build,
-    /// Rescans all source files and templates, reloads the user config,
-    /// then builds the site
-    Rebuild,
-    /// Reloads user configuration
-    ReloadUserConfig,
     /// Quits the application
     Quit,
 }

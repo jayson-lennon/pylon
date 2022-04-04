@@ -138,12 +138,6 @@ fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> RelSystemPath {
     RelSystemPath::new(src_root.as_ref(), file_path.as_ref())
 }
 
-fn raw_document<P: AsRef<Path>>(path: P) -> Result<String, anyhow::Error> {
-    let path = path.as_ref();
-    std::fs::read_to_string(&path)
-        .with_context(|| format!("failed reading raw document data from {}", path.display()))
-}
-
 fn parsed_raw_document<S: AsRef<str>>(
     raw: S,
     renderers: &Renderers,

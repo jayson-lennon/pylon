@@ -1,11 +1,9 @@
 use anyhow::anyhow;
 use itertools::Itertools;
-use parking_lot::RwLock;
 use rhai::packages::{Package, StandardPackage};
+use rhai::plugin::*;
 use rhai::{def_package, Scope};
-use rhai::{plugin::*};
 use std::collections::HashSet;
-use std::sync::Arc;
 use tracing::{instrument, trace};
 
 use crate::core::{Page, PageStore};
@@ -29,14 +27,6 @@ def_package! {
   }
 }
 
-#[derive(Debug)]
-struct NotClonable(i64);
-
-#[derive(Debug, Clone)]
-pub struct Database {
-    inner: Arc<RwLock<NotClonable>>,
-}
-
 pub struct ScriptEngineConfig {
     package: CmsPackage,
 }
@@ -57,7 +47,6 @@ impl ScriptEngineConfig {
 #[derive(Debug)]
 pub struct RuleProcessor {
     engine: rhai::Engine,
-    script: String,
     ast: rhai::AST,
 }
 
@@ -66,11 +55,7 @@ impl RuleProcessor {
     pub fn new<S: AsRef<str>>(engine: rhai::Engine, script: S) -> Result<Self, anyhow::Error> {
         let script = script.as_ref();
         let ast = engine.compile(script)?;
-        Ok(Self {
-            engine,
-            script: script.to_string(),
-            ast,
-        })
+        Ok(Self { engine, ast })
     }
 
     pub fn run<T: Clone + Send + Sync + 'static, A: rhai::FuncArgs>(
@@ -152,57 +137,8 @@ impl ScriptEngine {
             RuleProcessor::new(new_engine, script)?
         };
         Ok((runner, rules))
-
-        // for rule in rules.callbacks {
-        //     let ans: () = rule.call(&engine, &ast, ((db.clone()),))?;
-        //     dbg!(ans);
-        // }
     }
 }
-
-impl Database {
-    pub fn increment(&self) {
-        let mut inner = self.inner.write();
-        inner.0 += 1;
-    }
-}
-
-// fn main() -> Result<(), anyhow::Error> {
-//     let cms_package = CmsPackage::new();
-
-//     let mut engine = Engine::new_raw();
-//     engine.register_global_module(cms_package.as_shared_module());
-
-//     let rules_script = r#"
-//         let rules = default_rules();
-//         rules.add_callback(|db| {
-//             db.increment();
-//         });
-//         rules
-//     "#;
-
-//     let ast = engine.compile(rules_script)?;
-
-//     // let mut fn_ptr = FnPtr::new("foo")?;
-
-//     // Curry values into the function pointer
-//     // fn_ptr.set_curry(vec!["abc".into()]);
-
-//     // Values are only needed for non-curried parameters
-//     // let result: i64 = fn_ptr.call(&engine, &ast, (39_i64,))?;
-//     let db = Database {
-//         inner: Arc::new(RwLock::new(NotClonable(5))),
-//     };
-
-//     let rules = engine.eval_ast::<Rules>(&ast)?;
-//     for rule in rules.callbacks {
-//         let ans: () = rule.call(&engine, &ast, ((db.clone()),))?;
-//         dbg!(ans);
-//     }
-//     dbg!(db);
-
-//     Ok(())
-// }
 
 #[instrument(skip_all, fields(page = %for_page.uri()))]
 pub fn build_context(
