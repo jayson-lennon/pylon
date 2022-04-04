@@ -1,0 +1,11 @@
+{% extends "index.tera" %}
+
+{% block body %}
+
+<h1>link/page.tera</h1>
+
+<h3>content below</h3>
+
+{{ content | safe }}
+
+{% endblock body %}
