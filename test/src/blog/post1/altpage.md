@@ -1,7 +1,7 @@
 +++
 title = "altpage"
 extra = "wut"
-template_path = "blog/page.tera"
+template_name = "blog/page.tera"
 +++
 
 # markdown content

@@ -44,6 +44,11 @@ impl Page {
         let src_root = src_root.as_ref();
         let target_root = target_root.as_ref();
         let file_path = file_path.as_ref();
+        let file_path = if let Ok(path) = file_path.strip_prefix(src_root) {
+            path
+        } else {
+            file_path
+        };
 
         let src_path = src_path(src_root, file_path);
 
@@ -79,12 +84,17 @@ impl Page {
             )
         })?;
 
-        let (frontmatter, markdown) = parsed_raw_document(&raw_doc, renderers)
+        let (mut frontmatter, markdown) = parsed_raw_document(&raw_doc, renderers)
             .with_context(|| format!("failed parsing raw document for {}", src_path.to_string()))?;
 
         let target_path = target_path(&src_path, target_root, frontmatter.use_index);
 
         let uri = uri(&target_path);
+
+        let all_templates = renderers.tera.get_template_names().collect::<HashSet<_>>();
+        let template = get_template_name(&all_templates, &src_path)?;
+
+        frontmatter.template_name = Some(template);
 
         Ok(Self {
             src_path,
@@ -100,24 +110,6 @@ impl Page {
 
     pub fn set_page_key(&mut self, key: PageKey) {
         self.page_key = key;
-    }
-
-    #[instrument(skip_all, fields(page=%self.uri().to_string()))]
-    pub fn set_template(&mut self, template_names: &HashSet<&str>) -> Result<(), anyhow::Error> {
-        if self.frontmatter.template_name.is_none() {
-            let _span = trace_span!("no template specified").entered();
-            match get_default_template_name(template_names, self.src_path.clone()) {
-                Some(template) => self.frontmatter.template_name = Some(template),
-                None => {
-                    return Err(anyhow!(
-                        "no template provided and unable to find a default template for page {}",
-                        self.uri
-                    ))
-                }
-            }
-        }
-
-        Ok(())
     }
 
     #[instrument(ret)]
@@ -185,6 +177,23 @@ fn uri(target_path: &RelSystemPath) -> Uri {
     let uri = Uri::new(format!("/{}", target.to_string_lossy()));
     debug_assert!(uri.is_ok());
     uri.unwrap()
+}
+
+#[instrument(skip_all, fields(page=%src_path.to_string()))]
+fn get_template_name(
+    template_names: &HashSet<&str>,
+    src_path: &RelSystemPath,
+) -> Result<TemplateName, anyhow::Error> {
+    let _span = trace_span!("no template specified").entered();
+    match get_default_template_name(template_names, src_path.clone()) {
+        Some(template) => Ok(template),
+        None => {
+            return Err(anyhow!(
+                "no template provided and unable to find a default template for page {}",
+                src_path
+            ))
+        }
+    }
 }
 
 #[instrument(ret)]

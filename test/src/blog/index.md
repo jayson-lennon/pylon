@@ -1,6 +1,5 @@
 +++
 title = "blog title"
-template_path = "blog/page.tera"
 +++
 
 hello friend

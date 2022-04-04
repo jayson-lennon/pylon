@@ -28,8 +28,8 @@ pub mod script {
         use crate::frontmatter::FrontMatter;
         use rhai::serde::to_dynamic;
 
-        #[rhai_fn(get = "template_path")]
-        pub fn template_path(frontmatter: &mut FrontMatter) -> String {
+        #[rhai_fn(get = "template_name")]
+        pub fn template_name(frontmatter: &mut FrontMatter) -> String {
             frontmatter
                 .template_name
                 .clone()

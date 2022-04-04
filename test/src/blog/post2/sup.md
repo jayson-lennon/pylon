@@ -1,8 +1,12 @@
 +++
 title = "post2"
-template_path = "blog/page.tera"
+template_name = "blog/page.tera"
 +++
 
 # markdown content
 
 ![img c](c.png)
+
+![box](../box.png)
+
+it verks!

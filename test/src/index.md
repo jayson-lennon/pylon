@@ -1,6 +1,6 @@
 +++
 title = "src root"
-template_path = "index_content.tera"
+template_name = "index_content.tera"
 
 [meta]
 sample = "hi"

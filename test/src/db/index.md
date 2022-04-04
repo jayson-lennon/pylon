@@ -1,6 +1,6 @@
 +++
 title = "db root"
-template_path = "db/index.tera"
+template_name = "db/index.tera"
 
 [meta]
 section = "no sectino"

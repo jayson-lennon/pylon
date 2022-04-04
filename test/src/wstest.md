@@ -1,6 +1,6 @@
 +++
 title = "wstest"
-template_path = "wstest.tera"
+template_name = "wstest.tera"
 +++
 
 hi
