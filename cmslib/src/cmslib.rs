@@ -1,5 +1,6 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
+#![allow(clippy::must_use_candidate)]
 
 pub mod core;
 pub mod devserver;
