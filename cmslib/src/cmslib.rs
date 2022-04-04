@@ -1,6 +1,7 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::must_use_candidate)]
+#![allow(clippy::from_iter_instead_of_collect)]
 
 pub mod core;
 pub mod devserver;
