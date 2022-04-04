@@ -171,7 +171,7 @@ fn target_path<P: AsRef<Path>>(
     use_index: bool,
 ) -> RelSystemPath {
     let target = src_path.with_base(target_root.as_ref());
-    if use_index && src_path.file_name() != "index.md" {
+    if use_index && src_path.file_stem() != "index" {
         target
             .add_parent(target.with_extension("").file_name())
             .with_file_name("index.html")

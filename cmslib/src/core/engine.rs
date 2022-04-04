@@ -236,9 +236,6 @@ impl Engine {
     pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<(), anyhow::Error> {
         trace!("running pipelines");
 
-        // TODO: fix this
-        panic!();
-
         let engine: &Engine = &self;
         for pipeline in engine.rules.pipelines() {
             for asset in linked_assets.iter() {

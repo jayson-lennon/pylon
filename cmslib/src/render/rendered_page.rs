@@ -247,7 +247,7 @@ pub fn rewrite_asset_targets(
         // links need to be rewritten to point one directory up (using `..`) and
         // all relative resource links need to be correctly cataloged for pipeline
         // processing.
-        if page.frontmatter.use_index {
+        if page.frontmatter.use_index && page.src_path().file_stem() != "index" {
             let element_content_handlers = use_index_handlers!(all_assets, &page.target_path();
                 "audio[src]"     "src",
                 "embed[src]"     "src",
@@ -351,9 +351,11 @@ fn get_asset_uri_without_index<A: AsRef<str>>(
     } else {
         // Here we are setting the parent directory of all assets
         // based on the path of the html file:
-        //    some_dir/another_dir/page.html -> some_dir/another_dir/whatever_assets
+        //    some_dir/another_dir/page.html -> some_dir/another_dir
         let mut target = target_path.with_base("").pop().to_path_buf();
+
         target.push(attr_value);
+
         Ok(Uri::from_path(target))
     }
 }
@@ -418,6 +420,21 @@ mod test {
             }
         };
     }
+
+    test_rewriter!(index_defers_to_no_index_when_page_is_named_index:
+    true, page="file_path/is/index.html"
+    vec![
+        (r#"<audio src="test.png">"#, r#"<audio src="test.png">"#, "/file_path/is/test.png"),
+        (r#"<embed src="test.png">"#, r#"<embed src="test.png">"#, "/file_path/is/test.png"),
+        (r#"<img src="test.png">"#, r#"<img src="test.png">"#, "/file_path/is/test.png"),
+        (r#"<link href="test.png">"#, r#"<link href="test.png">"#, "/file_path/is/test.png"),
+        (r#"<object data="test.png">"#, r#"<object data="test.png">"#, "/file_path/is/test.png"),
+        (r#"<script src="test.png">"#, r#"<script src="test.png">"#, "/file_path/is/test.png"),
+        (r#"<source src="test.png">"#, r#"<source src="test.png">"#, "/file_path/is/test.png"),
+        (r#"<source srcset="test.png">"#, r#"<source srcset="test.png">"#, "/file_path/is/test.png"),
+        (r#"<track src="test.png">"#, r#"<track src="test.png">"#, "/file_path/is/test.png"),
+        (r#"<video src="test.png">"#, r#"<video src="test.png">"#, "/file_path/is/test.png"),
+    ]);
 
     test_rewriter!(index_get_assets:
     true, page="file_path/is/page.html"
