@@ -214,7 +214,7 @@ fn get_default_template_name(
 
 fn split_document(raw: &str) -> Result<(&str, &str), anyhow::Error> {
     let re = crate::util::static_regex!(
-        r#"^[[:space:]]*\+\+\+[[:space:]]*\n((?s).*)\n[[:space:]]*\+\+\+[[:space:]]*((?s).*)"#
+        r#"^[[:space:]]*\+\+\+[[:space:]]*\n?((?s).*)\n[[:space:]]*\+\+\+[[:space:]]*((?s).*)"#
     );
     match re.captures(raw) {
         Some(captures) => {
@@ -409,8 +409,8 @@ pub mod test {
     new_page_err!(err_on_wrong_delimeters => doc::broken::WRONG_DELIMETERS);
     new_page_err!(err_on_malformed_frontmatter => doc::broken::MALFORMED_FRONTMATTER);
     new_page_err!(err_on_extra_characters => doc::broken::INVALID_STARTING_CHARACTERS);
-    new_page_err!(err_with_empty_frontmatter => doc::EMPTY_FRONTMATTER);
 
+    new_page_ok!(ok_with_empty_frontmatter => doc::EMPTY_FRONTMATTER);
     new_page_ok!(ok_with_no_content => doc::NO_CONTENT);
     new_page_ok!(ok_with_newlines_in_frontmatter => doc::EMPTY_FRONTMATTER_WITH_NEWLINES);
     new_page_ok!(ok_with_newline_content => doc::EMPTY_LINE_CONTENT);
