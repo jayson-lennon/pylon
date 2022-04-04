@@ -86,3 +86,9 @@ impl Generators {
         self.generators.get(key).cloned()
     }
 }
+
+impl Default for Generators {
+    fn default() -> Self {
+        Self::new()
+    }
+}

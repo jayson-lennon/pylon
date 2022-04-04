@@ -9,22 +9,17 @@ use std::{
 use tracing::{instrument, trace};
 
 use crate::{
-    core::{broker::EngineMsg, rules::script::ScriptEngineConfig, LinkedAssets, Page, PageStore},
+    core::broker::EngineBroker,
+    core::config::EngineConfig,
+    core::rules::{RuleProcessor, Rules},
+    core::script_engine::ScriptEngine,
+    core::{broker::EngineMsg, script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
     devserver::{DevServer, DevServerMsg},
     render::{
         rendered_page::{RenderedPage, RenderedPageCollection},
         Renderers,
     },
     util,
-};
-
-use super::{
-    broker::EngineBroker,
-    config::EngineConfig,
-    rules::{
-        script::{RuleProcessor, ScriptEngine},
-        Rules,
-    },
 };
 
 #[derive(Debug)]
@@ -123,7 +118,10 @@ impl Engine {
                                     let cwd = std::env::current_dir()?;
                                     changed.strip_prefix(cwd)?
                                 };
-                                if path.starts_with(&engine.config.src_root) && path.extension().unwrap_or_default().to_string_lossy() == "md" {
+                                if path.starts_with(&engine.config.src_root)
+                                    && path.extension().unwrap_or_default().to_string_lossy()
+                                        == "md"
+                                {
                                     let page = Page::from_file(
                                         &engine.config.src_root.as_path(),
                                         &engine.config.target_root.as_path(),
@@ -137,7 +135,7 @@ impl Engine {
                                     reload_templates = true;
                                 }
 
-                                if path == &engine.config.rule_script {
+                                if path == engine.config.rule_script {
                                     reload_rules = true;
                                 }
                             }
