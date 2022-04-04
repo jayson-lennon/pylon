@@ -129,9 +129,7 @@ impl Pipeline {
                         if command.has_output() {
                             let tmp = crate::util::gen_temp_file()
                                 .with_context(|| {
-                                    format!(
-                                        "Failed to generate temp file for pipeline shell operation"
-                                    )
+                                    "Failed to generate temp file for pipeline shell operation".to_string()
                                 })?
                                 .path()
                                 .to_path_buf();

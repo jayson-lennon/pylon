@@ -55,9 +55,7 @@ pub mod script {
         pub fn get_meta(frontmatter: &mut FrontMatter, key: &str) -> rhai::Dynamic {
             frontmatter
                 .meta
-                .get(key)
-                .map(|v| to_dynamic(v).ok())
-                .flatten()
+                .get(key).and_then(|v| to_dynamic(v).ok())
                 .unwrap_or_default()
         }
     }

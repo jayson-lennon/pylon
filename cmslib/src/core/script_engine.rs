@@ -6,10 +6,11 @@ use rhai::{def_package, Scope};
 use std::collections::HashSet;
 use tracing::{instrument, trace};
 
+use crate::core::rules::{
+    gctx::{ContextItem, Generators},
+    RuleProcessor, Rules,
+};
 use crate::core::{Page, PageStore};
-
-use super::gctx::{ContextItem, Generators};
-use super::Rules;
 
 // Define the custom package 'MyCustomPackage'.
 def_package! {
@@ -18,7 +19,7 @@ def_package! {
       // Aggregate other packages simply by calling 'init' on each.
       StandardPackage::init(module);
 
-     combine_with_exported_module!(module, "rules", crate::core::rules::rules::script::rhai_module);
+     combine_with_exported_module!(module, "rules", crate::core::rules::script::rhai_module);
      combine_with_exported_module!(module, "frontmatter", crate::frontmatter::script::rhai_module);
      combine_with_exported_module!(module, "page", crate::core::page::script::rhai_module);
     //  combine_with_exported_module!(module, "pagestore", crate::pagestore::rhai_module);
@@ -44,26 +45,9 @@ impl ScriptEngineConfig {
     }
 }
 
-#[derive(Debug)]
-pub struct RuleProcessor {
-    engine: rhai::Engine,
-    ast: rhai::AST,
-}
-
-impl RuleProcessor {
-    #[must_use]
-    pub fn new<S: AsRef<str>>(engine: rhai::Engine, script: S) -> Result<Self, anyhow::Error> {
-        let script = script.as_ref();
-        let ast = engine.compile(script)?;
-        Ok(Self { engine, ast })
-    }
-
-    pub fn run<T: Clone + Send + Sync + 'static, A: rhai::FuncArgs>(
-        &self,
-        ptr: rhai::FnPtr,
-        args: A,
-    ) -> Result<T, anyhow::Error> {
-        Ok(ptr.call(&self.engine, &self.ast, args)?)
+impl Default for ScriptEngineConfig {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

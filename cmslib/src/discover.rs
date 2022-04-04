@@ -18,10 +18,8 @@ pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Resu
             let path = entry?.path();
             if path.is_dir() {
                 paths.append(&mut get_all_paths(&path, condition)?);
-            } else {
-                if condition(path.as_ref()) {
-                    paths.push(path);
-                }
+            } else if condition(path.as_ref()) {
+                paths.push(path);
             }
         }
     }

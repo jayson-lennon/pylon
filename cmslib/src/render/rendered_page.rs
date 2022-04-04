@@ -1,8 +1,5 @@
 use anyhow::anyhow;
-use std::{
-    collections::HashSet,
-    path::{PathBuf},
-};
+use std::{collections::HashSet, path::PathBuf};
 
 use tracing::{error, instrument, trace};
 
@@ -16,6 +13,7 @@ use crate::{
 
 #[instrument(skip(engine), fields(page=%page.uri()))]
 pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Error> {
+    use crate::core::script_engine::build_context;
     trace!("rendering page");
 
     let site_ctx = SiteContext::new("sample");
@@ -38,11 +36,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
 
             let user_ctx = {
                 let user_ctx_generators = engine.rules().page_context();
-                crate::core::rules::script::build_context(
-                    &engine.rule_processor(),
-                    user_ctx_generators,
-                    page,
-                )?
+                build_context(engine.rule_processor(), user_ctx_generators, page)?
             };
 
             {
@@ -129,7 +123,7 @@ impl RenderedPageCollection {
         Ok(())
     }
 
-    pub fn iter<'a>(&'a self) -> std::slice::Iter<'a, RenderedPage> {
+    pub fn iter(&self) -> std::slice::Iter<'_, RenderedPage> {
         self.pages.iter()
     }
 
@@ -179,12 +173,9 @@ pub fn rewrite_asset_targets(
     rendered_pages: &mut [RenderedPage],
     store: &PageStore,
 ) -> Result<LinkedAssets, anyhow::Error> {
-    
-    use lol_html::{
-        rewrite_str, RewriteStrSettings,
-    };
+    use lol_html::{rewrite_str, RewriteStrSettings};
     use parking_lot::Mutex;
-    
+
     use std::sync::Arc;
 
     macro_rules! use_index_handlers {
@@ -312,7 +303,7 @@ fn get_asset_uri_when_using_index<A: AsRef<str>>(
         .get_attribute(attr)
         .ok_or_else(|| anyhow!("missing '{}' attribute in HTML tag. this is a bug", attr))?;
     // assets using an absolute path don't need to be modified
-    if attr_value.starts_with("/") {
+    if attr_value.starts_with('/') {
         Ok(Uri::from_path(&attr_value))
     } else {
         // Here we are setting the parent directory of all assets
@@ -346,7 +337,7 @@ fn get_asset_uri_without_index<A: AsRef<str>>(
         .get_attribute(attr)
         .ok_or_else(|| anyhow!("missing '{}' attribute in HTML tag. this is a bug", attr))?;
     // assets using an absolute path don't need to be modified
-    if attr_value.starts_with("/") {
+    if attr_value.starts_with('/') {
         Ok(Uri::from_path(&attr_value))
     } else {
         // Here we are setting the parent directory of all assets
