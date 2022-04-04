@@ -30,7 +30,6 @@ impl ContextItem {
 
 #[derive(Debug, Clone)]
 pub enum Matcher {
-    // Runs when the canonical path matches some glob(s). Easy to define specific pages.
     Glob(Vec<Glob>),
 }
 
