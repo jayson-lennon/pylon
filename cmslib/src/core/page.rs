@@ -92,7 +92,7 @@ impl Page {
 
         let target_path = target_path(&src_path, target_root, frontmatter.use_index);
 
-        let uri = uri(&target_path);
+        let uri = uri(&target_path, frontmatter.use_index);
 
         if frontmatter.template_name.is_none() {
             let all_templates = renderers.tera.get_template_names().collect::<HashSet<_>>();
@@ -172,11 +172,14 @@ fn target_path<P: AsRef<Path>>(
     }
 }
 
-fn uri(target_path: &RelSystemPath) -> Uri {
+fn uri(target_path: &RelSystemPath, use_index: bool) -> Uri {
     let target = target_path.target();
-    let uri = Uri::new(format!("/{}", target.to_string_lossy()));
-    debug_assert!(uri.is_ok());
-    uri.unwrap()
+    if target_path.file_stem() != "index" {
+        Uri::from_path(target)
+    } else {
+        debug_assert!(target.parent().is_some());
+        Uri::from_path(target.parent().unwrap())
+    }
 }
 
 #[instrument(skip_all, fields(page=%src_path.to_string()))]
@@ -297,7 +300,7 @@ pub mod script {
 
 #[cfg(test)]
 pub mod test {
-    #![allow(clippy::missing_panics_doc)]
+    #![allow(clippy::all)]
 
     use std::io;
 
@@ -372,13 +375,13 @@ pub mod test {
 
     pub fn page_from_doc_with_paths(
         doc: &str,
-        src: &str,
-        target: &str,
-        path: &str,
+        src_root: &str,
+        target_root: &str,
+        doc_path: &str,
     ) -> Result<Page, anyhow::Error> {
         let renderers = Renderers::new("test/templates");
         let mut reader = io::Cursor::new(doc.as_bytes());
-        Page::from_reader(src, target, path, &mut reader, &renderers)
+        Page::from_reader(src_root, target_root, doc_path, &mut reader, &renderers)
     }
 
     pub fn page_from_doc(doc: &str) -> Result<Page, anyhow::Error> {
@@ -438,7 +441,7 @@ pub mod test {
             RelSystemPath::new("target_root", "sample/stem/index.html")
         );
 
-        assert_eq!(page.uri(), Uri::new("/sample/stem/index.html").unwrap());
+        assert_eq!(page.uri(), Uri::new("/sample/stem").unwrap());
 
         assert_eq!(page.template_name(), TemplateName::new("empty.tera"));
     }
