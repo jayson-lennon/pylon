@@ -1,3 +1,5 @@
+use crate::core::PageStore;
+
 #[derive(Debug)]
 pub struct MarkdownRenderer;
 
@@ -6,8 +8,8 @@ impl MarkdownRenderer {
         Self
     }
     #[allow(clippy::unused_self)]
-    pub fn render<M: AsRef<str>>(&self, raw_markdown: M) -> String {
-        render(raw_markdown)
+    pub fn render<M: AsRef<str>>(&self, raw_markdown: M, page_store: &PageStore) -> String {
+        render(raw_markdown, page_store)
     }
 }
 
@@ -17,7 +19,7 @@ impl Default for MarkdownRenderer {
     }
 }
 
-fn render<M: AsRef<str>>(raw_markdown: M) -> String {
+fn render<M: AsRef<str>>(raw_markdown: M, page_store: &PageStore) -> String {
     use pulldown_cmark::{html, Options, Parser};
 
     let raw_markdown = raw_markdown.as_ref();

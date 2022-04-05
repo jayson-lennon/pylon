@@ -4,6 +4,8 @@ pub mod markup;
 pub mod rendered_page;
 pub mod template;
 
+pub use rendered_page::render as page;
+
 #[derive(Debug)]
 pub struct Renderers {
     pub tera: template::TeraRenderer,
