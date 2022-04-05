@@ -21,47 +21,69 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
     match page.frontmatter.template_name.as_ref() {
         Some(template) => {
             let mut tera_ctx = tera::Context::new();
+
+            // site context (from global site.toml file)
             tera_ctx.insert("site", &site_ctx);
-            tera_ctx.insert("content", &page.markdown);
+
+            // entire page store
+            // TODO: Come up with some better way to manage this / delete it
             tera_ctx.insert("page_store", {
                 &engine.page_store().iter().collect::<Vec<_>>()
             });
+
+            // global context provided by user script
             if let Some(global) = engine.rules().global_context() {
                 tera_ctx.insert("global", global);
             }
 
-            let meta_ctx = tera::Context::from_serialize(&page.frontmatter.meta)
-                .expect("failed converting page metadata into tera context");
-            tera_ctx.extend(meta_ctx);
-
-            let user_ctx = {
-                let user_ctx_generators = engine.rules().page_context();
-                build_context(engine.rule_processor(), user_ctx_generators, page)?
-            };
-
+            // the [meta] section where users can define anything they want
             {
-                let ids = get_overwritten_identifiers(&user_ctx);
-                if !ids.is_empty() {
-                    error!(ids = ?ids, "overwritten system identifiers detected");
-                    return Err(anyhow!(
-                        "cannot overwrite reserved system context identifiers"
-                    ));
+                let meta_ctx = tera::Context::from_serialize(&page.frontmatter.meta)
+                    .expect("failed converting page metadata into tera context");
+                tera_ctx.extend(meta_ctx);
+            }
+
+            // page-specific context items provided by user script
+            {
+                // the context items
+                let user_ctx = {
+                    let user_ctx_generators = engine.rules().page_context();
+                    build_context(engine.rule_processor(), user_ctx_generators, page)?
+                };
+
+                // abort if a user script overwrites a pre-defined context item
+                {
+                    let ids = get_overwritten_identifiers(&user_ctx);
+                    if !ids.is_empty() {
+                        error!(ids = ?ids, "overwritten system identifiers detected");
+                        return Err(anyhow!(
+                            "cannot overwrite reserved system context identifiers"
+                        ));
+                    }
+                }
+
+                // add the context items
+                for ctx in user_ctx {
+                    let mut user_ctx = tera::Context::new();
+                    user_ctx.insert(ctx.identifier, &ctx.data);
+                    tera_ctx.extend(user_ctx);
                 }
             }
 
-            for ctx in user_ctx {
-                let mut user_ctx = tera::Context::new();
-                user_ctx.insert(ctx.identifier, &ctx.data);
-                tera_ctx.extend(user_ctx);
+            // the actual markdown content (rendered)
+            {
+                let rendered_markdown = engine
+                    .renderers()
+                    .markdown
+                    .render(&page.raw_markdown, engine.page_store());
+                tera_ctx.insert("content", &rendered_markdown);
             }
 
+            // render the template with the context
             let renderer = &engine.renderers().tera;
             renderer
                 .render(template, &tera_ctx)
-                .map(|html| {
-                    // change file extension to 'html'
-                    RenderedPage::new(page.page_key, html, page.target_path())
-                })
+                .map(|html| RenderedPage::new(page.page_key, html, page.target_path()))
                 .map_err(|e| anyhow!("{}", e))
         }
         None => Err(anyhow!("no template declared for page '{}'", page.uri())),

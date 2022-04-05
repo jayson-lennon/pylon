@@ -15,7 +15,13 @@ slotmap::new_key_type! {
 }
 
 #[derive(Clone, Debug, Serialize, Default)]
-pub struct Markdown(String);
+pub struct RawMarkdown(String);
+
+impl AsRef<str> for RawMarkdown {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Page {
@@ -26,7 +32,7 @@ pub struct Page {
     pub page_key: PageKey,
 
     pub frontmatter: FrontMatter,
-    pub markdown: Markdown,
+    pub raw_markdown: RawMarkdown,
     pub uri: Uri,
 }
 
@@ -81,7 +87,7 @@ impl Page {
             .read_to_string(&mut raw_doc)
             .with_context(|| format!("error reading document into string for path {}", src_path))?;
 
-        let (mut frontmatter, markdown) = parsed_raw_document(&raw_doc, renderers)
+        let (mut frontmatter, raw_markdown) = parsed_raw_document(&raw_doc, renderers)
             .with_context(|| format!("failed parsing raw document for {}", src_path))?;
 
         let target_path = target_path(&src_path, target_root, frontmatter.use_index);
@@ -97,13 +103,14 @@ impl Page {
 
         Ok(Self {
             src_path,
-            raw_doc,
-            frontmatter,
-            markdown,
-            uri,
             target_path,
 
+            raw_doc,
             page_key: PageKey::default(),
+
+            frontmatter,
+            raw_markdown,
+            uri,
         })
     }
 
@@ -138,7 +145,7 @@ fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> RelSystemPath {
 fn parsed_raw_document<S: AsRef<str>>(
     raw: S,
     renderers: &Renderers,
-) -> Result<(FrontMatter, Markdown), anyhow::Error> {
+) -> Result<(FrontMatter, RawMarkdown), anyhow::Error> {
     let raw = raw.as_ref();
 
     let (raw_frontmatter, raw_markdown) = split_document(raw)
@@ -146,8 +153,8 @@ fn parsed_raw_document<S: AsRef<str>>(
 
     let frontmatter: FrontMatter = toml::from_str(raw_frontmatter)
         .with_context(|| String::from("failed parsing frontmatter into TOML"))?;
-    let markdown = Markdown(renderers.markdown.render(raw_markdown));
-    Ok((frontmatter, markdown))
+    let raw_markdown = RawMarkdown(raw_markdown.to_string());
+    Ok((frontmatter, raw_markdown))
 }
 
 fn target_path<P: AsRef<Path>>(
