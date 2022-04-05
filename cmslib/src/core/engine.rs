@@ -243,7 +243,7 @@ impl Engine {
 
     #[instrument(skip(self), fields(page=%page.uri()))]
     pub fn render(&self, page: &Page) -> Result<RenderedPage, anyhow::Error> {
-        crate::render::rendered_page::render(self, page)
+        crate::render::page(self, page)
     }
 
     #[instrument(skip_all)]
