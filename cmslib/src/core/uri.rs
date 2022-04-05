@@ -28,6 +28,10 @@ impl Uri {
     pub fn as_str(&self) -> &str {
         self.as_ref()
     }
+
+    pub fn into_boxed_str(&self) -> Box<str> {
+        self.0.clone().into_boxed_str()
+    }
 }
 
 impl AsRef<str> for Uri {
