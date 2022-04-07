@@ -75,7 +75,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
                 let rendered_markdown = engine
                     .renderers()
                     .markdown
-                    .render(&page.raw_markdown, engine.page_store());
+                    .render(&page, engine.page_store())?;
                 tera_ctx.insert("content", &rendered_markdown);
             }
 
