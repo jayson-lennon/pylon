@@ -20,9 +20,17 @@
 
     socket.onmessage = (ev) => {
       log(`Received message: ${ev.data}`);
-      if (ev.data === 'RELOAD') {
-        log('Reloading page');
-        location.reload();
+      const msg = JSON.parse(ev.data);
+      if (msg.type) {
+        switch (msg.type) {
+          case 'reload':
+            log('Reloading page');
+            location.reload();
+            break;
+          case 'error':
+            log('do error');
+            break;
+        }
       } else {
         log(`Error: unhandled message: ${ev.data}`);
       }
