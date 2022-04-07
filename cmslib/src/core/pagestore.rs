@@ -39,29 +39,37 @@ impl PageStore {
 
     #[must_use]
     #[instrument(skip_all, fields(page=%page.uri()))]
-    pub fn update(&mut self, page: Page) -> bool {
+    pub fn update(&mut self, page: Page) -> PageKey {
         trace!("updating existing page");
-        if let Some(old) = self.get_mut(&page.uri()) {
-            let mut page = page;
-            page.page_key = old.page_key;
-            *old = page;
-            true
-        } else {
-            false
-        }
-    }
 
-    #[instrument(skip_all, fields(page=%page.uri()))]
-    pub fn upsert(&mut self, page: Page) -> PageKey {
-        trace!("upsert page");
-        if let Some(old) = self.get_mut(&page.uri()) {
-            let mut page = page;
-            page.page_key = old.page_key;
-            *old = page;
-            old.page_key
-        } else {
-            self.insert(page)
+        let (mut old_search_keys, mut new_search_keys) = (vec![], vec![]);
+
+        let page_key = match self.get_mut(&page.uri()) {
+            Some(old) => {
+                let mut page = page;
+                page.page_key = old.page_key;
+
+                // `use_index` causes the path of the documents to change, so
+                // we need to update the search keys when it differs.
+                if old.frontmatter.use_index != page.frontmatter.use_index {
+                    old_search_keys = build_search_keys(&old);
+                    new_search_keys = build_search_keys(&page);
+                }
+
+                *old = page;
+                old.page_key
+            }
+            None => self.insert(page),
+        };
+
+        for key in old_search_keys {
+            self.key_map.remove(&key);
         }
+        for key in new_search_keys {
+            self.key_map.insert(key, page_key);
+        }
+
+        page_key
     }
 
     #[instrument(skip_all, fields(page=%page.uri()))]
@@ -265,5 +273,44 @@ mod test {
         assert!(store
             .get(&Uri::from_path("/path/1/page/index.md"))
             .is_none());
+    }
+
+    #[test]
+    fn updates_search_keys_when_useindex_changes() {
+        let before = page_test::page_from_doc_with_paths(
+            r#"+++
+            use_index = true
+            template_name = "empty.tera"
+            +++"#,
+            "src",
+            "tgt",
+            "path/1/page.md",
+        )
+        .unwrap();
+        let after = page_test::page_from_doc_with_paths(
+            r#"+++
+            use_index = false
+            template_name = "empty.tera"
+            +++"#,
+            "src",
+            "tgt",
+            "path/1/page.md",
+        )
+        .unwrap();
+
+        let mut store = PageStore::new();
+        let key_before = store.insert(before);
+
+        assert!(store.get(&Uri::from_path("/path/1/page.md")).is_some());
+        assert!(store.get(&Uri::from_path("/path/1/page.html")).is_some());
+        assert!(store.get(&Uri::from_path("/path/1/page")).is_some());
+
+        let key_after = store.update(after);
+
+        assert_eq!(key_before, key_after);
+
+        assert!(store.get(&Uri::from_path("/path/1/page.md")).is_some());
+        assert!(store.get(&Uri::from_path("/path/1/page.html")).is_some());
+        assert!(store.get(&Uri::from_path("/path/1/page")).is_none());
     }
 }
