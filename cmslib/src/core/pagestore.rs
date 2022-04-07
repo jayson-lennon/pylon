@@ -154,16 +154,12 @@ pub mod script {
     impl PageStore {
         /// Returns the page at the given `path`. Returns `()` if the page was not found.
         fn _script_get(&mut self, uri: &str) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
-            dbg!(&uri);
             let uri = Uri::new(uri)
                 .map_err(|e| EvalAltResult::ErrorSystem("failed parsing uri".into(), e.into()))?;
-            dbg!(&uri);
-            dbg!(&self);
             let k = self
                 .get(&uri)
                 .cloned()
                 .map_or_else(|| ().into(), Dynamic::from);
-            dbg!(&k);
             Ok(k)
         }
     }
@@ -227,16 +223,13 @@ mod test {
 
         assert!(store.get_with_key(key).is_some());
 
+        let page = store.get(&Uri::from_path("/path/1/page")).unwrap();
+        assert_eq!(page.page_key, key);
+
         let page = store.get(&Uri::from_path("/path/1/page.md")).unwrap();
         assert_eq!(page.page_key, key);
 
         let page = store.get(&Uri::from_path("/path/1/page.html")).unwrap();
-        assert_eq!(page.page_key, key);
-
-        let page = store.get(&Uri::from_path("/path/1/page/index.md")).unwrap();
-        assert_eq!(page.page_key, key);
-
-        let page = store.get(&Uri::from_path("/path/1/page/index.md")).unwrap();
         assert_eq!(page.page_key, key);
     }
 
