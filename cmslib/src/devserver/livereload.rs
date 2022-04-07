@@ -1,5 +1,4 @@
-use super::DevServerReceiver;
-use crate::core::broker::EngineBroker;
+use super::{DevServerReceiver, EngineBroker};
 use async_lock::Mutex;
 use poem::{
     handler,
@@ -9,17 +8,55 @@ use poem::{
     },
     IntoResponse,
 };
+use serde::Serialize;
 use slotmap::DenseSlotMap;
 use std::sync::Arc;
 use std::thread;
-use tracing::{instrument, trace};
+use tracing::{error, instrument, trace};
 
 #[derive(Clone, Debug)]
 pub struct LiveReloadReceiver(pub DevServerReceiver);
 
-#[derive(Copy, Clone, Debug)]
+/// Message sent from the engine to the dev server
+#[derive(Clone, Debug)]
 pub enum DevServerMsg {
     ReloadPage,
+    DisplayError(String),
+}
+
+#[derive(Debug, Clone, Serialize)]
+enum ClientMessageType {
+    #[serde(rename(serialize = "reload"))]
+    Reload,
+    #[serde(rename(serialize = "error"))]
+    Error,
+}
+
+/// Message sent from the devserver to the client
+#[derive(Debug, Clone, Serialize)]
+struct ClientMessage {
+    #[serde(rename(serialize = "type"))]
+    message_type: ClientMessageType,
+    payload: String,
+}
+
+impl ClientMessage {
+    pub fn reload() -> Self {
+        Self {
+            message_type: ClientMessageType::Reload,
+            payload: "".to_string(),
+        }
+    }
+    pub fn error<S: Into<String>>(msg: S) -> Self {
+        Self {
+            message_type: ClientMessageType::Error,
+            payload: msg.into(),
+        }
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).expect("failed to serialize websocket message. this is a bug")
+    }
 }
 
 type WsClientId = slotmap::DefaultKey;
@@ -81,7 +118,7 @@ impl ClientBroker {
     pub async fn send(&self, msg: DevServerMsg) {
         let clients = self.clients.lock().await;
         for (id, client) in clients.iter() {
-            if let Err(e) = client.tx.send(msg).await {
+            if let Err(e) = client.tx.send(msg.clone()).await {
                 trace!("error sending dev server event to client {:?}: {:?}", id, e);
             }
         }
@@ -128,18 +165,26 @@ pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse 
             {
                 match msg {
                     DevServerMsg::ReloadPage => {
+                        let client_msg = ClientMessage::reload().to_json();
+
+                        if let Err(e) = sink.send(Message::Text(client_msg)).await {
+                            trace!("error sending reload message to websocket client: {}", e);
+                        }
+
                         trace!("live reload message sent to client {:?}", client_id);
-                        if let Err(e) = sink.send(Message::Text("RELOAD".to_string())).await {
-                            trace!("error sending message to live reload client: {}", e);
+                        clients.remove(client_id).await;
+                    }
+                    DevServerMsg::DisplayError(msg) => {
+                        let client_msg = ClientMessage::error(msg).to_json();
+
+                        if let Err(e) = sink.send(Message::Text(client_msg)).await {
+                            trace!("error sending error message to websocket client: {}", e);
                         }
                     }
                 }
             } else {
-                trace!("reading from client channel should never fail");
+                error!("reading from client channel should never fail");
             }
-            // Always remove clients on all events, otherwise, pending events may be sent
-            // to new clients that are given an old client id.
-            clients.remove(client_id).await;
         });
     })
 }

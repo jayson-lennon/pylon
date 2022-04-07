@@ -144,7 +144,7 @@ fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> RelSystemPath {
 
 fn parsed_raw_document<S: AsRef<str>>(
     raw: S,
-    renderers: &Renderers,
+    _renderers: &Renderers,
 ) -> Result<(FrontMatter, RawMarkdown), anyhow::Error> {
     let raw = raw.as_ref();
 
@@ -172,7 +172,7 @@ fn target_path<P: AsRef<Path>>(
     }
 }
 
-fn uri(target_path: &RelSystemPath, use_index: bool) -> Uri {
+fn uri(target_path: &RelSystemPath, _use_index: bool) -> Uri {
     let target = target_path.target();
     if target_path.file_stem() != "index" {
         Uri::from_path(target)

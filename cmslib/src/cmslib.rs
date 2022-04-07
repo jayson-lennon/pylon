@@ -16,3 +16,9 @@ pub mod site_context;
 pub mod util;
 
 pub use render::Renderers;
+
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+#[error(transparent)]
+pub struct AsStdError(#[from] anyhow::Error);
