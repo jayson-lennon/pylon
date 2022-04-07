@@ -128,7 +128,8 @@ impl Engine {
                                         &path,
                                         engine.renderers(),
                                     )?;
-                                    engine.page_store.upsert(page);
+                                    // update will automatically insert the page if it doesn't exist
+                                    let _ = engine.page_store.update(page);
                                 }
 
                                 if path.starts_with(&engine.config.template_root) {
