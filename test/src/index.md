@@ -8,9 +8,8 @@ sample = "hi"
 
 *root/index markdown content!*
 
-here is some contentttt
+here is some content
 
-moar
-sup
+rebuild
 
 ![link](sample.txt)
