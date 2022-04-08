@@ -4,17 +4,16 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
-    thread::{self, JoinHandle},
+    thread::{JoinHandle},
 };
 use tracing::{instrument, trace};
 
 use crate::{
-    core::broker::EngineBroker,
     core::config::EngineConfig,
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::{broker::EngineMsg, script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
-    devserver::{DevServer, DevServerMsg},
+    core::{script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
+    devserver::{DevServer, EngineBroker},
     render::{
         rendered_page::{RenderedPage, RenderedPageCollection},
         Renderers,
@@ -49,6 +48,10 @@ impl Engine {
         &self.page_store
     }
 
+    pub fn page_store_mut(&mut self) -> &mut PageStore {
+        &mut self.page_store
+    }
+
     pub fn rule_processor(&self) -> &RuleProcessor {
         &self.rule_processor
     }
@@ -76,90 +79,7 @@ impl Engine {
         let broker = EngineBroker::new(rt.clone());
         let broker_clone = broker.clone();
 
-        trace!("spawning engine thread");
-        let engine_handle = thread::spawn(move || {
-            let mut engine = Self::new(config)?;
-
-            let _devserver =
-                engine.start_devserver(bind, debounce_ms, &engine.config, broker.clone())?;
-
-            loop {
-                match broker.recv_engine_msg_sync() {
-                    Ok(msg) => match msg {
-                        EngineMsg::RenderPage(request) => {
-                            use crate::render::rendered_page::rewrite_asset_targets;
-                            trace!(request = ?request, "receive render page message");
-                            dbg!(&engine.page_store);
-                            let page: Option<RenderedPage> = {
-                                if let Some(page) = engine.page_store.get(request.uri()) {
-                                    let mut rendered = engine.render(page)?;
-                                    let linked_assets = rewrite_asset_targets(
-                                        std::slice::from_mut(&mut rendered),
-                                        engine.page_store(),
-                                    )?;
-                                    engine.run_pipelines(&linked_assets)?;
-                                    Some(rendered)
-                                } else {
-                                    None
-                                }
-                            };
-                            request.send_sync(rt.handle(), page)?;
-                        }
-
-                        EngineMsg::FilesystemUpdate(events) => {
-                            trace!(events = ?events, "receive file system update message");
-                            let mut reload_templates = false;
-                            let mut reload_rules = false;
-                            for changed in events.changed() {
-                                // These paths come in as absolute paths. Use strip_prefix
-                                // to transform them into relative paths which can then
-                                // be used with the engine config.
-                                let path = {
-                                    let cwd = std::env::current_dir()?;
-                                    changed.strip_prefix(cwd)?
-                                };
-                                if path.starts_with(&engine.config.src_root)
-                                    && path.extension().unwrap_or_default().to_string_lossy()
-                                        == "md"
-                                {
-                                    let page = Page::from_file(
-                                        &engine.config.src_root.as_path(),
-                                        &engine.config.target_root.as_path(),
-                                        &path,
-                                        engine.renderers(),
-                                    )?;
-                                    // update will automatically insert the page if it doesn't exist
-                                    let _ = engine.page_store.update(page);
-                                }
-
-                                if path.starts_with(&engine.config.template_root) {
-                                    reload_templates = true;
-                                }
-
-                                if path == engine.config.rule_script {
-                                    reload_rules = true;
-                                }
-                            }
-
-                            if reload_templates {
-                                engine.reload_template_engines()?;
-                            }
-
-                            if reload_rules {
-                                engine.reload_rules()?;
-                            }
-                            // notify websocket server to reload all connected clients
-                            broker.send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
-                        }
-                        EngineMsg::Quit => {
-                            break;
-                        }
-                    },
-                    Err(e) => panic!("problem receiving from engine channel: {e}"),
-                }
-            }
-            Ok(())
-        });
+        let engine_handle = broker.spawn_engine_thread(config, bind, debounce_ms)?;
 
         Ok((engine_handle, broker_clone))
     }
