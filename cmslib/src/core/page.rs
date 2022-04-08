@@ -174,11 +174,11 @@ fn target_path<P: AsRef<Path>>(
 
 fn uri(target_path: &RelSystemPath, _use_index: bool) -> Uri {
     let target = target_path.target();
-    if target_path.file_stem() != "index" {
-        Uri::from_path(target)
-    } else {
+    if target_path.file_stem() == "index" {
         debug_assert!(target.parent().is_some());
         Uri::from_path(target.parent().unwrap())
+    } else {
+        Uri::from_path(target)
     }
 }
 

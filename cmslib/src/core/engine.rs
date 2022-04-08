@@ -4,7 +4,7 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
-    thread::{JoinHandle},
+    thread::JoinHandle,
 };
 use tracing::{instrument, trace};
 
@@ -76,7 +76,7 @@ impl Engine {
                 .build()?,
         );
 
-        let broker = EngineBroker::new(rt.clone());
+        let broker = EngineBroker::new(rt);
         let broker_clone = broker.clone();
 
         let engine_handle = broker.spawn_engine_thread(config, bind, debounce_ms)?;

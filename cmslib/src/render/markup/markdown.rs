@@ -25,14 +25,6 @@ enum CustomHref {
     InternalLink(Uri),
 }
 
-impl CustomHref {
-    pub fn into_boxed_str(self) -> Box<str> {
-        match self {
-            Self::InternalLink(uri) => uri.to_string().into_boxed_str(),
-        }
-    }
-}
-
 fn render(page: &Page, page_store: &PageStore) -> Result<String, anyhow::Error> {
     use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag};
 
@@ -51,7 +43,7 @@ fn render(page: &Page, page_store: &PageStore) -> Result<String, anyhow::Error> 
                 if let Some(custom) = get_custom_href(&href) {
                     match custom {
                         CustomHref::InternalLink(ref uri) => {
-                            let page = page_store.get(&uri).ok_or_else(|| {
+                            let page = page_store.get(uri).ok_or_else(|| {
                                 anyhow!(
                                     "unable to find internal link '{}' on page '{}'",
                                     &uri,

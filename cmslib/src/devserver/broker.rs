@@ -180,26 +180,26 @@ impl EngineBroker {
             let mut engine = Engine::new(config)?;
 
             let _devserver =
-                engine.start_devserver(bind, debounce_ms, &engine.config(), broker.clone())?;
+                engine.start_devserver(bind, debounce_ms, engine.config(), broker.clone())?;
 
             loop {
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::RenderPage(request) => {
-                            let page = engine_msg::render(&engine, &request);
+                            let page = handle_msg::render(&engine, &request);
                             request
                                 .respond_sync(&broker.handle(), page)
                                 .expect("failed to respond to render page request. this is a bug");
                         }
 
                         EngineMsg::FilesystemUpdate(events) => {
-                            let _ = broker.send_devserver_msg_sync(DevServerMsg::Notify(
+                            let _ws_msg = broker.send_devserver_msg_sync(DevServerMsg::Notify(
                                 "buiding assets".to_owned(),
                             ));
 
-                            if let Err(e) = engine_msg::fs_event(&mut engine, events) {
+                            if let Err(e) = handle_msg::fs_event(&mut engine, events) {
                                 error!(error=%e, "fswatch error");
-                                let _ = broker
+                                let _ws_msg = broker
                                     .send_devserver_msg_sync(DevServerMsg::Notify(e.to_string()));
                                 continue;
                             }
@@ -220,7 +220,7 @@ impl EngineBroker {
     }
 }
 
-mod engine_msg {
+mod handle_msg {
     use tracing::{instrument, trace};
 
     use crate::{
