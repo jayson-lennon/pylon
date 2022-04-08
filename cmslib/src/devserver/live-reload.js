@@ -27,8 +27,12 @@
             log('Reloading page');
             location.reload();
             break;
-          case 'error':
-            log('do error');
+          case 'notify':
+            log(`recv notify msg: ${msg.payload}`);
+            const msgEl = document.getElementById("devserver-notify-payload");
+            msgEl.innerHTML = msg.payload;
+            const msgContainer = document.querySelector(".devserver-notify-container");
+            msgContainer.style.opacity = "1.0";
             break;
         }
       } else {
