@@ -193,11 +193,15 @@ impl EngineBroker {
                         }
 
                         EngineMsg::FilesystemUpdate(events) => {
+                            let _ = broker.send_devserver_msg_sync(DevServerMsg::Notify(
+                                "buiding assets".to_owned(),
+                            ));
+
                             if let Err(e) = engine_msg::fs_event(&mut engine, events) {
-                                error!(error=%e, "file system error");
-                                let _ = broker.send_devserver_msg_sync(DevServerMsg::DisplayError(
-                                    e.to_string(),
-                                ));
+                                error!(error=%e, "fswatch error");
+                                let _ = broker
+                                    .send_devserver_msg_sync(DevServerMsg::Notify(e.to_string()));
+                                continue;
                             }
                             // notify websocket server to reload all connected clients
                             broker.send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
