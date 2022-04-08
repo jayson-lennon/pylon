@@ -1,10 +1,13 @@
-use crate::core::broker::{EngineBroker, EngineMsg, FilesystemUpdateEvents};
 use hotwatch::blocking::Flow;
 use hotwatch::{blocking::Hotwatch, Event};
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use tracing::{instrument, trace};
+
+use crate::devserver::broker::{EngineMsg, FilesystemUpdateEvents};
+
+use super::EngineBroker;
 
 #[derive(Debug)]
 enum WatchMsg {

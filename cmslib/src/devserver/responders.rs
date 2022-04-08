@@ -1,5 +1,5 @@
-use crate::core::broker::EngineBroker;
 use crate::core::Uri;
+use crate::AsStdError;
 use poem::http::StatusCode;
 use poem::{
     handler,
@@ -8,6 +8,8 @@ use poem::{
 };
 use std::path::PathBuf;
 use tracing::{instrument, trace};
+
+use super::EngineBroker;
 
 #[derive(Clone, Debug)]
 pub struct OutputRootDir(pub String);
@@ -28,6 +30,22 @@ fn path_to_file<S: AsRef<str>>(path: S) -> String {
             path
         }
     }
+}
+
+fn error_page() -> &'static str {
+    include_str!("error.html")
+}
+
+fn error_page_with_msg<S: AsRef<str>>(msg: S) -> String {
+    let html = error_page().replace("{{ERROR}}", msg.as_ref());
+    format!(
+        r#"{html}<script>{}</script>"#,
+        include_str!("live-reload.js")
+    )
+}
+
+fn page_not_found() -> String {
+    error_page_with_msg("404")
 }
 
 fn html_with_live_reload_script(html: &str) -> String {
@@ -99,21 +117,32 @@ pub fn try_static_file<S: AsRef<str>>(
 pub async fn try_rendered_file(
     path: String,
     broker: Data<&EngineBroker>,
-) -> Result<Option<Response>, anyhow::Error> {
-    use crate::core::broker::{EngineMsg, RenderPageRequest};
+) -> Result<Response, anyhow::Error> {
+    use crate::devserver::broker::{EngineMsg, RenderPageRequest};
 
     trace!("try to serve rendered file");
 
     let uri = Uri::from_path(path);
     let (req, page) = RenderPageRequest::new(uri);
+
     broker.send_engine_msg(EngineMsg::RenderPage(req)).await?;
+
     match page.recv().await? {
-        Some(page) => Ok(Some(
-            Response::builder()
-                .content_type(mime::TEXT_HTML_UTF_8)
-                .body(html_with_live_reload_script(&page.html)),
-        )),
-        None => Ok(None),
+        // Page found (HTTP 200)
+        Ok(Some(page)) => Ok(Response::builder()
+            .content_type(mime::TEXT_HTML_UTF_8)
+            .body(html_with_live_reload_script(&page.html))),
+
+        // Page not found (HTTP 404)
+        Ok(None) => Ok(Response::builder()
+            .content_type(mime::TEXT_HTML_UTF_8)
+            .status(StatusCode::NOT_FOUND)
+            .body(page_not_found())),
+
+        // Error rendering page (HTTP 400)
+        Err(e) => Ok(Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(error_page_with_msg(e.to_string()))),
     }
 }
 
@@ -124,20 +153,21 @@ pub async fn handle(
     mount_point: Data<&OutputRootDir>,
     broker: Data<&EngineBroker>,
 ) -> Result<Response, poem::error::Error> {
-    use poem::http::StatusCode;
-
     let path = path_to_file(path.to_string());
 
     if let Some(res) = try_static_file(path.clone(), &mount_point) {
         Ok(res)
     } else {
         trace!("static file not found");
-        match try_rendered_file(path, broker)
+        try_rendered_file(path, broker)
             .await
-            .expect("broken channel between devserver and engine. this is a bug")
-        {
-            Some(res) => Ok(res),
-            None => Ok(Response::builder().status(StatusCode::NOT_FOUND).finish()),
-        }
+            .map_err(|e| poem::error::BadRequest(AsStdError(e)))
+        // match try_rendered_file(path, broker).await {
+        //     Ok(Some(res)) => Ok(res),
+        //     Ok(None) => Ok(Response::builder().status(StatusCode::NOT_FOUND).finish()),
+        //     Err(e) => Ok(Response::builder()
+        //         .status(StatusCode::BAD_REQUEST)
+        //         .body(e.to_string())),
+        // }
     }
 }
