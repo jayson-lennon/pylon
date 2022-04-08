@@ -170,12 +170,5 @@ pub async fn handle(
         try_rendered_file(path, broker)
             .await
             .map_err(|e| poem::error::BadRequest(AsStdError(e)))
-        // match try_rendered_file(path, broker).await {
-        //     Ok(Some(res)) => Ok(res),
-        //     Ok(None) => Ok(Response::builder().status(StatusCode::NOT_FOUND).finish()),
-        //     Err(e) => Ok(Response::builder()
-        //         .status(StatusCode::BAD_REQUEST)
-        //         .body(e.to_string())),
-        // }
     }
 }

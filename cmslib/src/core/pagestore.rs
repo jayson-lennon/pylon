@@ -52,7 +52,7 @@ impl PageStore {
                 // `use_index` causes the path of the documents to change, so
                 // we need to update the search keys when it differs.
                 if old.frontmatter.use_index != page.frontmatter.use_index {
-                    old_search_keys = build_search_keys(&old);
+                    old_search_keys = build_search_keys(old);
                     new_search_keys = build_search_keys(&page);
                 }
 
