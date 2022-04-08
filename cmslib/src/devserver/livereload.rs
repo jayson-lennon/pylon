@@ -21,15 +21,15 @@ pub struct LiveReloadReceiver(pub DevServerReceiver);
 #[derive(Clone, Debug)]
 pub enum DevServerMsg {
     ReloadPage,
-    DisplayError(String),
+    Notify(String),
 }
 
 #[derive(Debug, Clone, Serialize)]
 enum ClientMessageType {
     #[serde(rename(serialize = "reload"))]
     Reload,
-    #[serde(rename(serialize = "error"))]
-    Error,
+    #[serde(rename(serialize = "notify"))]
+    Notify,
 }
 
 /// Message sent from the devserver to the client
@@ -47,9 +47,10 @@ impl ClientMessage {
             payload: "".to_string(),
         }
     }
-    pub fn error<S: Into<String>>(msg: S) -> Self {
+
+    pub fn notify<S: Into<String>>(msg: S) -> Self {
         Self {
-            message_type: ClientMessageType::Error,
+            message_type: ClientMessageType::Notify,
             payload: msg.into(),
         }
     }
@@ -156,34 +157,38 @@ pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse 
         // each client will listen on their respective channel
         tokio::spawn(async move {
             trace!("spawned livereload websocket task");
-            if let Ok(msg) = clients
-                .receiver(client_id)
-                .await
-                .expect("receiver should exist for client connection. this is a bug")
-                .recv()
-                .await
-            {
-                match msg {
-                    DevServerMsg::ReloadPage => {
-                        let client_msg = ClientMessage::reload().to_json();
+            loop {
+                if let Ok(msg) = clients
+                    .receiver(client_id)
+                    .await
+                    .expect("receiver should exist for client connection. this is a bug")
+                    .recv()
+                    .await
+                {
+                    match msg {
+                        DevServerMsg::ReloadPage => {
+                            let client_msg = ClientMessage::reload().to_json();
 
-                        if let Err(e) = sink.send(Message::Text(client_msg)).await {
-                            trace!("error sending reload message to websocket client: {}", e);
+                            if let Err(e) = sink.send(Message::Text(client_msg)).await {
+                                trace!("error sending reload message to websocket client: {}", e);
+                            }
+
+                            trace!("live reload message sent to client {:?}", client_id);
+                            clients.remove(client_id).await;
+                            break;
                         }
+                        DevServerMsg::Notify(msg) => {
+                            let client_msg = ClientMessage::notify(msg).to_json();
 
-                        trace!("live reload message sent to client {:?}", client_id);
-                        clients.remove(client_id).await;
-                    }
-                    DevServerMsg::DisplayError(msg) => {
-                        let client_msg = ClientMessage::error(msg).to_json();
-
-                        if let Err(e) = sink.send(Message::Text(client_msg)).await {
-                            trace!("error sending error message to websocket client: {}", e);
+                            if let Err(e) = sink.send(Message::Text(client_msg)).await {
+                                trace!("error sending error message to websocket client: {}", e);
+                            }
                         }
                     }
+                } else {
+                    error!("reading from client channel should never fail");
+                    break;
                 }
-            } else {
-                error!("reading from client channel should never fail");
             }
         });
     })

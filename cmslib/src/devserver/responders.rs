@@ -39,8 +39,12 @@ fn error_page() -> &'static str {
 fn error_page_with_msg<S: AsRef<str>>(msg: S) -> String {
     let html = error_page().replace("{{ERROR}}", msg.as_ref());
     format!(
-        r#"{html}<script>{}</script>"#,
-        include_str!("live-reload.js")
+        r#"{html}
+        <script>{}</script>
+        <style>{}</style>
+        <div class="devserver-notify-container"><div id="devserver-notify-payload"></div></div>"#,
+        include_str!("live-reload.js"),
+        include_str!("toast.css")
     )
 }
 
@@ -50,8 +54,12 @@ fn page_not_found() -> String {
 
 fn html_with_live_reload_script(html: &str) -> String {
     format!(
-        r#"{html}<script>{}</script>"#,
-        include_str!("live-reload.js")
+        r#"{html}
+        <script>{}</script>
+        <style>{}</style>
+        <div class="devserver-notify-container"><div id="devserver-notify-payload"></div></div>"#,
+        include_str!("live-reload.js"),
+        include_str!("toast.css")
     )
 }
 
