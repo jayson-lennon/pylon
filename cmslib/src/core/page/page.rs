@@ -1,27 +1,17 @@
+use crate::core::RelSystemPath;
 use crate::core::Uri;
 use crate::render::template::TemplateName;
 use crate::Renderers;
-use crate::{core::RelSystemPath, frontmatter::FrontMatter};
 use anyhow::{anyhow, Context};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
 use tracing::{instrument, trace_span};
 
-slotmap::new_key_type! {
-    pub struct PageKey;
-}
-
-#[derive(Clone, Debug, Serialize, Default)]
-pub struct RawMarkdown(String);
-
-impl AsRef<str> for RawMarkdown {
-    fn as_ref(&self) -> &str {
-        self.0.as_str()
-    }
-}
+use super::FrontMatter;
+use super::{PageKey, RawMarkdown};
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Page {
@@ -87,7 +77,7 @@ impl Page {
             .read_to_string(&mut raw_doc)
             .with_context(|| format!("error reading document into string for path {}", src_path))?;
 
-        let (mut frontmatter, raw_markdown) = parsed_raw_document(&raw_doc, renderers)
+        let (mut frontmatter, raw_markdown) = split_raw_doc(&raw_doc)
             .with_context(|| format!("failed parsing raw document for {}", src_path))?;
 
         let target_path = target_path(&src_path, target_root, frontmatter.use_index);
@@ -142,10 +132,7 @@ fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> RelSystemPath {
     RelSystemPath::new(src_root.as_ref(), file_path.as_ref())
 }
 
-fn parsed_raw_document<S: AsRef<str>>(
-    raw: S,
-    _renderers: &Renderers,
-) -> Result<(FrontMatter, RawMarkdown), anyhow::Error> {
+fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown), anyhow::Error> {
     let raw = raw.as_ref();
 
     let (raw_frontmatter, raw_markdown) = split_document(raw)
@@ -240,61 +227,6 @@ fn split_document(raw: &str) -> Result<(&str, &str), anyhow::Error> {
             Ok((frontmatter, markdown))
         }
         None => Err(anyhow!("improperly formed document")),
-    }
-}
-
-pub mod script {
-    #[allow(clippy::wildcard_imports)]
-    use rhai::plugin::*;
-
-    #[rhai::export_module]
-    pub mod rhai_module {
-        use crate::core::rules::gctx::ContextItem;
-
-        use crate::core::Page;
-        use crate::frontmatter::FrontMatter;
-        use rhai::serde::to_dynamic;
-
-        use tracing::instrument;
-
-        #[rhai_fn(name = "uri")]
-        pub fn uri(page: &mut Page) -> String {
-            page.uri().to_string()
-        }
-
-        #[rhai_fn(get = "frontmatter")]
-        pub fn frontmatter(page: &mut Page) -> FrontMatter {
-            page.frontmatter.clone()
-        }
-
-        /// Returns all attached metadata.
-        #[rhai_fn(get = "meta", return_raw)]
-        pub fn all_meta(page: &mut Page) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
-            to_dynamic(page.frontmatter.meta.clone())
-        }
-
-        /// Returns the value found at the provided key. Returns `()` if the key wasn't found.
-        #[rhai_fn()]
-        pub fn meta(page: &mut Page, key: &str) -> rhai::Dynamic {
-            page.frontmatter
-                .meta
-                .get(key)
-                .and_then(|v| to_dynamic(v).ok())
-                .unwrap_or_default()
-        }
-
-        /// Generates a new context for use within the page template.
-        #[instrument(ret)]
-        #[rhai_fn(return_raw)]
-        pub fn new_context(map: rhai::Map) -> Result<Vec<ContextItem>, Box<EvalAltResult>> {
-            let mut context_items = vec![];
-            for (k, v) in map {
-                let value: serde_json::Value = rhai::serde::from_dynamic(&v)?;
-                let item = ContextItem::new(k, value);
-                context_items.push(item);
-            }
-            Ok(context_items)
-        }
     }
 }
 

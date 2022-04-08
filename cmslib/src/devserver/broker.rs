@@ -5,9 +5,9 @@ use std::{collections::HashSet, path::PathBuf};
 
 use crate::core::config::EngineConfig;
 use crate::core::engine::Engine;
+use crate::core::page::RenderedPage;
 use crate::core::Uri;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
-use crate::render::rendered_page::RenderedPage;
 use tokio::runtime::Handle;
 use tracing::{error, trace};
 
@@ -223,10 +223,7 @@ impl EngineBroker {
 mod handle_msg {
     use tracing::{instrument, trace};
 
-    use crate::{
-        core::{engine::Engine, Page},
-        render::rendered_page::RenderedPage,
-    };
+    use crate::core::{engine::Engine, page::RenderedPage, Page};
 
     use super::{FilesystemUpdateEvents, RenderPageRequest};
 
@@ -235,7 +232,8 @@ mod handle_msg {
         engine: &Engine,
         client_request: &RenderPageRequest,
     ) -> Result<Option<RenderedPage>, anyhow::Error> {
-        use crate::render::rendered_page::rewrite_asset_targets;
+        use crate::core::page::render::rewrite_asset_targets;
+
         trace!(client_request = ?client_request, "receive render page message");
         let page: Option<RenderedPage> = {
             if let Some(page) = engine.page_store().get(client_request.uri()) {

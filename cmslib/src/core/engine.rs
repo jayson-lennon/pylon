@@ -6,19 +6,21 @@ use std::{
     sync::Arc,
     thread::JoinHandle,
 };
-use tracing::{instrument, trace};
+use tracing::{error, instrument, trace, warn};
 
 use crate::{
     core::config::EngineConfig,
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::{script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
+    core::{page::LintProcessor, script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
     devserver::{DevServer, EngineBroker},
-    render::{
-        rendered_page::{RenderedPage, RenderedPageCollection},
-        Renderers,
-    },
+    render::Renderers,
     util,
+};
+
+use super::{
+    page::{LintMsg, RenderedPage, RenderedPageCollection},
+    rules::ScriptFnCollection,
 };
 
 #[derive(Debug)]
@@ -163,8 +165,28 @@ impl Engine {
     }
 
     #[instrument(skip(self), fields(page=%page.uri()))]
+    pub fn lint(&self, page: &Page) -> Result<Vec<LintMsg>, anyhow::Error> {
+        crate::core::page::lint(self.rule_processor(), self.rules().lints(), page)
+    }
+
+    #[instrument(skip(self))]
+    pub fn lint_all(&self) -> Result<Vec<LintMsg>, anyhow::Error> {
+        let engine: &Engine = self;
+
+        let lint_msgs: Vec<Vec<LintMsg>> = engine
+            .page_store
+            .iter()
+            .map(|(_, page)| self.lint(page))
+            .try_collect()?;
+
+        let lint_msgs = lint_msgs.into_iter().flatten().collect();
+
+        Ok(lint_msgs)
+    }
+
+    #[instrument(skip(self), fields(page=%page.uri()))]
     pub fn render(&self, page: &Page) -> Result<RenderedPage, anyhow::Error> {
-        crate::render::page(self, page)
+        crate::core::page::render(self, page)
     }
 
     #[instrument(skip_all)]
@@ -204,9 +226,27 @@ impl Engine {
 
     #[instrument(skip_all)]
     pub fn build_site(&self) -> Result<(), anyhow::Error> {
-        use crate::render::rendered_page::rewrite_asset_targets;
+        use crate::core::page::lint::LintLevel;
+        use crate::core::page::render::rewrite_asset_targets;
 
         trace!("running build");
+
+        let linted = self.lint_all()?;
+        let mut abort = false;
+        for lint in linted {
+            match lint.level {
+                LintLevel::Warn => warn!(%lint.msg),
+                LintLevel::Deny => {
+                    error!(%lint.msg);
+                    abort = true;
+                }
+            }
+        }
+        if abort {
+            return Err(anyhow::anyhow!(
+                "lint errors encountered while building site"
+            ));
+        }
 
         let mut rendered = self.render_all()?;
 
@@ -260,6 +300,7 @@ fn do_build_page_store<P: AsRef<Path> + std::fmt::Debug>(
 ) -> Result<PageStore, anyhow::Error> {
     let src_root = src_root.as_ref();
     let target_root = target_root.as_ref();
+
     let pages: Vec<_> = crate::discover::get_all_paths(src_root, &|path: &Path| -> bool {
         path.extension() == Some(OsStr::new("md"))
     })?
