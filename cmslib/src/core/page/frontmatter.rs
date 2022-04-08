@@ -26,7 +26,7 @@ pub mod script {
 
     #[rhai::export_module]
     pub mod rhai_module {
-        use crate::frontmatter::FrontMatter;
+        use crate::core::page::FrontMatter;
         use crate::render::template::TemplateName;
         use rhai::serde::to_dynamic;
 

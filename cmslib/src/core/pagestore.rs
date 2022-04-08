@@ -184,7 +184,7 @@ pub mod script {
 mod test {
 
     use super::PageStore;
-    use crate::core::{page::test as page_test, Uri};
+    use crate::core::{page::page::test as page_test, Uri};
 
     #[test]
     fn inserts_and_queries_pages() {

@@ -7,11 +7,11 @@ use rhai::{def_package, Scope};
 use std::collections::HashSet;
 use tracing::{instrument, trace};
 
-use crate::core::rules::{
-    gctx::{ContextItem, Generators},
-    RuleProcessor, Rules,
-};
+use crate::core::rules::{RuleProcessor, Rules};
 use crate::core::{Page, PageStore};
+
+use super::page::ContextItem;
+use super::rules::{ContextKey, ScriptFnCollection};
 
 // Define the custom package 'MyCustomPackage'.
 def_package! {
@@ -21,7 +21,7 @@ def_package! {
       StandardPackage::init(module);
 
      combine_with_exported_module!(module, "rules", crate::core::rules::script::rhai_module);
-     combine_with_exported_module!(module, "frontmatter", crate::frontmatter::script::rhai_module);
+     combine_with_exported_module!(module, "frontmatter", crate::core::page::frontmatter::script::rhai_module);
      combine_with_exported_module!(module, "page", crate::core::page::script::rhai_module);
     //  combine_with_exported_module!(module, "pagestore", crate::pagestore::rhai_module);
 
@@ -107,15 +107,20 @@ impl ScriptEngine {
         page_store: &PageStore,
         script: S,
     ) -> Result<(RuleProcessor, Rules), anyhow::Error> {
+        use crate::core::page::lint::{LINT_LEVEL_DENY, LINT_LEVEL_WARN};
         let script = script.as_ref();
         let ast = self.engine.compile(script)?;
 
         let mut scope = Scope::new();
         scope.push("rules", Rules::new());
         scope.push("PAGES", page_store.clone());
+        scope.push("DENY", LINT_LEVEL_DENY);
+        scope.push("WARN", LINT_LEVEL_WARN);
         dbg!(&page_store);
 
-        let rules = self.engine.eval_ast_with_scope::<Rules>(&mut scope, &ast)?;
+        self.engine.run_ast_with_scope(&mut scope, &ast)?;
+
+        let rules = scope.get_value("rules").unwrap();
 
         let runner = {
             let new_engine = Self::new_engine(&self.packages);
@@ -123,32 +128,4 @@ impl ScriptEngine {
         };
         Ok((runner, rules))
     }
-}
-
-#[instrument(skip_all, fields(page = %for_page.uri()))]
-pub fn build_context(
-    script_fn_runner: &RuleProcessor,
-    generators: &Generators,
-    for_page: &Page,
-) -> Result<Vec<ContextItem>, anyhow::Error> {
-    trace!("building page-specific context");
-    let contexts: Vec<Vec<ContextItem>> = generators
-        .find_generators(for_page)
-        .iter()
-        .filter_map(|key| generators.get(*key))
-        .map(|ptr| script_fn_runner.run(&ptr, (for_page.clone(),)))
-        .try_collect()?;
-    let contexts = contexts.into_iter().flatten().collect::<Vec<_>>();
-
-    let mut identifiers = HashSet::new();
-    for ctx in &contexts {
-        if !identifiers.insert(ctx.identifier.as_str()) {
-            return Err(anyhow!(
-                "duplicate context identifier encountered in page context generation: {}",
-                ctx.identifier.as_str()
-            ));
-        }
-    }
-
-    Ok(contexts)
 }
