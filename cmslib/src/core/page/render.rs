@@ -1,19 +1,21 @@
 use anyhow::anyhow;
+use itertools::Itertools;
 use std::{collections::HashSet, path::PathBuf};
 
 use tracing::{error, instrument, trace};
 
 use crate::{
     core::{
-        engine::Engine, page::PageKey, rules::gctx::ContextItem, LinkedAssets, Page, PageStore,
-        RelSystemPath, Uri,
+        engine::Engine,
+        page::{ContextItem, PageKey},
+        rules::{ContextKey, RuleProcessor, ScriptFnCollection},
+        LinkedAssets, Page, PageStore, RelSystemPath, Uri,
     },
     site_context::SiteContext,
 };
 
 #[instrument(skip(engine), fields(page=%page.uri()))]
 pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Error> {
-    use crate::core::script_engine::build_context;
     trace!("rendering page");
 
     let site_ctx = SiteContext::new("sample");
@@ -47,8 +49,8 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
             {
                 // the context items
                 let user_ctx = {
-                    let user_ctx_generators = engine.rules().page_context();
-                    build_context(engine.rule_processor(), user_ctx_generators, page)?
+                    let page_ctxs = engine.rules().page_contexts();
+                    build_context(engine.rule_processor(), page_ctxs, page)?
                 };
 
                 // abort if a user script overwrites a pre-defined context item
@@ -88,6 +90,34 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
         }
         None => Err(anyhow!("no template declared for page '{}'", page.uri())),
     }
+}
+
+#[instrument(skip_all, fields(page = %for_page.uri()))]
+pub fn build_context(
+    script_fn_runner: &RuleProcessor,
+    page_ctxs: &ScriptFnCollection<ContextKey>,
+    for_page: &Page,
+) -> Result<Vec<ContextItem>, anyhow::Error> {
+    trace!("building page-specific context");
+    let contexts: Vec<Vec<ContextItem>> = page_ctxs
+        .find_keys(&for_page.uri())
+        .iter()
+        .filter_map(|key| page_ctxs.get(*key))
+        .map(|ptr| script_fn_runner.run(&ptr, (for_page.clone(),)))
+        .try_collect()?;
+    let contexts = contexts.into_iter().flatten().collect::<Vec<_>>();
+
+    let mut identifiers = HashSet::new();
+    for ctx in &contexts {
+        if !identifiers.insert(ctx.identifier.as_str()) {
+            return Err(anyhow!(
+                "duplicate context identifier encountered in page context generation: {}",
+                ctx.identifier.as_str()
+            ));
+        }
+    }
+
+    Ok(contexts)
 }
 
 #[derive(Debug)]

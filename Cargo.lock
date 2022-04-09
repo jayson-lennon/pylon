@@ -276,6 +276,7 @@ dependencies = [
  "serde_json",
  "slotmap",
  "tempfile",
+ "temptree",
  "tera",
  "thiserror",
  "tokio",
@@ -1870,6 +1871,15 @@ dependencies = [
  "redox_syscall",
  "remove_dir_all",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "temptree"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fda94d8251b40088cb769576f436da19ac1d1ae792c97d0afe1cadc890c8630"
+dependencies = [
+ "tempfile",
 ]
 
 [[package]]

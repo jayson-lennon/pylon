@@ -9,10 +9,11 @@
 pub mod core;
 pub mod devserver;
 pub mod discover;
-pub mod frontmatter;
 pub mod pipeline;
 pub mod render;
 pub mod site_context;
+#[cfg(test)]
+pub mod test_util;
 pub mod util;
 
 pub use render::Renderers;
