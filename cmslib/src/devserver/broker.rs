@@ -237,7 +237,11 @@ mod handle_msg {
         trace!(client_request = ?client_request, "receive render page message");
         let page: Option<RenderedPage> = {
             if let Some(page) = engine.page_store().get(client_request.uri()) {
-                let mut rendered = engine.render(page)?;
+                let mut rendered = engine
+                    .render(std::iter::once(page))?
+                    .into_iter()
+                    .next()
+                    .unwrap();
                 let linked_assets = rewrite_asset_targets(
                     std::slice::from_mut(&mut rendered),
                     engine.page_store(),
