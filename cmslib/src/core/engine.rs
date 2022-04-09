@@ -164,41 +164,42 @@ impl Engine {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(page=%page.uri()))]
-    pub fn lint(&self, page: &Page) -> Result<Vec<LintMsg>, anyhow::Error> {
-        crate::core::page::lint(self.rule_processor(), self.rules().lints(), page)
-    }
-
-    #[instrument(skip(self))]
-    pub fn lint_all(&self) -> Result<Vec<LintMsg>, anyhow::Error> {
+    #[instrument(skip_all)]
+    pub fn lint<'a, P: Iterator<Item = &'a Page>>(
+        &self,
+        pages: P,
+    ) -> Result<Vec<LintMsg>, anyhow::Error> {
+        trace!("linting");
         let engine: &Engine = self;
 
-        let lint_msgs: Vec<Vec<LintMsg>> = engine
-            .page_store
-            .iter()
-            .map(|(_, page)| self.lint(page))
-            .try_collect()?;
+        let mut all_lints: Vec<LintMsg> = vec![];
 
-        let lint_msgs = lint_msgs.into_iter().flatten().collect();
+        for page in pages {
+            let lint_msgs: Vec<Vec<LintMsg>> = engine
+                .page_store
+                .iter()
+                .map(|(_, page)| {
+                    crate::core::page::lint(engine.rule_processor(), engine.rules().lints(), page)
+                })
+                .try_collect()?;
+            let mut lint_msgs = lint_msgs.into_iter().flatten().collect();
+            all_lints.append(&mut lint_msgs);
+        }
 
-        Ok(lint_msgs)
-    }
-
-    #[instrument(skip(self), fields(page=%page.uri()))]
-    pub fn render(&self, page: &Page) -> Result<RenderedPage, anyhow::Error> {
-        crate::core::page::render(self, page)
+        Ok(all_lints)
     }
 
     #[instrument(skip_all)]
-    pub fn render_all(&self) -> Result<RenderedPageCollection, anyhow::Error> {
-        trace!("rendering pages");
+    pub fn render<'a, P: Iterator<Item = &'a Page>>(
+        &self,
+        pages: P,
+    ) -> Result<RenderedPageCollection, anyhow::Error> {
+        trace!("rendering");
 
         let engine: &Engine = self;
 
-        let rendered: Vec<RenderedPage> = engine
-            .page_store
-            .iter()
-            .map(|(_, page)| self.render(page))
+        let rendered: Vec<RenderedPage> = pages
+            .map(|page| crate::core::page::render(engine, page))
             .try_collect()?;
 
         Ok(RenderedPageCollection::from_vec(rendered))
@@ -231,7 +232,9 @@ impl Engine {
 
         trace!("running build");
 
-        let linted = self.lint_all()?;
+        let pages = self.page_store().iter().map(|(_, page)| page);
+
+        let linted = self.lint(pages.clone())?;
         let mut abort = false;
         for lint in linted {
             match lint.level {
@@ -248,7 +251,7 @@ impl Engine {
             ));
         }
 
-        let mut rendered = self.render_all()?;
+        let mut rendered = self.render(pages)?;
 
         trace!("rewriting asset links");
         let assets = rewrite_asset_targets(rendered.as_mut_slice(), self.page_store())?;
