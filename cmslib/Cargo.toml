@@ -38,3 +38,6 @@ globset = "0.4"
 rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
 parking_lot = "0.12"
 lol_html = "0.3"
+
+[dev-dependencies]
+temptree = "0.2.0"

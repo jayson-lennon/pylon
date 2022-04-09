@@ -84,8 +84,7 @@ fn get_custom_href<S: AsRef<str>>(href: S) -> Option<CustomHref> {
 mod test {
     #![allow(clippy::all)]
 
-    use crate::core::{page::test::page_from_doc_with_paths, Uri};
-    use crate::core::{Page, PageStore};
+    use crate::core::{page::page::test::page_from_doc_with_paths, Page, PageStore, Uri};
     use regex::Regex;
 
     use super::{CustomHref, MarkdownRenderer};
