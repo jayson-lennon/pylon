@@ -147,6 +147,14 @@ pub struct RenderedPageCollection {
 }
 
 impl RenderedPageCollection {
+    pub fn new() -> Self {
+        Self { pages: vec![] }
+    }
+
+    pub fn push(&mut self, page: RenderedPage) {
+        self.pages.push(page);
+    }
+
     pub fn from_iterable<T: Iterator<Item = RenderedPage>>(iterable: T) -> Self {
         Self {
             pages: iterable.collect::<Vec<_>>(),
