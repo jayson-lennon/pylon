@@ -111,6 +111,72 @@ impl LintMsg {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Lints {
+    inner: Vec<LintMsg>,
+}
+
+impl Lints {
+    pub fn new() -> Self {
+        Self { inner: vec![] }
+    }
+
+    pub fn from_slice(lints: &[LintMsg]) -> Self {
+        Self {
+            inner: lints.into(),
+        }
+    }
+
+    pub fn from_iter<L: Iterator<Item = LintMsg>>(lints: L) -> Self {
+        Self {
+            inner: lints.collect(),
+        }
+    }
+
+    pub fn has_deny(&self) -> bool {
+        for lint in &self.inner {
+            if lint.level == LintLevel::Deny {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+}
+
+impl IntoIterator for Lints {
+    type Item = LintMsg;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Lints {
+    type Item = &'a LintMsg;
+    type IntoIter = std::slice::Iter<'a, LintMsg>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter()
+    }
+}
+
+impl std::fmt::Display for Lints {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msgs = self
+            .inner
+            .iter()
+            .map(|lint| lint.msg.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        write!(f, "{}", msgs)
+    }
+}
+
 pub fn lint(
     rule_processor: &RuleProcessor,
     lints: &LintCollection,

@@ -18,7 +18,7 @@ use crate::{
     util,
 };
 
-use super::page::{LintMsg, RenderedPage, RenderedPageCollection};
+use super::page::{lint::Lints, LintMsg, RenderedPage, RenderedPageCollection};
 
 #[derive(Debug)]
 pub struct Engine {
@@ -162,10 +162,7 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn lint<'a, P: Iterator<Item = &'a Page>>(
-        &self,
-        pages: P,
-    ) -> Result<Vec<LintMsg>, anyhow::Error> {
+    pub fn lint<'a, P: Iterator<Item = &'a Page>>(&self, pages: P) -> Result<Lints, anyhow::Error> {
         trace!("linting");
         let engine: &Engine = self;
 
@@ -175,9 +172,9 @@ impl Engine {
             })
             .try_collect()?;
 
-        let lint_msgs = lint_msgs.into_iter().flatten().collect();
+        let lint_msgs = lint_msgs.into_iter().flatten();
 
-        Ok(lint_msgs)
+        Ok(Lints::from_iter(lint_msgs))
     }
 
     #[instrument(skip_all)]
@@ -225,9 +222,9 @@ impl Engine {
 
         let pages = self.page_store().iter().map(|(_, page)| page);
 
-        let linted = self.lint(pages.clone())?;
+        let lints = self.lint(pages.clone())?;
         let mut abort = false;
-        for lint in linted {
+        for lint in lints {
             match lint.level {
                 LintLevel::Warn => warn!(%lint.msg),
                 LintLevel::Deny => {
