@@ -7,6 +7,7 @@ use tracing::{error, info_span, instrument, trace, trace_span};
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
+
 impl ShellCommand {
     pub fn new<T: AsRef<str>>(cmd: T) -> Self {
         Self(cmd.as_ref().to_string())
@@ -81,10 +82,6 @@ impl Pipeline {
 
     pub fn is_match<P: AsRef<Path>>(&self, asset: P) -> bool {
         self.target_glob.is_match(asset)
-    }
-
-    pub fn is_match_candidate<'a, C: AsRef<GlobCandidate<'a>>>(&self, asset: C) -> bool {
-        self.target_glob.is_match_candidate(asset.as_ref())
     }
 
     #[instrument(skip(self))]
@@ -211,6 +208,24 @@ mod test {
     }
 
     #[test]
+    fn new_with_ops() {
+        let ops = vec![Operation::Copy];
+
+        let pipeline = Pipeline::with_ops("*.txt", ops.as_slice());
+        assert!(pipeline.is_ok());
+    }
+
+    #[test]
+    fn is_match() {
+        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        pipeline.push_op(Operation::Copy);
+
+        assert_eq!(pipeline.is_match("test.txt"), true);
+
+        assert_eq!(pipeline.is_match("test.md"), false);
+    }
+
+    #[test]
     fn op_copy() {
         let mut pipeline = Pipeline::new("*.txt").unwrap();
         pipeline.push_op(Operation::Copy);
@@ -260,12 +275,23 @@ mod test {
     }
 
     #[test]
-    fn operation_fromstr_impl() {
+    fn operation_fromstr_impl_copy() {
         use std::str::FromStr;
 
         let operation = Operation::from_str("[COPY]").unwrap();
         match operation {
             Operation::Copy => (),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn operation_fromstr_impl_shell() {
+        use std::str::FromStr;
+
+        let operation = Operation::from_str("echo hello").unwrap();
+        match operation {
+            Operation::Shell(_) => (),
             _ => panic!("wrong variant"),
         }
     }
@@ -280,5 +306,22 @@ mod test {
     fn shell_command_has_output() {
         let cmd = ShellCommand::new("echo $OUTPUT");
         assert!(cmd.has_output());
+    }
+
+    #[test]
+    fn handles_broken_shell_op() {
+        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new("__COMMAND_NOT_FOUND__")));
+
+        let src_root = tempdir().unwrap();
+        let output_root = tempdir().unwrap();
+        let target_asset = "test.txt";
+
+        let src_path = gen_file_path(src_root.path(), "test.txt");
+        fs::write(&src_path, b"test data").unwrap();
+
+        let result = pipeline.run(src_root.path(), output_root.path(), target_asset);
+
+        assert!(result.is_err());
     }
 }
