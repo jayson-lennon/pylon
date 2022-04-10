@@ -17,7 +17,7 @@ slotmap::new_key_type! {
 pub struct Rules {
     pipelines: Vec<Pipeline>,
     global_context: Option<serde_json::Value>,
-    page_contexts: ScriptFnCollection<ContextKey>,
+    page_contexts: ScriptFnCollection<ContextKey, rhai::FnPtr>,
     lints: LintCollection,
 }
 
@@ -48,7 +48,7 @@ impl Rules {
         self.global_context.as_ref()
     }
 
-    pub fn page_contexts(&self) -> &ScriptFnCollection<ContextKey> {
+    pub fn page_contexts(&self) -> &ScriptFnCollection<ContextKey, rhai::FnPtr> {
         &self.page_contexts
     }
 

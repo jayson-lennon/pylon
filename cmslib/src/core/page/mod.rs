@@ -16,11 +16,14 @@ use super::rules::{RuleProcessor, ScriptFnCollection};
 #[derive(Clone, Debug)]
 pub struct LintProcessor<'a> {
     processor: &'a RuleProcessor,
-    lints: &'a ScriptFnCollection<LintKey>,
+    lints: &'a ScriptFnCollection<LintKey, rhai::FnPtr>,
 }
 
 impl<'a> LintProcessor<'a> {
-    pub fn new(processor: &'a RuleProcessor, lints: &'a ScriptFnCollection<LintKey>) -> Self {
+    pub fn new(
+        processor: &'a RuleProcessor,
+        lints: &'a ScriptFnCollection<LintKey, rhai::FnPtr>,
+    ) -> Self {
         Self { processor, lints }
     }
 }
