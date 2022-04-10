@@ -1,7 +1,7 @@
 pub mod fn_pointers;
 pub mod matcher;
 
-pub use fn_pointers::ScriptFnCollection;
+pub use fn_pointers::GlobStore;
 pub use matcher::Matcher;
 
 use crate::pipeline::Pipeline;
@@ -17,7 +17,7 @@ slotmap::new_key_type! {
 pub struct Rules {
     pipelines: Vec<Pipeline>,
     global_context: Option<serde_json::Value>,
-    page_contexts: ScriptFnCollection<ContextKey, rhai::FnPtr>,
+    page_contexts: GlobStore<ContextKey, rhai::FnPtr>,
     lints: LintCollection,
 }
 
@@ -48,7 +48,7 @@ impl Rules {
         self.global_context.as_ref()
     }
 
-    pub fn page_contexts(&self) -> &ScriptFnCollection<ContextKey, rhai::FnPtr> {
+    pub fn page_contexts(&self) -> &GlobStore<ContextKey, rhai::FnPtr> {
         &self.page_contexts
     }
 
@@ -67,7 +67,7 @@ impl Rules {
         Self {
             pipelines: vec![],
             global_context: None,
-            page_contexts: ScriptFnCollection::new(),
+            page_contexts: GlobStore::new(),
             lints: LintCollection::new(),
         }
     }

@@ -11,19 +11,16 @@ use serde::{Deserialize, Serialize};
 
 use self::lint::LintKey;
 
-use super::rules::{RuleProcessor, ScriptFnCollection};
+use super::rules::{GlobStore, RuleProcessor};
 
 #[derive(Clone, Debug)]
 pub struct LintProcessor<'a> {
     processor: &'a RuleProcessor,
-    lints: &'a ScriptFnCollection<LintKey, rhai::FnPtr>,
+    lints: &'a GlobStore<LintKey, rhai::FnPtr>,
 }
 
 impl<'a> LintProcessor<'a> {
-    pub fn new(
-        processor: &'a RuleProcessor,
-        lints: &'a ScriptFnCollection<LintKey, rhai::FnPtr>,
-    ) -> Self {
+    pub fn new(processor: &'a RuleProcessor, lints: &'a GlobStore<LintKey, rhai::FnPtr>) -> Self {
         Self { processor, lints }
     }
 }

@@ -11,7 +11,7 @@ use crate::core::rules::{RuleProcessor, Rules};
 use crate::core::{Page, PageStore};
 
 use super::page::ContextItem;
-use super::rules::{ContextKey, ScriptFnCollection};
+use super::rules::{ContextKey, GlobStore};
 
 // Define the custom package 'MyCustomPackage'.
 def_package! {
