@@ -230,13 +230,17 @@ mod handle_msg {
     #[instrument(skip_all)]
     pub fn render(
         engine: &Engine,
-        client_request: &RenderPageRequest,
+        request: &RenderPageRequest,
     ) -> Result<Option<RenderedPage>, anyhow::Error> {
         use crate::core::page::render::rewrite_asset_targets;
 
-        trace!(client_request = ?client_request, "receive render page message");
-        let page: Option<RenderedPage> = {
-            if let Some(page) = engine.page_store().get(client_request.uri()) {
+        trace!(request = ?request, "receive render page message");
+
+        if let Some(page) = engine.page_store().get(request.uri()) {
+            let lints = engine.lint(std::iter::once(page))?;
+            if lints.has_deny() {
+                Err(anyhow::anyhow!(lints.to_string()))
+            } else {
                 let mut rendered = engine
                     .render(std::iter::once(page))?
                     .into_iter()
@@ -247,12 +251,11 @@ mod handle_msg {
                     engine.page_store(),
                 )?;
                 engine.run_pipelines(&linked_assets)?;
-                Some(rendered)
-            } else {
-                None
+                Ok(Some(rendered))
             }
-        };
-        Ok(page)
+        } else {
+            Ok(None)
+        }
     }
 
     #[instrument(skip_all)]
