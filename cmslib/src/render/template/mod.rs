@@ -24,3 +24,29 @@ impl AsRef<str> for TemplateName {
         self.0.as_str()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn template_name_as_str() {
+        let name = "test";
+        let template = TemplateName::new(name);
+        assert_eq!(template.as_str(), name);
+    }
+
+    #[test]
+    fn template_name_into_string() {
+        let name = "test";
+        let template = TemplateName::new(name);
+        assert_eq!(template.into_string(), String::from(name));
+    }
+
+    #[test]
+    fn template_name_as_ref() {
+        let name = "test";
+        let template = TemplateName::new(name);
+        assert_eq!(template.as_ref(), name);
+    }
+}
