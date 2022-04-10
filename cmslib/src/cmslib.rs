@@ -12,8 +12,6 @@ pub mod discover;
 pub mod pipeline;
 pub mod render;
 pub mod site_context;
-#[cfg(test)]
-pub mod test_util;
 pub mod util;
 
 pub use render::Renderers;
