@@ -18,9 +18,7 @@ use crate::{
     util,
 };
 
-use super::{
-    page::{LintMsg, RenderedPage, RenderedPageCollection},
-};
+use super::page::{LintMsg, RenderedPage, RenderedPageCollection};
 
 #[derive(Debug)]
 pub struct Engine {
@@ -171,21 +169,15 @@ impl Engine {
         trace!("linting");
         let engine: &Engine = self;
 
-        let mut all_lints: Vec<LintMsg> = vec![];
+        let lint_msgs: Vec<Vec<LintMsg>> = pages
+            .map(|page| {
+                crate::core::page::lint(engine.rule_processor(), engine.rules().lints(), page)
+            })
+            .try_collect()?;
 
-        for _page in pages {
-            let lint_msgs: Vec<Vec<LintMsg>> = engine
-                .page_store
-                .iter()
-                .map(|(_, page)| {
-                    crate::core::page::lint(engine.rule_processor(), engine.rules().lints(), page)
-                })
-                .try_collect()?;
-            let mut lint_msgs = lint_msgs.into_iter().flatten().collect();
-            all_lints.append(&mut lint_msgs);
-        }
+        let lint_msgs = lint_msgs.into_iter().flatten().collect();
 
-        Ok(all_lints)
+        Ok(lint_msgs)
     }
 
     #[instrument(skip_all)]
