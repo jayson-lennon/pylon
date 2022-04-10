@@ -34,3 +34,48 @@ impl TeraRenderer {
         Ok(self.renderer.full_reload()?)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use temptree::temptree;
+
+    #[test]
+    fn renders_with_valid_template() {
+        let tree = temptree! {
+            templates: {
+                "basic.tera": "data: {{content}}"
+            }
+        };
+
+        let template_root = tree.path().join("templates");
+
+        let renderer = TeraRenderer::new(template_root);
+
+        let mut ctx = tera::Context::new();
+        ctx.insert("content", "testing");
+
+        let rendered = renderer.render(&"basic.tera".into(), &ctx).unwrap();
+
+        assert_eq!(rendered.as_str(), "data: testing");
+    }
+
+    #[test]
+    fn render_fails_when_missing_content_data() {
+        let tree = temptree! {
+            templates: {
+                "basic.tera": "data: {{content}}"
+            }
+        };
+
+        let template_root = tree.path().join("templates");
+
+        let renderer = TeraRenderer::new(template_root);
+
+        let ctx = tera::Context::new();
+
+        let rendered = renderer.render(&"basic.tera".into(), &ctx);
+
+        assert!(rendered.is_err());
+    }
+}

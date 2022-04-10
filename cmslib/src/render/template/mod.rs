@@ -1,7 +1,6 @@
 mod tera;
-use serde::{Deserialize, Serialize};
-
 pub use crate::render::template::tera::TeraRenderer;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
 pub struct TemplateName(String);
@@ -22,6 +21,18 @@ impl TemplateName {
 impl AsRef<str> for TemplateName {
     fn as_ref(&self) -> &str {
         self.0.as_str()
+    }
+}
+
+impl From<String> for TemplateName {
+    fn from(s: String) -> Self {
+        Self::new(s)
+    }
+}
+
+impl From<&str> for TemplateName {
+    fn from(s: &str) -> Self {
+        Self::new(s)
     }
 }
 
@@ -48,5 +59,19 @@ mod test {
         let name = "test";
         let template = TemplateName::new(name);
         assert_eq!(template.as_ref(), name);
+    }
+
+    #[test]
+    fn template_name_from_str() {
+        let name = "test";
+        let template = TemplateName::from(name);
+        assert_eq!(template.as_ref(), name);
+    }
+
+    #[test]
+    fn template_name_from_string() {
+        let name = String::from("test");
+        let template = TemplateName::from(name);
+        assert_eq!(template.as_ref(), "test");
     }
 }
