@@ -1,5 +1,5 @@
 use super::Page;
-use crate::core::rules::{ContextKey, Matcher, RuleProcessor, ScriptFnCollection};
+use crate::core::rules::{ContextKey, GlobStore, Matcher, RuleProcessor};
 use crate::core::Uri;
 use anyhow::anyhow;
 use itertools::Itertools;

@@ -6,16 +6,16 @@ use crate::core::Uri;
 use super::Matcher;
 
 #[derive(Debug, Clone)]
-pub struct ScriptFnCollection<K, T>
+pub struct GlobStore<K, T>
 where
     K: slotmap::Key,
     T: Clone,
 {
-    pointers: SlotMap<K, T>,
+    inner: SlotMap<K, T>,
     matchers: Vec<(Matcher, K)>,
 }
 
-impl<K, T> ScriptFnCollection<K, T>
+impl<K, T> GlobStore<K, T>
 where
     K: slotmap::Key,
     T: Clone,
@@ -23,15 +23,15 @@ where
     #[must_use]
     pub fn new() -> Self {
         Self {
-            pointers: SlotMap::with_key(),
+            inner: SlotMap::with_key(),
             matchers: vec![],
         }
     }
 
     #[instrument(skip_all)]
-    pub fn add(&mut self, matcher: Matcher, ctx_fn: T) {
+    pub fn add(&mut self, matcher: Matcher, data: T) {
         trace!("add matcher to fn pointers");
-        let key = self.pointers.insert(ctx_fn);
+        let key = self.inner.insert(data);
         self.matchers.push((matcher, key));
     }
 
@@ -47,11 +47,11 @@ where
     }
 
     pub fn get(&self, key: K) -> Option<T> {
-        self.pointers.get(key).cloned()
+        self.inner.get(key).cloned()
     }
 }
 
-impl<K, T> Default for ScriptFnCollection<K, T>
+impl<K, T> Default for GlobStore<K, T>
 where
     K: slotmap::Key,
     T: Clone,
@@ -72,7 +72,7 @@ mod test {
             pub struct TestKey;
         }
 
-        let mut collection = ScriptFnCollection::<TestKey, usize>::new();
+        let mut collection = GlobStore::<TestKey, usize>::new();
 
         let matcher1 = make_matcher(&["/*.txt"]);
         let matcher2 = make_matcher(&["/*.md"]);
@@ -95,7 +95,7 @@ mod test {
             pub struct TestKey;
         }
 
-        let mut collection = ScriptFnCollection::<TestKey, usize>::new();
+        let mut collection = GlobStore::<TestKey, usize>::new();
 
         let matcher1 = make_matcher(&["/*.txt"]);
         let matcher2 = make_matcher(&["/*.md"]);

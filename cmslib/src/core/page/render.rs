@@ -8,7 +8,7 @@ use crate::{
     core::{
         engine::Engine,
         page::{ContextItem, PageKey},
-        rules::{ContextKey, RuleProcessor, ScriptFnCollection},
+        rules::{ContextKey, GlobStore, RuleProcessor},
         LinkedAssets, Page, PageStore, RelSystemPath, Uri,
     },
     site_context::SiteContext,
@@ -95,7 +95,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
 #[instrument(skip_all, fields(page = %for_page.uri()))]
 pub fn build_context(
     script_fn_runner: &RuleProcessor,
-    page_ctxs: &ScriptFnCollection<ContextKey, rhai::FnPtr>,
+    page_ctxs: &GlobStore<ContextKey, rhai::FnPtr>,
     for_page: &Page,
 ) -> Result<Vec<ContextItem>, anyhow::Error> {
     trace!("building page-specific context");

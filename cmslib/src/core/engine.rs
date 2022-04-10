@@ -20,7 +20,7 @@ use crate::{
 
 use super::{
     page::{LintMsg, RenderedPage, RenderedPageCollection},
-    rules::ScriptFnCollection,
+    rules::GlobStore,
 };
 
 #[derive(Debug)]
