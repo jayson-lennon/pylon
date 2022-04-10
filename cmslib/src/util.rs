@@ -62,11 +62,7 @@ impl TryFrom<String> for Glob {
 
     #[instrument(ret)]
     fn try_from(s: String) -> Result<Glob, Self::Error> {
-        let glob = globset::GlobBuilder::new(&s)
-            .literal_separator(true)
-            .build()?;
-        let matcher = glob.compile_matcher();
-        Ok(Self { glob, matcher })
+        s.as_str().try_into()
     }
 }
 
@@ -80,5 +76,25 @@ impl TryFrom<&str> for Glob {
             .build()?;
         let matcher = glob.compile_matcher();
         Ok(Self { glob, matcher })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn glob_try_into_str() {
+        let glob = Glob::try_from("/*.*");
+        assert!(glob.is_ok());
+
+        let glob = Glob::try_from("/*.*".to_owned());
+        assert!(glob.is_ok());
+    }
+
+    #[test]
+    fn glob_try_into_string() {
+        let glob = Glob::try_from("/*.*".to_owned());
+        assert!(glob.is_ok());
     }
 }

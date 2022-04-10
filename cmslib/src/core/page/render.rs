@@ -95,7 +95,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Erro
 #[instrument(skip_all, fields(page = %for_page.uri()))]
 pub fn build_context(
     script_fn_runner: &RuleProcessor,
-    page_ctxs: &ScriptFnCollection<ContextKey>,
+    page_ctxs: &ScriptFnCollection<ContextKey, rhai::FnPtr>,
     for_page: &Page,
 ) -> Result<Vec<ContextItem>, anyhow::Error> {
     trace!("building page-specific context");
