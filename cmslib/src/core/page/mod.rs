@@ -57,7 +57,7 @@ impl AsRef<str> for RawMarkdown {
 pub mod script {
     #[allow(clippy::wildcard_imports)]
     use rhai::plugin::*;
-    use serde::Deserialize;
+    
 
     #[rhai::export_module]
     pub mod rhai_module {
