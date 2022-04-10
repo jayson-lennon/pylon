@@ -6,3 +6,6 @@ build: clean
 
 serve: clean
   cargo run -- serve
+
+coverage:
+  cargo tarpaulin --out Html
