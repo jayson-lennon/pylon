@@ -207,17 +207,6 @@ mod test {
     use crate::core::{config::EngineConfig, engine::Engine, page::LintLevel, Uri};
 
     #[test]
-    fn lint_messages_denies_properly() {
-        let mut lints = vec![LintMsg::new(LintLevel::Warn, "", Uri::from_path("/"))];
-        let messages = LintMessages::from_slice(lints.as_slice());
-        assert_eq!(messages.has_deny(), false);
-
-        lints.push(LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")));
-        let messages = LintMessages::from_slice(lints.as_slice());
-        assert!(messages.has_deny());
-    }
-
-    #[test]
     fn single_lint() {
         let test_page = r#"+++
         template_name = "empty.tera"
@@ -302,5 +291,96 @@ mod test {
         assert_eq!(lints[1].level, LintLevel::Warn);
         assert_eq!(lints[1].msg, "Missing publish date");
         assert_eq!(lints[1].page_uri, Uri::from_path("/test"));
+    }
+
+    #[test]
+    fn new_lint_messages() {
+        let msgs = LintMessages::new();
+        assert!(msgs.inner.is_empty());
+    }
+
+    #[test]
+    fn lint_level_fromstr_deny() {
+        let level = LintLevel::from_str(LINT_LEVEL_DENY).unwrap();
+        assert_eq!(level, LintLevel::Deny);
+    }
+
+    #[test]
+    fn lint_level_fromstr_warn() {
+        let level = LintLevel::from_str(LINT_LEVEL_WARN).unwrap();
+        assert_eq!(level, LintLevel::Warn);
+    }
+
+    #[test]
+    fn lint_level_fromstr_other_err() {
+        let level = LintLevel::from_str("nope");
+        assert!(level.is_err());
+    }
+
+    #[test]
+    fn lintcollection_default() {
+        let collection = LintCollection::default();
+        assert!(collection.lints.is_empty());
+    }
+
+    #[test]
+    fn lintmessages_new() {
+        let messages = LintMessages::new();
+        assert!(messages.inner.is_empty());
+    }
+
+    #[test]
+    fn lintmessages_from_iter() {
+        let lints = vec![
+            LintMsg::new(LintLevel::Warn, "", Uri::from_path("/")),
+            LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")),
+        ];
+        let messages = LintMessages::from_iter(lints.into_iter());
+        assert_eq!(messages.inner.len(), 2);
+    }
+
+    #[test]
+    fn lintmessages_into_iter() {
+        let lints = vec![
+            LintMsg::new(LintLevel::Warn, "", Uri::from_path("/")),
+            LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")),
+        ];
+        let messages = LintMessages::from_iter(lints.into_iter());
+        let mut messages_iter = messages.into_iter();
+        assert_eq!(messages_iter.next().unwrap().level, LintLevel::Warn);
+        assert_eq!(messages_iter.next().unwrap().level, LintLevel::Deny);
+    }
+
+    #[test]
+    fn lintmessages_into_iter_ref() {
+        let lints = vec![
+            LintMsg::new(LintLevel::Warn, "", Uri::from_path("/")),
+            LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")),
+        ];
+        let messages = LintMessages::from_iter(lints.into_iter());
+        let messages_iter = &mut messages.into_iter();
+        assert_eq!(messages_iter.next().unwrap().level, LintLevel::Warn);
+        assert_eq!(messages_iter.next().unwrap().level, LintLevel::Deny);
+    }
+
+    #[test]
+    fn lint_messages_denies_properly() {
+        let mut lints = vec![LintMsg::new(LintLevel::Warn, "", Uri::from_path("/"))];
+        let messages = LintMessages::from_slice(lints.as_slice());
+        assert_eq!(messages.has_deny(), false);
+
+        lints.push(LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")));
+        let messages = LintMessages::from_slice(lints.as_slice());
+        assert!(messages.has_deny());
+    }
+
+    #[test]
+    fn lintmessages_display_impl() {
+        let lints = vec![
+            LintMsg::new(LintLevel::Warn, "abc", Uri::from_path("/")),
+            LintMsg::new(LintLevel::Deny, "123", Uri::from_path("/")),
+        ];
+        let messages = LintMessages::from_iter(lints.into_iter());
+        assert_eq!(messages.to_string(), String::from("abc\n123"));
     }
 }

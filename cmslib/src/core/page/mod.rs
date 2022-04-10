@@ -44,7 +44,7 @@ pub mod script {
     #[rhai::export_module]
     pub mod rhai_module {
         use crate::core::page::{ContextItem, FrontMatter, Page};
-        use rhai::serde::to_dynamic;
+        
 
         use tracing::instrument;
 
@@ -90,8 +90,8 @@ pub mod script {
         mod test {
             use super::rhai_module;
             use crate::core::page::page::test as test_util;
-            use crate::core::page::FrontMatter;
-            use std::collections::HashMap;
+            
+            
 
             #[test]
             fn uri_fn() {
