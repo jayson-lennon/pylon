@@ -3,7 +3,7 @@ use crate::core::Uri;
 use crate::render::template::TemplateName;
 use crate::Renderers;
 use anyhow::{anyhow, Context};
-use serde::{Deserialize, Serialize};
+use serde::{Serialize};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},

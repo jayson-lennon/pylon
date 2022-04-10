@@ -12,7 +12,7 @@ use crate::{
     core::config::EngineConfig,
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::{page::LintProcessor, script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
+    core::{script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
     devserver::{DevServer, EngineBroker},
     render::Renderers,
     util,
@@ -20,7 +20,6 @@ use crate::{
 
 use super::{
     page::{LintMsg, RenderedPage, RenderedPageCollection},
-    rules::GlobStore,
 };
 
 #[derive(Debug)]
@@ -174,7 +173,7 @@ impl Engine {
 
         let mut all_lints: Vec<LintMsg> = vec![];
 
-        for page in pages {
+        for _page in pages {
             let lint_msgs: Vec<Vec<LintMsg>> = engine
                 .page_store
                 .iter()

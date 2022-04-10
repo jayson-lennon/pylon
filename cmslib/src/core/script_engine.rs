@@ -1,17 +1,17 @@
-use anyhow::anyhow;
-use itertools::Itertools;
+
+
 use rhai::packages::{Package, StandardPackage};
 #[allow(clippy::wildcard_imports)]
 use rhai::plugin::*;
 use rhai::{def_package, Scope};
-use std::collections::HashSet;
-use tracing::{instrument, trace};
+
+
 
 use crate::core::rules::{RuleProcessor, Rules};
-use crate::core::{Page, PageStore};
+use crate::core::{PageStore};
 
-use super::page::ContextItem;
-use super::rules::{ContextKey, GlobStore};
+
+
 
 // Define the custom package 'MyCustomPackage'.
 def_package! {

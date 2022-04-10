@@ -107,7 +107,7 @@ mod test {
         let ptr1 = collection.get(key1);
         assert!(ptr1.is_some());
 
-        let key2 = collection.find_keys(&Uri::from_path("/test.md"))[0];
+        let _key2 = collection.find_keys(&Uri::from_path("/test.md"))[0];
         let ptr2 = collection.get(key1);
         assert!(ptr2.is_some());
 

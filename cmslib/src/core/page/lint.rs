@@ -1,8 +1,8 @@
 use super::Page;
-use crate::core::rules::{ContextKey, GlobStore, Matcher, RuleProcessor};
+use crate::core::rules::{Matcher, RuleProcessor};
 use crate::core::Uri;
 use anyhow::anyhow;
-use itertools::Itertools;
+
 use slotmap::SlotMap;
 use std::str::FromStr;
 use tracing::{instrument, trace};
