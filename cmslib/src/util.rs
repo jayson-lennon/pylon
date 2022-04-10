@@ -81,6 +81,8 @@ impl TryFrom<&str> for Glob {
 
 #[cfg(test)]
 mod test {
+    use tempfile::tempdir;
+
     use super::*;
 
     #[test]
@@ -96,5 +98,30 @@ mod test {
     fn glob_try_into_string() {
         let glob = Glob::try_from("/*.*".to_owned());
         assert!(glob.is_ok());
+    }
+
+    #[test]
+    fn glob_is_match() {
+        let glob = Glob::try_from("*.txt".to_owned()).unwrap();
+        assert_eq!(glob.is_match("test.txt"), true);
+        assert_eq!(glob.is_match("test.md"), false);
+    }
+
+    #[test]
+    fn glob_is_match_candidate() {
+        let glob = Glob::try_from("*.txt".to_owned()).unwrap();
+
+        let candidate_ok = GlobCandidate::new("test.txt");
+        let candidate_err = GlobCandidate::new("test.md");
+
+        assert_eq!(glob.is_match_candidate(&candidate_ok), true);
+        assert_eq!(glob.is_match_candidate(&candidate_err), false);
+    }
+
+    #[test]
+    fn glob_get_as_str() {
+        let glob = Glob::try_from("*.txt".to_owned()).unwrap();
+
+        assert_eq!(glob.glob(), "*.txt");
     }
 }
