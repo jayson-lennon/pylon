@@ -61,4 +61,81 @@ pub mod script {
                 .unwrap_or_default()
         }
     }
+
+    #[cfg(test)]
+    mod test {
+        use std::collections::HashMap;
+
+        use crate::core::page::FrontMatter;
+
+        use super::*;
+
+        #[test]
+        fn get_template_name_is_present() {
+            let mut frontmatter = FrontMatter {
+                template_name: Some("test.tera".into()),
+                ..Default::default()
+            };
+
+            let name = rhai_module::template_name(&mut frontmatter);
+            assert_eq!(name.as_str(), "test.tera");
+        }
+
+        #[test]
+        fn get_template_name_is_missing() {
+            let mut frontmatter = FrontMatter::default();
+
+            let name = rhai_module::template_name(&mut frontmatter);
+            assert_eq!(name.as_str(), "");
+        }
+
+        #[test]
+        fn get_use_index() {
+            let mut frontmatter = FrontMatter {
+                use_index: true,
+                ..FrontMatter::default()
+            };
+
+            let use_index = rhai_module::use_index(&mut frontmatter);
+            assert!(use_index);
+        }
+
+        #[test]
+        fn get_all_meta() {
+            let mut frontmatter = FrontMatter::default();
+
+            let dynamic = rhai_module::all_meta(&mut frontmatter);
+            assert!(dynamic.is_ok());
+
+            assert_eq!(dynamic.unwrap().type_name(), "map");
+        }
+
+        #[test]
+        fn get_existing_meta_item() {
+            let mut meta = HashMap::new();
+            meta.insert("test".into(), serde_json::to_value("sample").unwrap());
+
+            let mut frontmatter = FrontMatter {
+                meta,
+                ..FrontMatter::default()
+            };
+
+            let meta = rhai_module::get_meta(&mut frontmatter, "test");
+            assert_eq!(meta.into_string().unwrap().as_str(), "sample");
+        }
+
+        #[test]
+        fn get_nonexistent_meta_item() {
+            let mut meta = HashMap::new();
+            meta.insert("test".into(), serde_json::to_value("sample").unwrap());
+
+            let mut frontmatter = FrontMatter {
+                meta,
+                ..FrontMatter::default()
+            };
+
+            let meta = rhai_module::get_meta(&mut frontmatter, "nope");
+            assert_eq!(meta.type_name(), "()");
+        }
+    }
 }
