@@ -1,4 +1,4 @@
-use crate::util::{Glob, GlobCandidate};
+use crate::util::{Glob};
 use anyhow::{anyhow, Context};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
