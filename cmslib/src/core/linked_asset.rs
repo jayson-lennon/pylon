@@ -27,3 +27,42 @@ impl Default for LinkedAssets {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn new_linked_assets() {
+        let assets = LinkedAssets::new();
+        assert!(assets.assets.is_empty());
+    }
+
+    #[test]
+    fn new_linked_assets_with_default() {
+        let assets = LinkedAssets::default();
+        assert!(assets.assets.is_empty());
+    }
+
+    #[test]
+    fn linked_assets_from_hashset() {
+        let mut assets = HashSet::new();
+        assets.insert(Uri::from_path("a"));
+        assets.insert(Uri::from_path("b"));
+
+        let assets = LinkedAssets::from_hashset(assets);
+        assert_eq!(assets.assets.len(), 2);
+    }
+
+    #[test]
+    fn linked_assets_iter() {
+        let mut assets = HashSet::new();
+        assets.insert(Uri::from_path("a"));
+        assets.insert(Uri::from_path("b"));
+
+        let assets = LinkedAssets::from_hashset(assets);
+
+        let assets = assets.iter().collect::<Vec<_>>();
+        assert_eq!(assets.len(), 2);
+    }
+}
