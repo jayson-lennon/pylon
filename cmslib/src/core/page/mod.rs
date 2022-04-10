@@ -9,10 +9,6 @@ pub use page::Page;
 pub use render::{render, RenderedPage, RenderedPageCollection};
 use serde::{Deserialize, Serialize};
 
-
-
-
-
 slotmap::new_key_type! {
     pub struct PageKey;
 }
@@ -24,7 +20,6 @@ pub struct ContextItem {
 }
 
 impl ContextItem {
-    #[must_use]
     pub fn new<S: AsRef<str>>(identifier: S, data: serde_json::Value) -> Self {
         Self {
             identifier: identifier.as_ref().to_string(),
@@ -66,17 +61,16 @@ pub mod script {
         /// Returns all attached metadata.
         #[rhai_fn(get = "meta", return_raw)]
         pub fn all_meta(page: &mut Page) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
-            to_dynamic(page.frontmatter.meta.clone())
+            crate::core::page::frontmatter::script::rhai_module::all_meta(&mut page.frontmatter)
         }
 
         /// Returns the value found at the provided key. Returns `()` if the key wasn't found.
         #[rhai_fn()]
         pub fn meta(page: &mut Page, key: &str) -> rhai::Dynamic {
-            page.frontmatter
-                .meta
-                .get(key)
-                .and_then(|v| to_dynamic(v).ok())
-                .unwrap_or_default()
+            crate::core::page::frontmatter::script::rhai_module::get_meta(
+                &mut page.frontmatter,
+                key,
+            )
         }
 
         /// Generates a new context for use within the page template.
@@ -91,5 +85,91 @@ pub mod script {
             }
             Ok(context_items)
         }
+
+        #[cfg(test)]
+        mod test {
+            use super::rhai_module;
+            use crate::core::page::page::test as test_util;
+            use crate::core::page::FrontMatter;
+            use std::collections::HashMap;
+
+            #[test]
+            fn uri_fn() {
+                let mut page = test_util::basic_page();
+                let uri = rhai_module::uri(&mut page);
+                assert_eq!(uri, String::from("/sample/stem"));
+            }
+
+            #[test]
+            fn get_frontmatter() {
+                let mut page = test_util::basic_page();
+                let frontmatter = rhai_module::frontmatter(&mut page);
+                assert_eq!(frontmatter.use_index, true);
+                assert_eq!(frontmatter.template_name, Some("empty.tera".into()));
+            }
+
+            #[test]
+            fn get_all_meta() {
+                let mut page = test_util::basic_page();
+
+                let dynamic = rhai_module::all_meta(&mut page);
+                assert!(dynamic.is_ok());
+
+                assert_eq!(dynamic.unwrap().type_name(), "map");
+            }
+
+            #[test]
+            fn get_existing_meta_item() {
+                let mut page = test_util::page_from_doc(
+                    r#"+++
+                template_name = "empty.tera"
+
+                [meta]
+                test = "sample"
+                +++"#,
+                )
+                .unwrap();
+
+                let meta = rhai_module::meta(&mut page, "test");
+                assert_eq!(meta.into_string().unwrap().as_str(), "sample");
+            }
+
+            #[test]
+            fn get_nonexistent_meta_item() {
+                let mut page = test_util::page_from_doc(
+                    r#"+++
+                template_name = "empty.tera"
+
+                [meta]
+                test = "sample"
+                +++"#,
+                )
+                .unwrap();
+
+                let meta = rhai_module::meta(&mut page, "nope");
+                assert_eq!(meta.type_name(), "()");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn new_context_item() {
+        fn value(v: usize) -> serde_json::Value {
+            serde_json::to_value(v).unwrap()
+        }
+        let ctx_item = ContextItem::new("test", value(1));
+        assert_eq!(ctx_item.identifier.as_str(), "test");
+        assert_eq!(ctx_item.data, value(1));
+    }
+
+    #[test]
+    fn raw_markdown_as_ref() {
+        let markdown = RawMarkdown("test".into());
+        assert_eq!(markdown.as_ref(), "test");
     }
 }
