@@ -1,5 +1,3 @@
-let rules = new_rules();
-
 let copy_op = "[COPY]";
 
 rules.add_pipeline("**/*.png", [copy_op]);
@@ -49,4 +47,3 @@ rules.add_page_context("index.md", |page| {
     global_: "crash"
   })
 });
-rules

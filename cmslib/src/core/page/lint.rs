@@ -112,11 +112,11 @@ impl LintMsg {
 }
 
 #[derive(Clone, Debug)]
-pub struct Lints {
+pub struct LintMessages {
     inner: Vec<LintMsg>,
 }
 
-impl Lints {
+impl LintMessages {
     pub fn new() -> Self {
         Self { inner: vec![] }
     }
@@ -147,7 +147,7 @@ impl Lints {
     }
 }
 
-impl IntoIterator for Lints {
+impl IntoIterator for LintMessages {
     type Item = LintMsg;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -156,7 +156,7 @@ impl IntoIterator for Lints {
     }
 }
 
-impl<'a> IntoIterator for &'a Lints {
+impl<'a> IntoIterator for &'a LintMessages {
     type Item = &'a LintMsg;
     type IntoIter = std::slice::Iter<'a, LintMsg>;
 
@@ -165,7 +165,7 @@ impl<'a> IntoIterator for &'a Lints {
     }
 }
 
-impl std::fmt::Display for Lints {
+impl std::fmt::Display for LintMessages {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msgs = self
             .inner
@@ -201,9 +201,21 @@ pub fn lint(
 #[cfg(test)]
 mod test {
 
+    use super::*;
     use temptree::temptree;
 
     use crate::core::{config::EngineConfig, engine::Engine, page::LintLevel, Uri};
+
+    #[test]
+    fn lint_messages_denies_properly() {
+        let mut lints = vec![LintMsg::new(LintLevel::Warn, "", Uri::from_path("/"))];
+        let messages = LintMessages::from_slice(lints.as_slice());
+        assert_eq!(messages.has_deny(), false);
+
+        lints.push(LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")));
+        let messages = LintMessages::from_slice(lints.as_slice());
+        assert!(messages.has_deny());
+    }
 
     #[test]
     fn single_lint() {
