@@ -101,7 +101,7 @@ pub mod script {
         }
 
         #[test]
-        fn get_all_meta() {
+        pub fn get_all_meta() {
             let mut frontmatter = FrontMatter::default();
 
             let dynamic = rhai_module::all_meta(&mut frontmatter);
