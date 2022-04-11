@@ -310,3 +310,107 @@ fn do_build_page_store<P: AsRef<Path> + std::fmt::Debug>(
 
     Ok(page_store)
 }
+
+#[cfg(test)]
+pub mod test {
+    #![allow(unused_variables)]
+
+    use crate::devserver::broker::EngineMsg;
+    use tempfile::TempDir;
+    use temptree::temptree;
+
+    use super::*;
+
+    pub fn runtime() -> Arc<tokio::runtime::Runtime> {
+        Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_io()
+                .enable_time()
+                .build()
+                .unwrap(),
+        )
+    }
+
+    fn simple_config() -> (EngineConfig, TempDir) {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {},
+          src: {}
+        };
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+        (config, tree)
+    }
+
+    #[test]
+    fn makes_new_engine() {
+        // let tree = temptree! {
+        //   "rules.rhai": "",
+        //   templates: {},
+        //   target: {},
+        //   src: {}
+        // };
+        // let config = EngineConfig::new(
+        //     tree.path().join("src"),
+        //     tree.path().join("target"),
+        //     tree.path().join("templates"),
+        //     tree.path().join("rules.rhai"),
+        // );
+        let (config, tree) = simple_config();
+        Engine::new(config).expect("should be able to make new engine");
+    }
+
+    #[test]
+    fn makes_new_engine_with_broker() {
+        use std::str::FromStr;
+
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {},
+          src: {}
+        };
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let (engine_handle, broker) =
+            Engine::with_broker(config, SocketAddr::from_str("127.0.0.1:9999").unwrap(), 200)
+                .expect("failed to create engine with broker");
+
+        broker
+            .send_engine_msg_sync(EngineMsg::Quit)
+            .expect("failed to send Quit message to engine");
+
+        engine_handle
+            .join()
+            .expect("failed to join on engine thread")
+            .expect("engine returned an error during initialization when it should return Ok");
+    }
+
+    // #[test]
+    // fn makes_new_engine() {
+    //     let tree = temptree! {
+    //       "rules.rhai": "",
+    //       templates: {},
+    //       target: {},
+    //       src: {}
+    //     };
+    //     let config = EngineConfig::new(
+    //         tree.path().join("src"),
+    //         tree.path().join("target"),
+    //         tree.path().join("templates"),
+    //         tree.path().join("rules.rhai"),
+    //     );
+    //     Engine::new(config).expect("should be able to make new engine");
+    // }
+}
