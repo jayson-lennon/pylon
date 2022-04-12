@@ -62,7 +62,7 @@ mod test {
 
         let assets = LinkedAssets::from_hashset(assets);
 
-        let assets = assets.iter().collect::<Vec<_>>();
-        assert_eq!(assets.len(), 2);
+        let assets = assets.iter();
+        assert_eq!(assets.count(), 2);
     }
 }

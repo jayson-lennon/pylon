@@ -49,6 +49,10 @@ where
     pub fn get(&self, key: K) -> Option<T> {
         self.inner.get(key).cloned()
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (K, &T)> {
+        self.inner.iter()
+    }
 }
 
 impl<K, T> Default for GlobStore<K, T>

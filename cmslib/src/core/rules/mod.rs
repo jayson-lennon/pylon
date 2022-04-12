@@ -55,10 +55,6 @@ impl Rules {
     pub fn lints(&self) -> &LintCollection {
         &self.lints
     }
-
-    pub fn test(&mut self) {
-        self.global_context = None;
-    }
 }
 
 impl Rules {
@@ -186,5 +182,137 @@ pub mod script {
             rules.add_lint(matcher, lint);
             Ok(())
         }
+
+        #[cfg(test)]
+        mod test {
+            use crate::core::config::EngineConfig;
+
+            use super::*;
+
+            #[test]
+            fn makes_new_rules() {
+                new_rules();
+            }
+
+            #[test]
+            fn adds_pipeline() {
+                let mut rules = Rules::default();
+                let values = vec!["[COPY]".into()];
+                super::add_pipeline(&mut rules, "*", values).expect("failed to add pipeline");
+                assert_eq!(rules.pipelines().count(), 1);
+            }
+
+            #[test]
+            fn rejects_bad_pipeline_op() {
+                let mut rules = Rules::default();
+                let values = vec![1.into()];
+                assert!(super::add_pipeline(&mut rules, "*", values).is_err());
+            }
+
+            #[test]
+            fn adds_page_context() {
+                use temptree::temptree;
+
+                let ptr = {
+                    let rules = r#"
+            rules.add_page_context("**", |page| { () });
+        "#;
+
+                    let doc1 = r#"+++
+            template_name = "empty.tera"
+            use_index = false
+            +++
+        "#;
+
+                    let tree = temptree! {
+                      "rules.rhai": rules,
+                      templates: {
+                          "empty.tera": ""
+                      },
+                      target: {},
+                      src: {
+                          "doc1.md": doc1,
+                      },
+                    };
+
+                    let config = EngineConfig::new(
+                        tree.path().join("src"),
+                        tree.path().join("target"),
+                        tree.path().join("templates"),
+                        tree.path().join("rules.rhai"),
+                    );
+
+                    let engine = crate::core::engine::Engine::new(config).unwrap();
+
+                    let all = engine
+                        .rules()
+                        .page_contexts()
+                        .iter()
+                        .map(|(_, p)| p)
+                        .collect::<Vec<_>>();
+                    all[0].clone()
+                };
+                let mut rules = Rules::default();
+                assert!(super::add_page_context(&mut rules, "*", ptr).is_ok());
+                assert_eq!(rules.page_contexts().iter().count(), 1)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::core::{config::EngineConfig, engine::Engine};
+    use temptree::temptree;
+
+    use super::*;
+
+    #[test]
+    fn rules_default() {
+        let rules = Rules::default();
+    }
+
+    #[test]
+    fn sets_global_context() {
+        let mut rules = Rules::new();
+        assert!(rules
+            .set_global_context(serde_json::to_value(1).unwrap())
+            .is_ok());
+        assert!(rules.global_context().is_some());
+    }
+
+    #[test]
+    fn adds_page_context() {
+        let rules = r#"
+            rules.add_page_context("**", |page| { () });
+        "#;
+
+        let doc1 = r#"+++
+            template_name = "empty.tera"
+            use_index = false
+            +++
+        "#;
+
+        let tree = temptree! {
+          "rules.rhai": rules,
+          templates: {
+              "empty.tera": ""
+          },
+          target: {},
+          src: {
+              "doc1.md": doc1,
+          },
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+
+        assert_eq!(engine.rules().page_contexts().iter().count(), 1);
     }
 }
