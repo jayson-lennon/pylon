@@ -332,6 +332,7 @@ pub mod test {
         )
     }
 
+    // `TempDir` needs to stay bound in order to maintain temporary directory tree
     fn simple_config() -> (EngineConfig, TempDir) {
         let tree = temptree! {
           "rules.rhai": "",
@@ -350,18 +351,6 @@ pub mod test {
 
     #[test]
     fn makes_new_engine() {
-        // let tree = temptree! {
-        //   "rules.rhai": "",
-        //   templates: {},
-        //   target: {},
-        //   src: {}
-        // };
-        // let config = EngineConfig::new(
-        //     tree.path().join("src"),
-        //     tree.path().join("target"),
-        //     tree.path().join("templates"),
-        //     tree.path().join("rules.rhai"),
-        // );
         let (config, tree) = simple_config();
         Engine::new(config).expect("should be able to make new engine");
     }
@@ -370,18 +359,7 @@ pub mod test {
     fn makes_new_engine_with_broker() {
         use std::str::FromStr;
 
-        let tree = temptree! {
-          "rules.rhai": "",
-          templates: {},
-          target: {},
-          src: {}
-        };
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let (config, tree) = simple_config();
 
         let (engine_handle, broker) =
             Engine::with_broker(config, SocketAddr::from_str("127.0.0.1:9999").unwrap(), 200)
@@ -397,20 +375,286 @@ pub mod test {
             .expect("engine returned an error during initialization when it should return Ok");
     }
 
-    // #[test]
-    // fn makes_new_engine() {
-    //     let tree = temptree! {
-    //       "rules.rhai": "",
-    //       templates: {},
-    //       target: {},
-    //       src: {}
-    //     };
-    //     let config = EngineConfig::new(
-    //         tree.path().join("src"),
-    //         tree.path().join("target"),
-    //         tree.path().join("templates"),
-    //         tree.path().join("rules.rhai"),
-    //     );
-    //     Engine::new(config).expect("should be able to make new engine");
-    // }
+    #[test]
+    fn gets_renderers() {
+        let (config, tree) = simple_config();
+        let engine = Engine::new(config).unwrap();
+        assert!(std::ptr::eq(engine.renderers(), &engine.renderers));
+    }
+
+    #[test]
+    fn gets_mutable_page_store() {
+        let (config, tree) = simple_config();
+        let mut engine = Engine::new(config).unwrap();
+        assert!(std::ptr::eq(engine.page_store_mut(), &engine.page_store));
+    }
+
+    #[test]
+    fn reloads_rules() {
+        let old_rules = r#"
+            rules.add_lint(DENY, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+            rules.add_lint(WARN, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+        "#;
+
+        let new_rules = r#"
+            rules.add_lint(WARN, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+        "#;
+
+        let tree = temptree! {
+          "old_rules.rhai": old_rules,
+          "new_rules.rhai": new_rules,
+          templates: {},
+          target: {},
+          src: {}
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("old_rules.rhai"),
+        );
+
+        let mut engine = Engine::new(config).unwrap();
+        assert_eq!(engine.rules().lints().len(), 2);
+
+        engine.config.rule_script = tree.path().join("new_rules.rhai");
+        engine.reload_rules().expect("failed to reload rules");
+        assert_eq!(engine.rules().lints().len(), 1);
+    }
+
+    #[test]
+    fn reloads_template_engines() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {
+              "a.tera": "",
+          },
+          target: {},
+          src: {}
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let mut engine = Engine::new(config).unwrap();
+        assert_eq!(engine.renderers().tera.get_template_names().count(), 1);
+
+        let mut new_template = tree.path().join("templates");
+        new_template.push("b.tera");
+
+        std::fs::write(new_template, "").unwrap();
+
+        engine
+            .reload_template_engines()
+            .expect("failed to reload template engines");
+
+        assert_eq!(engine.renderers().tera.get_template_names().count(), 2);
+    }
+
+    #[test]
+    fn does_lint() {
+        let rules = r#"
+            rules.add_lint(WARN, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+            rules.add_lint(WARN, "Missing author 2", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+        "#;
+
+        let doc = r#"+++
+            template_name = "empty.tera"
+            +++
+        "#;
+
+        let tree = temptree! {
+          "rules.rhai": rules,
+          templates: {},
+          target: {},
+          src: {
+              "sample.md": doc,
+          }
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+
+        let lints = engine
+            .lint(engine.page_store().iter().map(|(_, page)| page))
+            .expect("linting failed");
+        assert_eq!(lints.into_iter().count(), 2);
+    }
+
+    #[test]
+    fn does_render() {
+        let doc1 = r#"+++
+            template_name = "test.tera"
+            +++
+doc1"#;
+
+        let doc2 = r#"+++
+            template_name = "test.tera"
+            +++
+doc2"#;
+
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {
+              "test.tera": "content: {{content}}"
+          },
+          target: {},
+          src: {
+              "doc1.md": doc1,
+              "doc2.md": doc2,
+          }
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+
+        let rendered = engine
+            .render(engine.page_store().iter().map(|(_, page)| page))
+            .expect("failed to render pages");
+
+        assert_eq!(rendered.iter().count(), 2);
+    }
+
+    #[test]
+    fn rebuilds_page_store() {
+        let doc1 = r#"+++
+            template_name = "empty.tera"
+            +++
+        "#;
+
+        let doc2 = r#"+++
+            template_name = "empty.tera"
+            +++
+        "#;
+
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {
+              "empty.tera": ""
+          },
+          target: {},
+          src: {
+              "doc1.md": doc1,
+          },
+          src_new: {
+              "doc1.md": doc1,
+              "doc2.md": doc2,
+          }
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let mut engine = Engine::new(config).unwrap();
+
+        let page_store = engine.page_store();
+        assert_eq!(page_store.iter().count(), 1);
+
+        engine.config.src_root = tree.path().join("src_new");
+
+        engine
+            .rebuild_page_store()
+            .expect("failed to rebuild page store");
+        let page_store = engine.page_store();
+        assert_eq!(page_store.iter().count(), 2);
+    }
+
+    #[test]
+    fn re_inits_everything() {
+        rebuilds_page_store();
+        reloads_template_engines();
+        reloads_rules();
+    }
+
+    #[test]
+    fn builds_site_no_lint_errors() {
+        let rules = r#"
+            rules.add_lint(WARN, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+            rules.add_pipeline("*.png", ["[COPY]"]);
+        "#;
+
+        let doc1 = r#"+++
+            template_name = "empty.tera"
+            use_index = false
+            +++
+        "#;
+
+        let doc2 = r#"+++
+            template_name = "test.tera"
+            use_index = false
+            [meta]
+            author = "test"
+            +++
+        "#;
+
+        let tree = temptree! {
+          "rules.rhai": rules,
+          templates: {
+              "test.tera": r#"<img src="blank.png">"#,
+              "empty.tera": ""
+          },
+          target: {},
+          src: {
+              "doc1.md": doc1,
+              "doc2.md": doc2,
+              "blank.png": "",
+          },
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+        assert!(engine.build_site().is_ok());
+
+        let mut target_doc1 = tree.path().join("target");
+        target_doc1.push("doc1.html");
+
+        let mut target_doc2 = tree.path().join("target");
+        target_doc2.push("doc2.html");
+
+        let mut target_img = tree.path().join("target");
+        target_img.push("blank.png");
+
+        assert!(target_doc1.exists());
+        assert!(target_doc2.exists());
+        assert!(target_img.exists());
+    }
 }
