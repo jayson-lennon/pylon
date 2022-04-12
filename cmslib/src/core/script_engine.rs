@@ -1,17 +1,10 @@
-
-
 use rhai::packages::{Package, StandardPackage};
 #[allow(clippy::wildcard_imports)]
 use rhai::plugin::*;
 use rhai::{def_package, Scope};
 
-
-
 use crate::core::rules::{RuleProcessor, Rules};
-use crate::core::{PageStore};
-
-
-
+use crate::core::PageStore;
 
 // Define the custom package 'MyCustomPackage'.
 def_package! {
@@ -97,9 +90,23 @@ impl ScriptEngine {
         Self::new_engine(&self.packages)
     }
 
-    pub fn new_fn_runner<S: AsRef<str>>(&self, script: S) -> Result<RuleProcessor, anyhow::Error> {
-        let engine = Self::new_engine(&self.packages);
+    pub fn new_rule_processor<S: AsRef<str>>(
+        &self,
+        script: S,
+    ) -> Result<RuleProcessor, anyhow::Error> {
+        let engine = self.clone_engine();
         RuleProcessor::new(engine, script.as_ref())
+    }
+
+    fn new_scope(page_store: &PageStore) -> Scope {
+        use crate::core::page::lint::{LINT_LEVEL_DENY, LINT_LEVEL_WARN};
+        let mut scope = Scope::new();
+        scope.push("rules", Rules::new());
+        scope.push("PAGES", page_store.clone());
+        scope.push("DENY", LINT_LEVEL_DENY);
+        scope.push("WARN", LINT_LEVEL_WARN);
+        dbg!(&page_store);
+        scope
     }
 
     pub fn build_rules<S: AsRef<str>>(
@@ -107,16 +114,10 @@ impl ScriptEngine {
         page_store: &PageStore,
         script: S,
     ) -> Result<(RuleProcessor, Rules), anyhow::Error> {
-        use crate::core::page::lint::{LINT_LEVEL_DENY, LINT_LEVEL_WARN};
         let script = script.as_ref();
         let ast = self.engine.compile(script)?;
 
-        let mut scope = Scope::new();
-        scope.push("rules", Rules::new());
-        scope.push("PAGES", page_store.clone());
-        scope.push("DENY", LINT_LEVEL_DENY);
-        scope.push("WARN", LINT_LEVEL_WARN);
-        dbg!(&page_store);
+        let mut scope = Self::new_scope(page_store);
 
         self.engine.run_ast_with_scope(&mut scope, &ast)?;
 
@@ -127,5 +128,39 @@ impl ScriptEngine {
             RuleProcessor::new(new_engine, script)?
         };
         Ok((runner, rules))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn default_script_engine_config() {
+        ScriptEngineConfig::default();
+    }
+
+    #[test]
+    fn scope_contains_proper_items() {
+        let store = PageStore::default();
+        let scope = ScriptEngine::new_scope(&store);
+        let required_items = &["rules", "PAGES", "DENY", "WARN"];
+        for item in required_items {
+            assert!(scope.contains(item));
+        }
+    }
+
+    #[test]
+    fn makes_new_rule_processor() {
+        let engine = ScriptEngine::new(&[]);
+        engine
+            .new_rule_processor("")
+            .expect("failed to generate new rule processor");
+    }
+
+    #[test]
+    fn clones_engine() {
+        let engine = ScriptEngine::new(&[]);
+        engine.clone_engine();
     }
 }
