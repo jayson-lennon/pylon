@@ -85,6 +85,10 @@ impl LintCollection {
     pub fn get(&self, key: LintKey) -> Option<Lint> {
         self.lints.get(key).cloned()
     }
+
+    pub fn len(&self) -> usize {
+        self.lints.len()
+    }
 }
 
 impl Default for LintCollection {
