@@ -254,7 +254,7 @@ pub mod script {
                 };
                 let mut rules = Rules::default();
                 assert!(super::add_page_context(&mut rules, "*", ptr).is_ok());
-                assert_eq!(rules.page_contexts().iter().count(), 1)
+                assert_eq!(rules.page_contexts().iter().count(), 1);
             }
         }
     }
@@ -269,7 +269,7 @@ mod test {
 
     #[test]
     fn rules_default() {
-        let rules = Rules::default();
+        Rules::default();
     }
 
     #[test]
