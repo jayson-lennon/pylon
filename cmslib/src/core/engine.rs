@@ -321,17 +321,6 @@ pub mod test {
 
     use super::*;
 
-    pub fn runtime() -> Arc<tokio::runtime::Runtime> {
-        Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(2)
-                .enable_io()
-                .enable_time()
-                .build()
-                .unwrap(),
-        )
-    }
-
     // `TempDir` needs to stay bound in order to maintain temporary directory tree
     fn simple_config() -> (EngineConfig, TempDir) {
         let tree = temptree! {
@@ -592,9 +581,9 @@ doc2"#;
 
     #[test]
     fn re_inits_everything() {
-        rebuilds_page_store();
-        reloads_template_engines();
-        reloads_rules();
+        let (config, tree) = simple_config();
+        let mut engine = Engine::new(config).unwrap();
+        assert!(engine.re_init().is_ok());
     }
 
     #[test]
@@ -603,7 +592,7 @@ doc2"#;
             rules.add_lint(WARN, "Missing author", "**", |page| {
                 page.meta("author") == "" || type_of(page.meta("author")) == "()"
             });
-            rules.add_pipeline("*.png", ["[COPY]"]);
+            rules.add_pipeline("**/*.png", ["[COPY]"]);
         "#;
 
         let doc1 = r#"+++
@@ -656,5 +645,53 @@ doc2"#;
         assert!(target_doc1.exists());
         assert!(target_doc2.exists());
         assert!(target_img.exists());
+    }
+
+    #[test]
+    fn builds_site_with_lint_errors() {
+        let rules = r#"
+            rules.add_lint(DENY, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+            rules.add_pipeline("**/*.png", ["[COPY]"]);
+        "#;
+
+        let doc1 = r#"+++
+            template_name = "empty.tera"
+            use_index = false
+            +++
+        "#;
+
+        let doc2 = r#"+++
+            template_name = "test.tera"
+            use_index = false
+            [meta]
+            author = "test"
+            +++
+        "#;
+
+        let tree = temptree! {
+          "rules.rhai": rules,
+          templates: {
+              "test.tera": r#"<img src="blank.png">"#,
+              "empty.tera": ""
+          },
+          target: {},
+          src: {
+              "doc1.md": doc1,
+              "doc2.md": doc2,
+              "blank.png": "",
+          },
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+        assert!(engine.build_site().is_err());
     }
 }
