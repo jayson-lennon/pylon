@@ -4,7 +4,7 @@ pub mod page;
 pub mod render;
 
 pub use frontmatter::FrontMatter;
-pub use lint::{lint, LintLevel, LintMsg};
+pub use lint::{lint, LintLevel, LintResult};
 pub use page::Page;
 pub use render::{render, RenderedPage, RenderedPageCollection};
 use serde::{Deserialize, Serialize};
@@ -44,7 +44,6 @@ pub mod script {
     #[rhai::export_module]
     pub mod rhai_module {
         use crate::core::page::{ContextItem, FrontMatter, Page};
-        
 
         use tracing::instrument;
 
@@ -90,8 +89,6 @@ pub mod script {
         mod test {
             use super::rhai_module;
             use crate::core::page::page::test as test_util;
-            
-            
 
             #[test]
             fn uri_fn() {

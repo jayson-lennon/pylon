@@ -98,13 +98,13 @@ impl Default for LintCollection {
 }
 
 #[derive(Clone, Debug)]
-pub struct LintMsg {
+pub struct LintResult {
     pub level: LintLevel,
     pub msg: String,
     pub page_uri: Uri,
 }
 
-impl LintMsg {
+impl LintResult {
     #[must_use]
     pub fn new<S: Into<String>>(level: LintLevel, msg: S, page_uri: Uri) -> Self {
         Self {
@@ -116,22 +116,22 @@ impl LintMsg {
 }
 
 #[derive(Clone, Debug)]
-pub struct LintMessages {
-    inner: Vec<LintMsg>,
+pub struct LintResults {
+    inner: Vec<LintResult>,
 }
 
-impl LintMessages {
+impl LintResults {
     pub fn new() -> Self {
         Self { inner: vec![] }
     }
 
-    pub fn from_slice(lints: &[LintMsg]) -> Self {
+    pub fn from_slice(lints: &[LintResult]) -> Self {
         Self {
             inner: lints.into(),
         }
     }
 
-    pub fn from_iter<L: Iterator<Item = LintMsg>>(lints: L) -> Self {
+    pub fn from_iter<L: Iterator<Item = LintResult>>(lints: L) -> Self {
         Self {
             inner: lints.collect(),
         }
@@ -151,8 +151,8 @@ impl LintMessages {
     }
 }
 
-impl IntoIterator for LintMessages {
-    type Item = LintMsg;
+impl IntoIterator for LintResults {
+    type Item = LintResult;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -160,16 +160,16 @@ impl IntoIterator for LintMessages {
     }
 }
 
-impl<'a> IntoIterator for &'a LintMessages {
-    type Item = &'a LintMsg;
-    type IntoIter = std::slice::Iter<'a, LintMsg>;
+impl<'a> IntoIterator for &'a LintResults {
+    type Item = &'a LintResult;
+    type IntoIter = std::slice::Iter<'a, LintResult>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter()
     }
 }
 
-impl std::fmt::Display for LintMessages {
+impl std::fmt::Display for LintResults {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msgs = self
             .inner
@@ -185,21 +185,21 @@ pub fn lint(
     rule_processor: &RuleProcessor,
     lints: &LintCollection,
     page: &Page,
-) -> Result<Vec<LintMsg>, anyhow::Error> {
+) -> Result<Vec<LintResult>, anyhow::Error> {
     let lints: Vec<Lint> = lints
         .find_keys(&page.uri())
         .iter()
         .filter_map(|key| lints.get(*key))
         .collect();
-    let mut lint_msgs = vec![];
+    let mut lint_results = vec![];
     for lint in lints {
         let check: bool = rule_processor.run(&lint.lint_fn, (page.clone(),))?;
         if check {
-            let lint_msg = LintMsg::new(lint.level, lint.msg, page.uri());
-            lint_msgs.push(lint_msg);
+            let lint_result = LintResult::new(lint.level, lint.msg, page.uri());
+            lint_results.push(lint_result);
         }
     }
-    Ok(lint_msgs)
+    Ok(lint_results)
 }
 
 #[cfg(test)]
@@ -299,7 +299,7 @@ mod test {
 
     #[test]
     fn new_lint_messages() {
-        let msgs = LintMessages::new();
+        let msgs = LintResults::new();
         assert!(msgs.inner.is_empty());
     }
 
@@ -329,27 +329,27 @@ mod test {
 
     #[test]
     fn lintmessages_new() {
-        let messages = LintMessages::new();
+        let messages = LintResults::new();
         assert!(messages.inner.is_empty());
     }
 
     #[test]
     fn lintmessages_from_iter() {
         let lints = vec![
-            LintMsg::new(LintLevel::Warn, "", Uri::from_path("/")),
-            LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Warn, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Deny, "", Uri::from_path("/")),
         ];
-        let messages = LintMessages::from_iter(lints.into_iter());
+        let messages = LintResults::from_iter(lints.into_iter());
         assert_eq!(messages.inner.len(), 2);
     }
 
     #[test]
     fn lintmessages_into_iter() {
         let lints = vec![
-            LintMsg::new(LintLevel::Warn, "", Uri::from_path("/")),
-            LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Warn, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Deny, "", Uri::from_path("/")),
         ];
-        let messages = LintMessages::from_iter(lints.into_iter());
+        let messages = LintResults::from_iter(lints.into_iter());
         let mut messages_iter = messages.into_iter();
         assert_eq!(messages_iter.next().unwrap().level, LintLevel::Warn);
         assert_eq!(messages_iter.next().unwrap().level, LintLevel::Deny);
@@ -358,10 +358,10 @@ mod test {
     #[test]
     fn lintmessages_into_iter_ref() {
         let lints = vec![
-            LintMsg::new(LintLevel::Warn, "", Uri::from_path("/")),
-            LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Warn, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Deny, "", Uri::from_path("/")),
         ];
-        let messages = LintMessages::from_iter(lints.into_iter());
+        let messages = LintResults::from_iter(lints.into_iter());
         let messages_iter = &mut messages.into_iter();
         assert_eq!(messages_iter.next().unwrap().level, LintLevel::Warn);
         assert_eq!(messages_iter.next().unwrap().level, LintLevel::Deny);
@@ -369,22 +369,22 @@ mod test {
 
     #[test]
     fn lint_messages_denies_properly() {
-        let mut lints = vec![LintMsg::new(LintLevel::Warn, "", Uri::from_path("/"))];
-        let messages = LintMessages::from_slice(lints.as_slice());
+        let mut lints = vec![LintResult::new(LintLevel::Warn, "", Uri::from_path("/"))];
+        let messages = LintResults::from_slice(lints.as_slice());
         assert_eq!(messages.has_deny(), false);
 
-        lints.push(LintMsg::new(LintLevel::Deny, "", Uri::from_path("/")));
-        let messages = LintMessages::from_slice(lints.as_slice());
+        lints.push(LintResult::new(LintLevel::Deny, "", Uri::from_path("/")));
+        let messages = LintResults::from_slice(lints.as_slice());
         assert!(messages.has_deny());
     }
 
     #[test]
     fn lintmessages_display_impl() {
         let lints = vec![
-            LintMsg::new(LintLevel::Warn, "abc", Uri::from_path("/")),
-            LintMsg::new(LintLevel::Deny, "123", Uri::from_path("/")),
+            LintResult::new(LintLevel::Warn, "abc", Uri::from_path("/")),
+            LintResult::new(LintLevel::Deny, "123", Uri::from_path("/")),
         ];
-        let messages = LintMessages::from_iter(lints.into_iter());
+        let messages = LintResults::from_iter(lints.into_iter());
         assert_eq!(messages.to_string(), String::from("abc\n123"));
     }
 }
