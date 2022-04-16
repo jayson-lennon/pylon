@@ -15,7 +15,7 @@ use crate::{
     core::{script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
     devserver::{DevServer, EngineBroker},
     render::Renderers,
-    util,
+    util, Result,
 };
 
 use super::page::{lint::LintResults, LintResult, RenderedPage, RenderedPageCollection};
@@ -64,7 +64,7 @@ impl Engine {
         config: EngineConfig,
         bind: S,
         debounce_ms: u64,
-    ) -> Result<(JoinHandle<Result<(), anyhow::Error>>, EngineBroker), anyhow::Error> {
+    ) -> Result<(JoinHandle<Result<()>>, EngineBroker)> {
         let bind = bind.into();
 
         let rt = Arc::new(
@@ -84,7 +84,7 @@ impl Engine {
     }
 
     #[instrument]
-    pub fn new(config: EngineConfig) -> Result<Engine, anyhow::Error> {
+    pub fn new(config: EngineConfig) -> Result<Engine> {
         let renderers = Renderers::new(&config.template_root);
 
         let page_store = do_build_page_store(&config.src_root, &config.target_root, &renderers)?;
@@ -108,7 +108,7 @@ impl Engine {
     pub fn load_rules<P: AsRef<Path> + std::fmt::Debug>(
         rule_script: P,
         page_store: &PageStore,
-    ) -> Result<(ScriptEngine, RuleProcessor, Rules), anyhow::Error> {
+    ) -> Result<(ScriptEngine, RuleProcessor, Rules)> {
         let script_engine_config = ScriptEngineConfig::new();
         let script_engine = ScriptEngine::new(&script_engine_config.modules());
 
@@ -120,7 +120,7 @@ impl Engine {
     }
 
     #[instrument(skip(self), ret)]
-    pub fn reload_rules(&mut self) -> Result<(), anyhow::Error> {
+    pub fn reload_rules(&mut self) -> Result<()> {
         let (script_engine, rule_processor, rules) =
             Self::load_rules(&self.config.rule_script, &self.page_store)?;
         self.script_engine = script_engine;
@@ -130,13 +130,13 @@ impl Engine {
     }
 
     #[instrument(skip(self), ret)]
-    pub fn reload_template_engines(&mut self) -> Result<(), anyhow::Error> {
+    pub fn reload_template_engines(&mut self) -> Result<()> {
         self.renderers.tera.reload()?;
         Ok(())
     }
 
     #[instrument(skip_all)]
-    pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<(), anyhow::Error> {
+    pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<()> {
         trace!("running pipelines");
 
         let engine: &Engine = self;
@@ -162,10 +162,7 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn lint<'a, P: Iterator<Item = &'a Page>>(
-        &self,
-        pages: P,
-    ) -> Result<LintResults, anyhow::Error> {
+    pub fn lint<'a, P: Iterator<Item = &'a Page>>(&self, pages: P) -> Result<LintResults> {
         trace!("linting");
         let engine: &Engine = self;
 
@@ -184,7 +181,7 @@ impl Engine {
     pub fn render<'a, P: Iterator<Item = &'a Page>>(
         &self,
         pages: P,
-    ) -> Result<RenderedPageCollection, anyhow::Error> {
+    ) -> Result<RenderedPageCollection> {
         trace!("rendering");
 
         let engine: &Engine = self;
@@ -197,7 +194,7 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn rebuild_page_store(&mut self) -> Result<(), anyhow::Error> {
+    pub fn rebuild_page_store(&mut self) -> Result<()> {
         trace!("rebuilding the page store");
         self.page_store = do_build_page_store(
             &self.config.src_root,
@@ -208,7 +205,7 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn re_init(&mut self) -> Result<(), anyhow::Error> {
+    pub fn re_init(&mut self) -> Result<()> {
         trace!("rebuilding everything");
         self.reload_template_engines()?;
         self.rebuild_page_store()?;
@@ -217,7 +214,7 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn build_site(&self) -> Result<(), anyhow::Error> {
+    pub fn build_site(&self) -> Result<()> {
         use crate::core::page::lint::LintLevel;
         use crate::core::page::render::rewrite_asset_targets;
 
@@ -261,7 +258,7 @@ impl Engine {
         debounce_ms: u64,
         engine_config: &EngineConfig,
         engine_broker: EngineBroker,
-    ) -> Result<DevServer, anyhow::Error> {
+    ) -> Result<DevServer> {
         use crate::devserver;
         use std::time::Duration;
 
@@ -291,7 +288,7 @@ fn do_build_page_store<P: AsRef<Path> + std::fmt::Debug>(
     src_root: P,
     target_root: P,
     renderers: &Renderers,
-) -> Result<PageStore, anyhow::Error> {
+) -> Result<PageStore> {
     let src_root = src_root.as_ref();
     let target_root = target_root.as_ref();
 

@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use tera::Tera;
 
+use crate::Result;
+
 use super::TemplateName;
 
 #[derive(Debug)]
@@ -18,19 +20,15 @@ impl TeraRenderer {
 
         Self { renderer: r }
     }
-    pub fn render(
-        &self,
-        template: &TemplateName,
-        context: &tera::Context,
-    ) -> Result<String, tera::Error> {
-        self.renderer.render(template.as_ref(), context)
+    pub fn render(&self, template: &TemplateName, context: &tera::Context) -> Result<String> {
+        Ok(self.renderer.render(template.as_ref(), context)?)
     }
 
     pub fn get_template_names(&self) -> impl Iterator<Item = &str> {
         self.renderer.get_template_names()
     }
 
-    pub fn reload(&mut self) -> Result<(), anyhow::Error> {
+    pub fn reload(&mut self) -> Result<()> {
         Ok(self.renderer.full_reload()?)
     }
 }

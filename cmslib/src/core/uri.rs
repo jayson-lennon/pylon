@@ -3,11 +3,13 @@ use std::path::Path;
 use anyhow::anyhow;
 use serde::Serialize;
 
+use crate::Result;
+
 #[derive(Clone, Debug, Default, Serialize, Eq, Hash, PartialEq)]
 pub struct Uri(String);
 
 impl Uri {
-    pub fn new<S: Into<String>>(uri: S) -> Result<Self, anyhow::Error> {
+    pub fn new<S: Into<String>>(uri: S) -> Result<Self> {
         let uri = uri.into();
         if uri.starts_with('/') {
             Ok(Self(uri))

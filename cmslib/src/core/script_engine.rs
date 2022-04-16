@@ -5,6 +5,7 @@ use rhai::{def_package, Scope};
 
 use crate::core::rules::{RuleProcessor, Rules};
 use crate::core::PageStore;
+use crate::Result;
 
 // Define the custom package 'MyCustomPackage'.
 def_package! {
@@ -90,10 +91,7 @@ impl ScriptEngine {
         Self::new_engine(&self.packages)
     }
 
-    pub fn new_rule_processor<S: AsRef<str>>(
-        &self,
-        script: S,
-    ) -> Result<RuleProcessor, anyhow::Error> {
+    pub fn new_rule_processor<S: AsRef<str>>(&self, script: S) -> Result<RuleProcessor> {
         let engine = self.clone_engine();
         RuleProcessor::new(engine, script.as_ref())
     }
@@ -113,7 +111,7 @@ impl ScriptEngine {
         &self,
         page_store: &PageStore,
         script: S,
-    ) -> Result<(RuleProcessor, Rules), anyhow::Error> {
+    ) -> Result<(RuleProcessor, Rules)> {
         let script = script.as_ref();
         let ast = self.engine.compile(script)?;
 

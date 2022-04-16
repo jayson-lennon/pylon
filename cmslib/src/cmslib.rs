@@ -16,6 +16,8 @@ pub mod util;
 
 pub use render::Renderers;
 
+pub type Result<T> = std::result::Result<T, anyhow::Error>;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]

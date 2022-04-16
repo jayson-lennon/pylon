@@ -8,13 +8,14 @@ use crate::core::engine::Engine;
 use crate::core::page::RenderedPage;
 use crate::core::Uri;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
+use crate::Result;
 use tokio::runtime::Handle;
 use tracing::{error, trace};
 
 type EngineSender = async_channel::Sender<EngineMsg>;
 type EngineReceiver = async_channel::Receiver<EngineMsg>;
 
-type RenderPageResponse = Result<Option<RenderedPage>, anyhow::Error>;
+type RenderPageResponse = Result<Option<RenderedPage>>;
 
 #[derive(Debug)]
 pub struct RenderPageRequest {
@@ -32,14 +33,10 @@ impl RenderPageRequest {
         &self.uri
     }
 
-    pub async fn respond(&self, page: RenderPageResponse) -> Result<(), anyhow::Error> {
+    pub async fn respond(&self, page: RenderPageResponse) -> Result<()> {
         Ok(self.tx.send(page).await?)
     }
-    pub fn respond_sync(
-        &self,
-        handle: &Handle,
-        page: RenderPageResponse,
-    ) -> Result<(), anyhow::Error> {
+    pub fn respond_sync(&self, handle: &Handle, page: RenderPageResponse) -> Result<()> {
         handle.block_on(async { Ok(self.tx.send(page).await?) })
     }
 }
@@ -126,41 +123,41 @@ impl EngineBroker {
         self.rt.handle().clone()
     }
 
-    pub async fn send_devserver_msg(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
+    pub async fn send_devserver_msg(&self, msg: DevServerMsg) -> Result<()> {
         Ok(self.devserver.0.send(msg).await?)
     }
 
-    pub async fn send_engine_msg(&self, msg: EngineMsg) -> Result<(), anyhow::Error> {
+    pub async fn send_engine_msg(&self, msg: EngineMsg) -> Result<()> {
         Ok(self.engine.0.send(msg).await?)
     }
 
-    pub fn send_engine_msg_sync(&self, msg: EngineMsg) -> Result<(), anyhow::Error> {
+    pub fn send_engine_msg_sync(&self, msg: EngineMsg) -> Result<()> {
         self.rt
             .handle()
             .block_on(async { self.send_engine_msg(msg).await })
     }
 
-    pub fn send_devserver_msg_sync(&self, msg: DevServerMsg) -> Result<(), anyhow::Error> {
+    pub fn send_devserver_msg_sync(&self, msg: DevServerMsg) -> Result<()> {
         self.rt
             .handle()
             .block_on(async { self.send_devserver_msg(msg).await })
     }
 
-    pub async fn recv_devserver_msg(&self) -> Result<DevServerMsg, anyhow::Error> {
+    pub async fn recv_devserver_msg(&self) -> Result<DevServerMsg> {
         Ok(self.devserver.1.recv().await?)
     }
 
-    pub fn recv_devserver_msg_sync(&self) -> Result<DevServerMsg, anyhow::Error> {
+    pub fn recv_devserver_msg_sync(&self) -> Result<DevServerMsg> {
         self.rt
             .handle()
             .block_on(async { self.recv_devserver_msg().await })
     }
 
-    async fn recv_engine_msg(&self) -> Result<EngineMsg, anyhow::Error> {
+    async fn recv_engine_msg(&self) -> Result<EngineMsg> {
         Ok(self.engine.1.recv().await?)
     }
 
-    fn recv_engine_msg_sync(&self) -> Result<EngineMsg, anyhow::Error> {
+    fn recv_engine_msg_sync(&self) -> Result<EngineMsg> {
         self.rt
             .handle()
             .block_on(async { self.recv_engine_msg().await })
@@ -171,7 +168,7 @@ impl EngineBroker {
         config: EngineConfig,
         bind: S,
         debounce_ms: u64,
-    ) -> Result<JoinHandle<Result<(), anyhow::Error>>, anyhow::Error> {
+    ) -> Result<JoinHandle<Result<()>>> {
         trace!("spawning engine thread");
 
         let bind = bind.into();
@@ -223,15 +220,15 @@ impl EngineBroker {
 mod handle_msg {
     use tracing::{instrument, trace};
 
-    use crate::core::{engine::Engine, page::RenderedPage, Page};
+    use crate::{
+        core::{engine::Engine, page::RenderedPage, Page},
+        Result,
+    };
 
     use super::{FilesystemUpdateEvents, RenderPageRequest};
 
     #[instrument(skip_all)]
-    pub fn render(
-        engine: &Engine,
-        request: &RenderPageRequest,
-    ) -> Result<Option<RenderedPage>, anyhow::Error> {
+    pub fn render(engine: &Engine, request: &RenderPageRequest) -> Result<Option<RenderedPage>> {
         use crate::core::page::render::rewrite_asset_targets;
 
         trace!(request = ?request, "receive render page message");
@@ -259,10 +256,7 @@ mod handle_msg {
     }
 
     #[instrument(skip_all)]
-    pub fn fs_event(
-        engine: &mut Engine,
-        events: FilesystemUpdateEvents,
-    ) -> Result<(), anyhow::Error> {
+    pub fn fs_event(engine: &mut Engine, events: FilesystemUpdateEvents) -> Result<()> {
         trace!(events = ?events, "receive file system update message");
         let mut reload_templates = false;
         let mut reload_rules = false;

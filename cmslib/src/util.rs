@@ -1,5 +1,6 @@
 use anyhow::Context;
 
+use crate::Result;
 use std::path::Path;
 use tempfile::NamedTempFile;
 use tracing::{instrument, trace};
@@ -13,9 +14,10 @@ macro_rules! static_regex {
         })
     }};
 }
+
 pub(crate) use static_regex;
 
-pub fn gen_temp_file() -> Result<NamedTempFile, anyhow::Error> {
+pub fn gen_temp_file() -> Result<NamedTempFile> {
     tempfile::Builder::new()
         .prefix("pipeworks-artifact_")
         .rand_bytes(12)
@@ -24,9 +26,9 @@ pub fn gen_temp_file() -> Result<NamedTempFile, anyhow::Error> {
 }
 
 #[instrument]
-pub fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<(), std::io::Error> {
+pub fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<()> {
     trace!("create parent directories");
-    std::fs::create_dir_all(dir)
+    Ok(std::fs::create_dir_all(dir)?)
 }
 
 #[derive(Debug)]
@@ -61,7 +63,7 @@ impl TryFrom<String> for Glob {
     type Error = globset::Error;
 
     #[instrument(ret)]
-    fn try_from(s: String) -> Result<Glob, Self::Error> {
+    fn try_from(s: String) -> std::result::Result<Glob, Self::Error> {
         s.as_str().try_into()
     }
 }
@@ -70,7 +72,7 @@ impl TryFrom<&str> for Glob {
     type Error = globset::Error;
 
     #[instrument(ret)]
-    fn try_from(s: &str) -> Result<Glob, Self::Error> {
+    fn try_from(s: &str) -> std::result::Result<Glob, Self::Error> {
         let glob = globset::GlobBuilder::new(s)
             .literal_separator(true)
             .build()?;
@@ -81,7 +83,6 @@ impl TryFrom<&str> for Glob {
 
 #[cfg(test)]
 mod test {
-    
 
     use super::*;
 

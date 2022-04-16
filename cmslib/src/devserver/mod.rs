@@ -11,6 +11,8 @@ use std::net::SocketAddr;
 use std::thread::JoinHandle;
 use tracing::{instrument, trace};
 
+use crate::Result;
+
 /*
 `run` starts up the fswatcher which responds to filesystem events by pushing an event into the event channel.
 for each connected websocket client, a channel is created in the ConnectedClients struct to manage the client.
@@ -65,7 +67,7 @@ async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + 
     broker: EngineBroker,
     output_root: R,
     bind: B,
-) -> Result<(), anyhow::Error> {
+) -> Result<()> {
     use poem::listener::TcpListener;
     use poem::middleware::AddData;
     use poem::{get, Route, Server};

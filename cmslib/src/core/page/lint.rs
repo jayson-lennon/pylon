@@ -36,7 +36,7 @@ pub enum LintLevel {
 
 impl FromStr for LintLevel {
     type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             LINT_LEVEL_DENY => Ok(Self::Deny),
             LINT_LEVEL_WARN => Ok(Self::Warn),
@@ -185,7 +185,7 @@ pub fn lint(
     rule_processor: &RuleProcessor,
     lints: &LintCollection,
     page: &Page,
-) -> Result<Vec<LintResult>, anyhow::Error> {
+) -> crate::Result<Vec<LintResult>> {
     let lints: Vec<Lint> = lints
         .find_keys(&page.uri())
         .iter()

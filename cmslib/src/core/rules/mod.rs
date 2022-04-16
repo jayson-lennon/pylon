@@ -26,7 +26,7 @@ impl Rules {
         self.pipelines.push(pipeline);
     }
 
-    pub fn set_global_context<S: Serialize>(&mut self, ctx: S) -> Result<(), anyhow::Error> {
+    pub fn set_global_context<S: Serialize>(&mut self, ctx: S) -> crate::Result<()> {
         let ctx = serde_json::to_value(ctx)?;
         self.global_context = Some(ctx);
         Ok(())
@@ -82,7 +82,7 @@ pub struct RuleProcessor {
 }
 
 impl RuleProcessor {
-    pub fn new<S: AsRef<str>>(engine: rhai::Engine, script: S) -> Result<Self, anyhow::Error> {
+    pub fn new<S: AsRef<str>>(engine: rhai::Engine, script: S) -> crate::Result<Self> {
         let script = script.as_ref();
         let ast = engine.compile(script)?;
         Ok(Self { engine, ast })
@@ -92,7 +92,7 @@ impl RuleProcessor {
         &self,
         ptr: &rhai::FnPtr,
         args: A,
-    ) -> Result<T, anyhow::Error> {
+    ) -> crate::Result<T> {
         Ok(ptr.call(&self.engine, &self.ast, args)?)
     }
 }
