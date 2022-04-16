@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-    "cmslib",
+    "pylon",
     "cms"
 ]

@@ -242,46 +242,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "cmslib",
  "parking_lot",
+ "pylon",
  "rhai",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "cmslib"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-channel",
- "async-lock",
- "async-trait",
- "crossbeam-channel",
- "futures-util",
- "globset",
- "hotwatch",
- "itertools",
- "lol_html",
- "mime",
- "mime_guess",
- "once_cell",
- "parking_lot",
- "percent-encoding",
- "poem",
- "pulldown-cmark",
- "regex",
- "rhai",
- "serde",
- "serde_json",
- "slotmap",
- "tempfile",
- "temptree",
- "tera",
- "thiserror",
- "tokio",
- "toml",
- "tracing",
 ]
 
 [[package]]
@@ -1460,6 +1425,41 @@ dependencies = [
  "bitflags",
  "memchr",
  "unicase",
+]
+
+[[package]]
+name = "pylon"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "async-lock",
+ "async-trait",
+ "crossbeam-channel",
+ "futures-util",
+ "globset",
+ "hotwatch",
+ "itertools",
+ "lol_html",
+ "mime",
+ "mime_guess",
+ "once_cell",
+ "parking_lot",
+ "percent-encoding",
+ "poem",
+ "pulldown-cmark",
+ "regex",
+ "rhai",
+ "serde",
+ "serde_json",
+ "slotmap",
+ "tempfile",
+ "temptree",
+ "tera",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
 ]
 
 [[package]]
