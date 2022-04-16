@@ -1,5 +1,5 @@
 use crate::core::Uri;
-use crate::AsStdError;
+use crate::{AsStdError, Result};
 use poem::http::StatusCode;
 use poem::{
     handler,
@@ -122,10 +122,7 @@ pub fn try_static_file<S: AsRef<str>>(
     }
 }
 
-pub async fn try_rendered_file(
-    path: String,
-    broker: Data<&EngineBroker>,
-) -> Result<Response, anyhow::Error> {
+pub async fn try_rendered_file(path: String, broker: Data<&EngineBroker>) -> Result<Response> {
     use crate::devserver::broker::{EngineMsg, RenderPageRequest};
 
     trace!("try to serve rendered file");
@@ -160,7 +157,7 @@ pub async fn handle(
     path: Path<String>,
     mount_point: Data<&OutputRootDir>,
     broker: Data<&EngineBroker>,
-) -> Result<Response, poem::error::Error> {
+) -> std::result::Result<Response, poem::error::Error> {
     let path = path_to_file(path.to_string());
 
     if let Some(res) = try_static_file(path.clone(), &mount_point) {

@@ -1,4 +1,7 @@
-use crate::core::{Page, PageStore, Uri};
+use crate::{
+    core::{Page, PageStore, Uri},
+    Result,
+};
 use anyhow::anyhow;
 
 #[derive(Debug)]
@@ -9,7 +12,7 @@ impl MarkdownRenderer {
         Self
     }
     #[allow(clippy::unused_self)]
-    pub fn render(&self, page: &Page, page_store: &PageStore) -> Result<String, anyhow::Error> {
+    pub fn render(&self, page: &Page, page_store: &PageStore) -> Result<String> {
         render(page, page_store)
     }
 }
@@ -25,7 +28,7 @@ enum CustomHref {
     InternalLink(Uri),
 }
 
-fn render(page: &Page, page_store: &PageStore) -> Result<String, anyhow::Error> {
+fn render(page: &Page, page_store: &PageStore) -> Result<String> {
     use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag};
 
     let raw_markdown = page.raw_markdown.as_ref();

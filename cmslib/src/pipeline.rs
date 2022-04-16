@@ -1,4 +1,5 @@
-use crate::util::{Glob};
+use crate::util::Glob;
+use crate::Result;
 use anyhow::{anyhow, Context};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -32,7 +33,7 @@ impl FromStr for Operation {
     type Err = &'static str;
 
     #[instrument(ret)]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             "[COPY]" => Ok(Self::Copy),
             other => Ok(Self::Shell(ShellCommand(other.to_owned()))),
@@ -48,9 +49,7 @@ pub struct Pipeline {
 
 impl Pipeline {
     #[instrument(skip(target_glob))]
-    pub fn new<G: TryInto<Glob, Error = globset::Error>>(
-        target_glob: G,
-    ) -> Result<Self, anyhow::Error> {
+    pub fn new<G: TryInto<Glob, Error = globset::Error>>(target_glob: G) -> Result<Self> {
         let target_glob = target_glob.try_into()?;
 
         trace!("make new pipeline using glob target {}", target_glob.glob());
@@ -65,7 +64,7 @@ impl Pipeline {
     pub fn with_ops<G: TryInto<Glob, Error = globset::Error>>(
         target_glob: G,
         ops: &[Operation],
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self> {
         let target_glob = target_glob.try_into()?;
 
         trace!("make new pipeline using glob target {}", target_glob.glob());
@@ -85,12 +84,7 @@ impl Pipeline {
     }
 
     #[instrument(skip(self))]
-    pub fn run<S, O, T>(
-        &self,
-        src_root: S,
-        output_root: O,
-        target_asset: T,
-    ) -> Result<(), anyhow::Error>
+    pub fn run<S, O, T>(&self, src_root: S, output_root: O, target_asset: T) -> Result<()>
     where
         S: AsRef<Path> + std::fmt::Debug,
         O: AsRef<Path> + std::fmt::Debug,
@@ -176,7 +170,7 @@ impl Pipeline {
     }
 }
 
-fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<(), anyhow::Error> {
+fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<()> {
     let _span = trace_span!("clean up temp files").entered();
     trace!(files = ?tmp_files);
     for f in tmp_files {

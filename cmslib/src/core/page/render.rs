@@ -12,10 +12,11 @@ use crate::{
         LinkedAssets, Page, PageStore, RelSystemPath, Uri,
     },
     site_context::SiteContext,
+    Result,
 };
 
 #[instrument(skip(engine), fields(page=%page.uri()))]
-pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage, anyhow::Error> {
+pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
     trace!("rendering page");
 
     let site_ctx = SiteContext::new("sample");
@@ -97,7 +98,7 @@ pub fn build_context(
     script_fn_runner: &RuleProcessor,
     page_ctxs: &GlobStore<ContextKey, rhai::FnPtr>,
     for_page: &Page,
-) -> Result<Vec<ContextItem>, anyhow::Error> {
+) -> Result<Vec<ContextItem>> {
     trace!("building page-specific context");
     let contexts: Vec<Vec<ContextItem>> = page_ctxs
         .find_keys(&for_page.uri())
@@ -167,7 +168,7 @@ impl RenderedPageCollection {
     }
 
     #[instrument(ret)]
-    pub fn write_to_disk(&self) -> Result<(), std::io::Error> {
+    pub fn write_to_disk(&self) -> Result<()> {
         use std::fs;
         for page in &self.pages {
             let target = PathBuf::from(&page.target);
@@ -232,7 +233,7 @@ fn get_overwritten_identifiers(contexts: &[ContextItem]) -> HashSet<String> {
 pub fn rewrite_asset_targets(
     rendered_pages: &mut [RenderedPage],
     store: &PageStore,
-) -> Result<LinkedAssets, anyhow::Error> {
+) -> Result<LinkedAssets> {
     use lol_html::{rewrite_str, RewriteStrSettings};
     use parking_lot::Mutex;
 
@@ -359,7 +360,7 @@ fn get_asset_uri_when_using_index<A: AsRef<str>>(
     el: &mut lol_html::html_content::Element,
     attr: A,
     target_path: &RelSystemPath,
-) -> Result<Uri, anyhow::Error> {
+) -> Result<Uri> {
     let attr = attr.as_ref();
     let attr_value = el
         .get_attribute(attr)
@@ -393,7 +394,7 @@ fn get_asset_uri_without_index<A: AsRef<str>>(
     el: &mut lol_html::html_content::Element,
     attr: A,
     target_path: &RelSystemPath,
-) -> Result<Uri, anyhow::Error> {
+) -> Result<Uri> {
     let attr = attr.as_ref();
     let attr_value = el
         .get_attribute(attr)
@@ -419,14 +420,14 @@ mod test {
 
     use super::{rewrite_asset_targets, RenderedPage};
     use crate::core::{Page, PageStore, Uri};
-    use crate::Renderers;
+    use crate::{Renderers, Result};
 
     pub fn page_from_doc_with_paths(
         doc: &str,
         src: &str,
         target: &str,
         path: &str,
-    ) -> Result<Page, anyhow::Error> {
+    ) -> Result<Page> {
         let renderers = Renderers::new("test/templates/**/*");
         let mut reader = io::Cursor::new(doc.as_bytes());
         Page::from_reader(src, target, path, &mut reader, &renderers)

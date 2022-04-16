@@ -6,6 +6,7 @@ use std::time::Duration;
 use tracing::{instrument, trace};
 
 use crate::devserver::broker::{EngineMsg, FilesystemUpdateEvents};
+use crate::Result;
 
 use super::EngineBroker;
 
@@ -19,7 +20,7 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
     dirs: &[P],
     broker: EngineBroker,
     debounce_wait: Duration,
-) -> Result<(), anyhow::Error> {
+) -> Result<()> {
     trace!("start watching directories");
 
     let dirs = dirs

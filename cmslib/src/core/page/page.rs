@@ -2,8 +2,9 @@ use crate::core::RelSystemPath;
 use crate::core::Uri;
 use crate::render::template::TemplateName;
 use crate::Renderers;
+use crate::Result;
 use anyhow::{anyhow, Context};
-use serde::{Serialize};
+use serde::Serialize;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -33,7 +34,7 @@ impl Page {
         target_root: P,
         file_path: P,
         renderers: &Renderers,
-    ) -> Result<Self, anyhow::Error>
+    ) -> Result<Self>
     where
         P: AsRef<Path> + std::fmt::Debug,
     {
@@ -61,7 +62,7 @@ impl Page {
         file_path: P,
         reader: &mut R,
         renderers: &Renderers,
-    ) -> Result<Self, anyhow::Error>
+    ) -> Result<Self>
     where
         P: AsRef<Path> + std::fmt::Debug,
         R: std::io::Read,
@@ -132,7 +133,7 @@ fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> RelSystemPath {
     RelSystemPath::new(src_root.as_ref(), file_path.as_ref())
 }
 
-fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown), anyhow::Error> {
+fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
     let raw = raw.as_ref();
 
     let (raw_frontmatter, raw_markdown) = split_document(raw)
@@ -173,7 +174,7 @@ fn uri(target_path: &RelSystemPath, _use_index: bool) -> Uri {
 fn get_template_name(
     template_names: &HashSet<&str>,
     src_path: &RelSystemPath,
-) -> Result<TemplateName, anyhow::Error> {
+) -> Result<TemplateName> {
     let _span = trace_span!("no template specified").entered();
     match get_default_template_name(template_names, src_path.clone()) {
         Some(template) => Ok(template),
@@ -209,7 +210,7 @@ fn get_default_template_name(
     None
 }
 
-fn split_document(raw: &str) -> Result<(&str, &str), anyhow::Error> {
+fn split_document(raw: &str) -> Result<(&str, &str)> {
     let re = crate::util::static_regex!(
         r#"^[[:space:]]*\+\+\+[[:space:]]*\n?((?s).*)\n[[:space:]]*\+\+\+[[:space:]]*((?s).*)"#
     );
@@ -239,7 +240,7 @@ pub mod test {
     use crate::{
         core::{RelSystemPath, Uri},
         render::template::TemplateName,
-        Renderers,
+        Renderers, Result,
     };
 
     use super::Page;
@@ -310,13 +311,13 @@ pub mod test {
         src_root: &str,
         target_root: &str,
         doc_path: &str,
-    ) -> Result<Page, anyhow::Error> {
+    ) -> Result<Page> {
         let renderers = Renderers::new("test/templates");
         let mut reader = io::Cursor::new(doc.as_bytes());
         Page::from_reader(src_root, target_root, doc_path, &mut reader, &renderers)
     }
 
-    pub fn page_from_doc(doc: &str) -> Result<Page, anyhow::Error> {
+    pub fn page_from_doc(doc: &str) -> Result<Page> {
         let renderers = Renderers::new("test/templates");
         let mut reader = io::Cursor::new(doc.as_bytes());
         Page::from_reader(
