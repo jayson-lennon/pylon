@@ -20,6 +20,10 @@ impl LinkedAssets {
     pub fn iter(&self) -> impl Iterator<Item = &Uri> {
         self.assets.iter()
     }
+
+    pub fn count(&self) -> usize {
+        self.assets.len()
+    }
 }
 
 impl Default for LinkedAssets {
