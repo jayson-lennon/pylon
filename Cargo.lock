@@ -237,19 +237,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cms"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "parking_lot",
- "pylon",
- "rhai",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1460,6 +1447,19 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
+]
+
+[[package]]
+name = "pylonbin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "parking_lot",
+ "pylon",
+ "rhai",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

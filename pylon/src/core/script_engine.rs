@@ -103,7 +103,7 @@ impl ScriptEngine {
         scope.push("PAGES", page_store.clone());
         scope.push("DENY", LINT_LEVEL_DENY);
         scope.push("WARN", LINT_LEVEL_WARN);
-        dbg!(&page_store);
+        //dbg!(&page_store);
         scope
     }
 
