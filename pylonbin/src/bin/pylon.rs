@@ -51,7 +51,7 @@ fn main() -> Result<(), anyhow::Error> {
         // will be written to stdout.
         .with_max_level(Level::TRACE)
         .with_line_number(true)
-        .with_env_filter("cms=trace")
+        .with_env_filter("pylon=trace")
         .pretty()
         // completes the builder.
         .finish();

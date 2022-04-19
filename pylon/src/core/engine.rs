@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use std::{
+    collections::HashSet,
     ffi::OsStr,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -18,7 +19,10 @@ use crate::{
     util, Result,
 };
 
-use super::page::{lint::LintResults, LintResult, RenderedPage, RenderedPageCollection};
+use super::{
+    page::{lint::LintResults, LintResult, RenderedPage, RenderedPageCollection},
+    Uri,
+};
 
 #[derive(Debug)]
 pub struct Engine {
@@ -136,13 +140,22 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn run_pipelines(&self, linked_assets: &LinkedAssets) -> Result<()> {
+    pub fn run_pipelines<'a>(&self, linked_assets: &'a LinkedAssets) -> Result<HashSet<&'a Uri>> {
         trace!("running pipelines");
 
         let engine: &Engine = self;
-        for pipeline in engine.rules.pipelines() {
-            for asset in linked_assets.iter() {
+
+        let mut unhandled_assets = HashSet::new();
+
+        for asset in linked_assets.iter() {
+            // tracks which assets have no processing logic
+            let mut asset_has_pipeline = false;
+
+            for pipeline in engine.rules.pipelines() {
                 if pipeline.is_match(asset.as_str()) {
+                    // asset has an associate pipeline, so we won't report an error
+                    asset_has_pipeline = true;
+
                     let relative_asset = &asset.as_str()[1..];
                     // Make a new target in order to create directories for the asset.
                     let mut target_dir = PathBuf::from(&engine.config.target_root);
@@ -157,8 +170,11 @@ impl Engine {
                     )?;
                 }
             }
+            if !asset_has_pipeline {
+                unhandled_assets.insert(asset);
+            }
         }
-        Ok(())
+        Ok(unhandled_assets)
     }
 
     #[instrument(skip_all)]
@@ -222,21 +238,24 @@ impl Engine {
 
         let pages = self.page_store().iter().map(|(_, page)| page);
 
-        let lints = self.lint(pages.clone())?;
-        let mut abort = false;
-        for lint in lints {
-            match lint.level {
-                LintLevel::Warn => warn!(%lint.msg),
-                LintLevel::Deny => {
-                    error!(%lint.msg);
-                    abort = true;
+        // check lints
+        {
+            let lints = self.lint(pages.clone())?;
+            let mut abort = false;
+            for lint in lints {
+                match lint.level {
+                    LintLevel::Warn => warn!(%lint.msg),
+                    LintLevel::Deny => {
+                        error!(%lint.msg);
+                        abort = true;
+                    }
                 }
             }
-        }
-        if abort {
-            return Err(anyhow::anyhow!(
-                "lint errors encountered while building site"
-            ));
+            if abort {
+                return Err(anyhow::anyhow!(
+                    "lint errors encountered while building site"
+                ));
+            }
         }
 
         let mut rendered = self.render(pages)?;
@@ -247,7 +266,16 @@ impl Engine {
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
 
-        self.run_pipelines(&assets)?;
+        // check that each required asset was processed
+        {
+            let unhandled_assets = self.run_pipelines(&assets)?;
+            for asset in &unhandled_assets {
+                error!(asset = %asset, "missing asset");
+            }
+            if !unhandled_assets.is_empty() {
+                return Err(anyhow::anyhow!("one or more assets are missing"));
+            }
+        }
         Ok(())
     }
 
