@@ -2,5 +2,5 @@
 
 members = [
     "pylon",
-    "cms"
+    "pylonbin"
 ]
