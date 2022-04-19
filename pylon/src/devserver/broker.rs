@@ -218,7 +218,7 @@ impl EngineBroker {
 }
 
 mod handle_msg {
-    use tracing::{instrument, trace};
+    use tracing::{error, instrument, trace};
 
     use crate::{
         core::{engine::Engine, page::RenderedPage, Page},
@@ -247,7 +247,17 @@ mod handle_msg {
                     std::slice::from_mut(&mut rendered),
                     engine.page_store(),
                 )?;
-                engine.run_pipelines(&linked_assets)?;
+
+                // check that each required asset was processed
+                {
+                    let unhandled_assets = engine.run_pipelines(&linked_assets)?;
+                    for asset in &unhandled_assets {
+                        error!(asset = %asset, "missing asset");
+                    }
+                    if !unhandled_assets.is_empty() {
+                        return Err(anyhow::anyhow!("one or more assets are missing"));
+                    }
+                }
                 Ok(Some(rendered))
             }
         } else {
