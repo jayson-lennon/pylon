@@ -252,7 +252,7 @@ mod handle_msg {
                 {
                     let unhandled_assets = engine.run_pipelines(&linked_assets)?;
                     for asset in &unhandled_assets {
-                        error!(asset = %asset, "missing asset");
+                        error!(asset = ?asset, "missing asset");
                     }
                     if !unhandled_assets.is_empty() {
                         return Err(anyhow::anyhow!("one or more assets are missing"));

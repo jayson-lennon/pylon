@@ -20,6 +20,7 @@ use crate::{
 };
 
 use super::{
+    linked_asset::LinkedAsset,
     page::{lint::LintResults, LintResult, RenderedPage, RenderedPageCollection},
     Uri,
 };
@@ -140,23 +141,29 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn run_pipelines<'a>(&self, linked_assets: &'a LinkedAssets) -> Result<HashSet<&'a Uri>> {
+    pub fn run_pipelines<'a>(
+        &self,
+        linked_assets: &'a LinkedAssets,
+    ) -> Result<HashSet<&'a LinkedAsset>> {
         trace!("running pipelines");
 
         let engine: &Engine = self;
 
         let mut unhandled_assets = HashSet::new();
 
-        for asset in linked_assets.iter() {
+        for asset in linked_assets {
+            if asset.has_tag_name("a") {
+                continue;
+            }
             // tracks which assets have no processing logic
             let mut asset_has_pipeline = false;
 
             for pipeline in engine.rules.pipelines() {
-                if pipeline.is_match(asset.as_str()) {
+                if pipeline.is_match(asset.uri().as_str()) {
                     // asset has an associate pipeline, so we won't report an error
                     asset_has_pipeline = true;
 
-                    let relative_asset = &asset.as_str()[1..];
+                    let relative_asset = &asset.uri().as_str()[1..];
                     // Make a new target in order to create directories for the asset.
                     let mut target_dir = PathBuf::from(&engine.config.target_root);
                     target_dir.push(relative_asset);
@@ -270,7 +277,7 @@ impl Engine {
         {
             let unhandled_assets = self.run_pipelines(&assets)?;
             for asset in &unhandled_assets {
-                error!(asset = %asset, "missing asset");
+                error!(asset = ?asset, "missing asset");
             }
             if !unhandled_assets.is_empty() {
                 return Err(anyhow::anyhow!("one or more assets are missing"));
