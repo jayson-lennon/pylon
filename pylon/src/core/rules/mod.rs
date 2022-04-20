@@ -1,6 +1,8 @@
 pub mod fn_pointers;
 pub mod matcher;
 
+use std::path::{Path, PathBuf};
+
 pub use fn_pointers::GlobStore;
 pub use matcher::Matcher;
 
@@ -14,64 +16,92 @@ slotmap::new_key_type! {
 }
 
 #[derive(Debug, Clone)]
+pub struct Mount {
+    src: PathBuf,
+    target: PathBuf,
+}
+
+impl Mount {
+    pub fn new<P: Into<PathBuf>>(src: P, target: P) -> Self {
+        Self {
+            src: src.into(),
+            target: target.into(),
+        }
+    }
+    pub fn src(&self) -> &Path {
+        &self.src
+    }
+
+    pub fn target(&self) -> &Path {
+        &self.target
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Rules {
     pipelines: Vec<Pipeline>,
     global_context: Option<serde_json::Value>,
     page_contexts: GlobStore<ContextKey, rhai::FnPtr>,
     lints: LintCollection,
+    mounts: Vec<Mount>,
 }
 
 impl Rules {
-    pub fn add_pipeline(&mut self, pipeline: Pipeline) {
-        self.pipelines.push(pipeline);
+    pub fn new() -> Self {
+        Self::default()
     }
-
     pub fn set_global_context<S: Serialize>(&mut self, ctx: S) -> crate::Result<()> {
         let ctx = serde_json::to_value(ctx)?;
         self.global_context = Some(ctx);
         Ok(())
     }
 
-    pub fn add_page_context(&mut self, matcher: Matcher, ctx_fn: rhai::FnPtr) {
-        self.page_contexts.add(matcher, ctx_fn);
+    pub fn global_context(&self) -> Option<&serde_json::Value> {
+        self.global_context.as_ref()
     }
 
     pub fn add_lint(&mut self, matcher: Matcher, lint: Lint) {
         self.lints.add(matcher, lint);
     }
 
-    pub fn pipelines(&self) -> impl Iterator<Item = &Pipeline> {
-        self.pipelines.iter()
+    pub fn lints(&self) -> &LintCollection {
+        &self.lints
     }
 
-    pub fn global_context(&self) -> Option<&serde_json::Value> {
-        self.global_context.as_ref()
+    pub fn add_page_context(&mut self, matcher: Matcher, ctx_fn: rhai::FnPtr) {
+        self.page_contexts.add(matcher, ctx_fn);
     }
 
     pub fn page_contexts(&self) -> &GlobStore<ContextKey, rhai::FnPtr> {
         &self.page_contexts
     }
 
-    pub fn lints(&self) -> &LintCollection {
-        &self.lints
+    pub fn add_pipeline(&mut self, pipeline: Pipeline) {
+        self.pipelines.push(pipeline);
     }
-}
 
-impl Rules {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            pipelines: vec![],
-            global_context: None,
-            page_contexts: GlobStore::new(),
-            lints: LintCollection::new(),
-        }
+    pub fn pipelines(&self) -> impl Iterator<Item = &Pipeline> {
+        self.pipelines.iter()
+    }
+
+    pub fn add_mount<P: Into<PathBuf>>(&mut self, src: P, target: P) {
+        self.mounts.push(Mount::new(src, target));
+    }
+
+    pub fn mounts(&self) -> impl Iterator<Item = &Mount> {
+        self.mounts.iter()
     }
 }
 
 impl Default for Rules {
     fn default() -> Self {
-        Self::new()
+        Self {
+            pipelines: vec![],
+            global_context: None,
+            page_contexts: GlobStore::new(),
+            lints: LintCollection::new(),
+            mounts: vec![],
+        }
     }
 }
 
@@ -199,6 +229,13 @@ pub mod script {
             Ok(())
         }
 
+        #[instrument(skip(rules))]
+        pub fn add_mount(rules: &mut Rules, src: &str, target: &str) {
+            trace!("add mount");
+
+            rules.add_mount(src, target);
+        }
+
         #[cfg(test)]
         mod test {
             use crate::core::config::EngineConfig;
@@ -216,6 +253,13 @@ pub mod script {
                 let values = vec!["[COPY]".into()];
                 super::add_pipeline(&mut rules, "*", values).expect("failed to add pipeline");
                 assert_eq!(rules.pipelines().count(), 1);
+            }
+
+            #[test]
+            fn adds_mount() {
+                let mut rules = Rules::default();
+                super::add_mount(&mut rules, "src", "target");
+                assert_eq!(rules.mounts().count(), 1);
             }
 
             #[test]
@@ -330,5 +374,13 @@ mod test {
         let engine = Engine::new(config).unwrap();
 
         assert_eq!(engine.rules().page_contexts().iter().count(), 1);
+    }
+
+    #[test]
+    fn adds_mount() {
+        let mut rules = Rules::new();
+        rules.add_mount("src", "target");
+
+        assert_eq!(rules.mounts().count(), 1);
     }
 }

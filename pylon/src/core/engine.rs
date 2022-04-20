@@ -22,6 +22,7 @@ use crate::{
 use super::{
     linked_asset::LinkedAsset,
     page::{lint::LintResults, LintResult, RenderedPage, RenderedPageCollection},
+    rules::Mount,
     Uri,
 };
 
@@ -217,6 +218,24 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
+    pub fn process_mounts<'a, M: Iterator<Item = &'a Mount>>(&self, mounts: M) -> Result<()> {
+        use fs_extra::dir::CopyOptions;
+        for mount in mounts {
+            dbg!(&mount);
+            trace!(mount=?mount, "processing mount");
+            std::fs::create_dir_all(mount.target())?;
+            let options = CopyOptions {
+                copy_inside: true,
+                skip_exist: true,
+                content_only: true,
+                ..CopyOptions::default()
+            };
+            fs_extra::dir::copy(mount.src(), mount.target(), &options)?;
+        }
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
     pub fn rebuild_page_store(&mut self) -> Result<()> {
         trace!("rebuilding the page store");
         self.page_store = do_build_page_store(
@@ -272,6 +291,9 @@ impl Engine {
 
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
+
+        // mount directories
+        self.process_mounts(self.rules().mounts())?;
 
         // check that each required asset was processed
         {
@@ -785,5 +807,61 @@ doc2"#;
 
         let engine = Engine::new(config).unwrap();
         assert!(engine.build_site().is_err());
+    }
+
+    #[test]
+    fn copies_mounts() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {},
+          src: {},
+          wwwroot: {
+              "file_1": "data",
+              inner: {
+                  "file_2": "data"
+              }
+          }
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let rules = {
+            let wwwroot = tree.path().join("wwwroot");
+            let wwwroot = wwwroot.to_string_lossy();
+            let target = tree.path().join("target");
+            let target = target.to_string_lossy();
+            r#"
+                rules.add_mount("wwwroot", "target");
+            "#
+            .replace("wwwroot", &wwwroot)
+            .replace("target", &target)
+        };
+
+        let rule_script = tree.path().join("rules.rhai");
+        std::fs::write(&rule_script, rules).unwrap();
+
+        let engine = Engine::new(config).unwrap();
+        engine.build_site().expect("failed to build site");
+
+        {
+            let mut wwwroot = tree.path().join("target");
+            wwwroot.push("wwwroot");
+            assert!(!wwwroot.exists());
+
+            let mut file_1 = tree.path().join("target");
+            file_1.push("file_1");
+            assert!(file_1.exists());
+
+            let mut file_2 = tree.path().join("target");
+            file_2.push("inner");
+            file_2.push("file_2");
+            assert!(file_2.exists());
+        }
     }
 }
