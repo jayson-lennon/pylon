@@ -7,6 +7,7 @@ use tracing::{error, instrument, trace};
 use crate::{
     core::{
         engine::Engine,
+        linked_asset::LinkedAsset,
         page::{ContextItem, PageKey},
         rules::{ContextKey, GlobStore, RuleProcessor},
         LinkedAssets, Page, PageStore, RelSystemPath, Uri,
@@ -249,7 +250,7 @@ pub fn rewrite_asset_targets(
             vec![
                 $(
                     lol_html::element!($selector, |el| {
-                        let asset = get_asset_uri_when_using_index(el, $attr, $target_path)?;
+                        let asset = rewrite_asset_uri_with_use_index(el, $attr, $target_path)?;
                         // add this asset to our collection of located assets
                         let mut all_assets = $assets.lock();
                         all_assets.insert(asset);
@@ -270,7 +271,7 @@ pub fn rewrite_asset_targets(
             vec![
                 $(
                     lol_html::element!($selector, |el| {
-                        let asset = get_asset_uri_without_index(el, $attr, $target_path)?;
+                        let asset = rewrite_asset_uri_without_use_index(el, $attr, $target_path)?;
                         // add this asset to our collection of located assets
                         let mut all_assets = $assets.lock();
                         all_assets.insert(asset);
@@ -356,18 +357,22 @@ pub fn rewrite_asset_targets(
     ))
 }
 
-fn get_asset_uri_when_using_index<A: AsRef<str>>(
+fn rewrite_asset_uri_with_use_index<A: AsRef<str>>(
     el: &mut lol_html::html_content::Element,
     attr: A,
     target_path: &RelSystemPath,
-) -> Result<Uri> {
+) -> Result<LinkedAsset> {
     let attr = attr.as_ref();
     let attr_value = el
         .get_attribute(attr)
         .ok_or_else(|| anyhow!("missing '{}' attribute in HTML tag. this is a bug", attr))?;
     // assets using an absolute path don't need to be modified
     if attr_value.starts_with('/') {
-        Ok(Uri::from_path(&attr_value))
+        Ok(LinkedAsset::new_unmodified(
+            &el.tag_name(),
+            &attr_value,
+            Uri::from_path(&attr_value),
+        ))
     } else {
         // Here we are setting the parent directory of all assets
         // based on the path of the html file:
@@ -386,31 +391,43 @@ fn get_asset_uri_when_using_index<A: AsRef<str>>(
 
         el.set_attribute(attr, &format!("{}", target.display()))?;
 
-        Ok(Uri::from_path(&target))
+        Ok(LinkedAsset::new_modified(
+            el.tag_name(),
+            attr_value,
+            Uri::from_path(&target),
+        ))
     }
 }
 
-fn get_asset_uri_without_index<A: AsRef<str>>(
+fn rewrite_asset_uri_without_use_index<A: AsRef<str>>(
     el: &mut lol_html::html_content::Element,
     attr: A,
     target_path: &RelSystemPath,
-) -> Result<Uri> {
+) -> Result<LinkedAsset> {
     let attr = attr.as_ref();
     let attr_value = el
         .get_attribute(attr)
         .ok_or_else(|| anyhow!("missing '{}' attribute in HTML tag. this is a bug", attr))?;
     // assets using an absolute path don't need to be modified
     if attr_value.starts_with('/') {
-        Ok(Uri::from_path(&attr_value))
+        Ok(LinkedAsset::new_unmodified(
+            &el.tag_name(),
+            &attr_value,
+            Uri::from_path(&attr_value),
+        ))
     } else {
         // Here we are setting the parent directory of all assets
         // based on the path of the html file:
         //    some_dir/another_dir/page.html -> some_dir/another_dir
         let mut target = target_path.with_base("").pop().to_path_buf();
 
-        target.push(attr_value);
+        target.push(&attr_value);
 
-        Ok(Uri::from_path(target))
+        Ok(LinkedAsset::new_modified(
+            &el.tag_name(),
+            &attr_value,
+            Uri::from_path(&target),
+        ))
     }
 }
 
@@ -468,7 +485,7 @@ mod test {
 
                     assert_eq!(rendered.html, expected_html);
 
-                    let actual_asset = assets.iter().next().unwrap();
+                    let actual_asset = assets.iter_uris().next().unwrap();
                     assert_eq!(actual_asset, &Uri::from_path(asset_path));
                 }
             }

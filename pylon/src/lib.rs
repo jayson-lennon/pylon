@@ -5,6 +5,9 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::single_match_else)]
 #![allow(clippy::enum_glob_use)]
+// TODO: delete these after writing docs
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::missing_errors_doc)]
 
 pub mod core;
 pub mod devserver;
