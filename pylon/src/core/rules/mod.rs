@@ -156,6 +156,22 @@ pub mod script {
             Ok(())
         }
 
+        /// Associates the closure with the given matcher. This closure will be called
+        /// and the returned context from the closure will be available in the page template.
+        #[instrument(skip(rules))]
+        #[rhai_fn(return_raw)]
+        pub fn set_global_context(
+            rules: &mut Rules,
+            ctx: rhai::Dynamic,
+        ) -> Result<(), Box<EvalAltResult>> {
+            let ctx: serde_json::Value = rhai::serde::from_dynamic(&ctx)?;
+            trace!("add global ctx");
+            rules.set_global_context(ctx).map_err(|e| {
+                EvalAltResult::ErrorSystem("failed setting global context".into(), e.into())
+            })?;
+            Ok(())
+        }
+
         #[instrument(skip(rules, lint_fn))]
         #[rhai_fn(return_raw)]
         pub fn add_lint(
