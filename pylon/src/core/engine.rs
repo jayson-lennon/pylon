@@ -557,6 +557,66 @@ doc2"#;
     }
 
     #[test]
+    fn aborts_render_when_assets_are_missing() {
+        let doc = r#"+++
+            template_name = "test.tera"
+            +++"#;
+
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {
+              "test.tera": r#"<img src="missing.png">"#,
+          },
+          target: {},
+          src: {
+              "doc.md": doc,
+          }
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+
+        assert!(engine.build_site().is_err());
+    }
+
+    #[test]
+    fn renders_properly_when_assets_are_available() {
+        let doc = r#"+++
+            template_name = "test.tera"
+            +++"#;
+        let rules = r#"rules.add_pipeline("**/*.png", ["[COPY]"]);"#;
+
+        let tree = temptree! {
+          "rules.rhai": rules,
+          templates: {
+              "test.tera": r#"<img src="found_it.png">"#,
+          },
+          target: {},
+          src: {
+              "doc.md": doc,
+              "found_it.png": "",
+          }
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+
+        assert!(engine.build_site().is_ok());
+    }
+
+    #[test]
     fn rebuilds_page_store() {
         let doc1 = r#"+++
             template_name = "empty.tera"
@@ -673,7 +733,7 @@ doc2"#;
     }
 
     #[test]
-    fn builds_site_with_lint_errors() {
+    fn aborts_site_build_with_deny_lint_error() {
         let rules = r#"
             rules.add_lint(DENY, "Missing author", "**", |page| {
                 page.meta("author") == "" || type_of(page.meta("author")) == "()"
