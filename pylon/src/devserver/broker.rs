@@ -248,6 +248,8 @@ mod handle_msg {
                     engine.page_store(),
                 )?;
 
+                engine.process_mounts(engine.rules().mounts())?;
+
                 // check that each required asset was processed
                 {
                     let unhandled_assets = engine.run_pipelines(&linked_assets)?;
