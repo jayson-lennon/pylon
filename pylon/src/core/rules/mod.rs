@@ -230,7 +230,7 @@ pub mod script {
         }
 
         #[instrument(skip(rules))]
-        pub fn add_mount(rules: &mut Rules, src: &str, target: &str) {
+        pub fn mount(rules: &mut Rules, src: &str, target: &str) {
             trace!("add mount");
 
             rules.add_mount(src, target);
@@ -258,7 +258,7 @@ pub mod script {
             #[test]
             fn adds_mount() {
                 let mut rules = Rules::default();
-                super::add_mount(&mut rules, "src", "target");
+                super::mount(&mut rules, "src", "target");
                 assert_eq!(rules.mounts().count(), 1);
             }
 
