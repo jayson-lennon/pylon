@@ -153,9 +153,30 @@ impl Engine {
         let mut unhandled_assets = HashSet::new();
 
         for asset in linked_assets {
+            // Ignore anchor links for now. Issue https://github.com/jayson-lennon/pylon/issues/75
+            // to eventually make this work.
             if asset.has_tag_name("a") {
                 continue;
             }
+
+            // Ignore any assets that already exist in the target directory.
+            {
+                // We need to construct a relative path to the target asset
+                // as exists on the system.
+
+                // start with the `target root`
+                let mut target_sys_path = PathBuf::from(&self.config().target_root);
+
+                // drop the leading `/` from the Uri
+                let relative_uri = PathBuf::from(&asset.uri().as_str()[1..]);
+                target_sys_path.push(relative_uri);
+
+                // If the asset already exists, then we just skip processing.
+                if target_sys_path.exists() {
+                    continue;
+                }
+            }
+
             // tracks which assets have no processing logic
             let mut asset_has_pipeline = false;
 
@@ -643,6 +664,76 @@ doc2"#;
         let engine = Engine::new(config).unwrap();
 
         assert!(engine.build_site().is_ok());
+    }
+
+    #[test]
+    fn doesnt_reprocessing_existing_assets() {
+        let doc = r#"+++
+            template_name = "test.tera"
+            +++"#;
+
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {
+              "test.tera": r#"<img src="/found_it.png">"#,
+          },
+          target: {},
+          src: {
+              "doc.md": doc,
+          },
+          wwwroot: {
+              "found_it.png": "",
+          }
+        };
+
+        let rules = {
+            let wwwroot = tree.path().join("wwwroot");
+            let wwwroot = wwwroot.to_string_lossy();
+            let target = tree.path().join("target");
+            let target = target.to_string_lossy();
+            r#"
+                rules.mount("wwwroot", "target");
+                rules.add_pipeline("**/*.png", ["[COPY]"]);
+            "#
+            .replace("wwwroot", &wwwroot)
+            .replace("target", &target)
+        };
+
+        let rule_script = tree.path().join("rules.rhai");
+        std::fs::write(&rule_script, rules).unwrap();
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+
+        // Here we go through the site building process manually in order to arrive
+        // at the point where the pipelines are being processed. If the pipeline
+        // processing returns an empty `LinkedAssets` structure, then this test
+        // was successful. Since the file under test was copied via `mount`, the
+        // pipeline should skip processing. If the pipeline returns the asset,
+        // then this indicates a test failure because the asset should have been
+        // located before running the pipeline.
+        {
+            let pages = engine.page_store().iter().map(|(_, page)| page);
+            let mut rendered = engine.render(pages).expect("failed to render");
+            let assets = crate::core::page::render::rewrite_asset_targets(
+                rendered.as_mut_slice(),
+                engine.page_store(),
+            )
+            .expect("failed to rewrite asset targets");
+            engine
+                .process_mounts(engine.rules().mounts())
+                .expect("failed to process mounts");
+            let unhandled_assets = engine
+                .run_pipelines(&assets)
+                .expect("failed to run pipelines");
+            assert!(unhandled_assets.is_empty());
+        }
     }
 
     #[test]
