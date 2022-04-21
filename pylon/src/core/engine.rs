@@ -837,7 +837,7 @@ doc2"#;
             let target = tree.path().join("target");
             let target = target.to_string_lossy();
             r#"
-                rules.add_mount("wwwroot", "target");
+                rules.mount("wwwroot", "target");
             "#
             .replace("wwwroot", &wwwroot)
             .replace("target", &target)
