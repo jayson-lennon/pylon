@@ -6,7 +6,7 @@ use std::{collections::HashSet, path::PathBuf};
 use crate::core::config::EngineConfig;
 use crate::core::engine::Engine;
 use crate::core::page::RenderedPage;
-use crate::core::Uri;
+use crate::core::{RelSystemPath, Uri};
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
 use crate::Result;
 use tokio::runtime::Handle;
@@ -15,29 +15,31 @@ use tracing::{error, trace, warn};
 type EngineSender = async_channel::Sender<EngineMsg>;
 type EngineReceiver = async_channel::Receiver<EngineMsg>;
 
-type RenderPageResponse = Result<Option<RenderedPage>>;
-
 #[derive(Debug)]
-pub struct RenderPageRequest {
-    tx: async_channel::Sender<RenderPageResponse>,
-    pub uri: Uri,
+pub struct EngineRequest<ToEngine, FromEngine>
+where
+    ToEngine: Send + Sync + 'static,
+    FromEngine: Send + Sync + 'static,
+{
+    tx: async_channel::Sender<FromEngine>,
+    inner: ToEngine,
 }
 
-impl RenderPageRequest {
-    pub fn new(uri: Uri) -> (Self, async_channel::Receiver<RenderPageResponse>) {
+impl<ToEngine, FromEngine> EngineRequest<ToEngine, FromEngine>
+where
+    ToEngine: Send + Sync + 'static,
+    FromEngine: Send + Sync + 'static,
+{
+    pub fn new(data: ToEngine) -> (Self, async_channel::Receiver<FromEngine>) {
         let (tx, rx) = async_channel::bounded(1);
-        (Self { tx, uri }, rx)
+        (Self { tx, inner: data }, rx)
     }
 
-    pub fn uri(&self) -> &Uri {
-        &self.uri
+    pub async fn respond(&self, data: FromEngine) -> Result<()> {
+        Ok(self.tx.send(data).await?)
     }
-
-    pub async fn respond(&self, page: RenderPageResponse) -> Result<()> {
-        Ok(self.tx.send(page).await?)
-    }
-    pub fn respond_sync(&self, handle: &Handle, page: RenderPageResponse) -> Result<()> {
-        handle.block_on(async { Ok(self.tx.send(page).await?) })
+    pub fn respond_sync(&self, handle: &Handle, data: FromEngine) -> Result<()> {
+        handle.block_on(async { Ok(self.tx.send(data).await?) })
     }
 }
 
@@ -98,7 +100,9 @@ pub enum EngineMsg {
     FilesystemUpdate(FilesystemUpdateEvents),
     /// Renders a page and then returns it on the channel supplied in
     /// the request.
-    RenderPage(RenderPageRequest),
+    RenderPage(EngineRequest<Uri, Result<Option<RenderedPage>>>),
+    ProcessMounts(EngineRequest<(), Result<()>>),
+    ProcessPipelines(EngineRequest<String, Result<()>>),
     /// Quits the application
     Quit,
 }
@@ -169,6 +173,13 @@ impl EngineBroker {
         bind: S,
         debounce_ms: u64,
     ) -> Result<JoinHandle<Result<()>>> {
+        macro_rules! respond_sync {
+            ($chan:ident, $handle:expr, $fn:block) => {
+                if let Err(e) = $chan.respond_sync($handle, $fn) {
+                    warn!(err = %e, "tried to respond on a closed channel");
+                }
+            };
+        }
         trace!("spawning engine thread");
 
         let bind = bind.into();
@@ -184,14 +195,20 @@ impl EngineBroker {
             loop {
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
-                        EngineMsg::RenderPage(request) => {
-                            let page = handle_msg::render(&engine, &request);
-                            if let Err(e) = request.respond_sync(&broker.handle(), page) {
-                                warn!(
-                                    err = %e,
-                                    "tried to respond with a rendered page on a closed channel",
-                                );
-                            }
+                        EngineMsg::ProcessMounts(chan) => {
+                            respond_sync!(chan, &broker.handle(), {
+                                handle_msg::process_mounts(&engine)
+                            });
+                        }
+                        EngineMsg::ProcessPipelines(chan) => {
+                            respond_sync!(chan, &broker.handle(), {
+                                handle_msg::process_pipelines(&engine, &chan.inner)
+                            });
+                        }
+                        EngineMsg::RenderPage(chan) => {
+                            respond_sync!(chan, &broker.handle(), {
+                                handle_msg::render(&engine, &chan.inner)
+                            });
                         }
 
                         EngineMsg::FilesystemUpdate(events) => {
@@ -223,46 +240,72 @@ impl EngineBroker {
 }
 
 mod handle_msg {
+    use std::path::PathBuf;
+
     use tracing::{error, instrument, trace};
 
     use crate::{
-        core::{engine::Engine, page::RenderedPage, Page},
+        core::{engine::Engine, page::RenderedPage, Page, RelSystemPath, Uri},
         Result,
     };
 
-    use super::{FilesystemUpdateEvents, RenderPageRequest};
+    use super::FilesystemUpdateEvents;
+
+    pub fn process_pipelines<S: AsRef<str>>(engine: &Engine, page_path: S) -> Result<()> {
+        let sys_path = RelSystemPath::new(
+            &engine.config().target_root,
+            &PathBuf::from(page_path.as_ref()),
+        );
+        let raw_html = std::fs::read_to_string(sys_path.to_path_buf())?;
+        let html_assets = crate::discover::html_asset::find(&sys_path, &raw_html)?;
+
+        // check that each required asset was processed
+        {
+            let unhandled_assets = engine.run_pipelines(&html_assets)?;
+            for asset in &unhandled_assets {
+                error!(asset = ?asset, "missing asset");
+            }
+            if !unhandled_assets.is_empty() {
+                return Err(anyhow::anyhow!("one or more assets are missing"));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn process_mounts(engine: &Engine) -> Result<()> {
+        engine.process_mounts(engine.rules().mounts())
+    }
 
     #[instrument(skip_all)]
-    pub fn render(engine: &Engine, request: &RenderPageRequest) -> Result<Option<RenderedPage>> {
-        use crate::core::page::render::rewrite_asset_targets;
-
-        trace!(request = ?request, "receive render page message");
+    pub fn render(engine: &Engine, uri: &Uri) -> Result<Option<RenderedPage>> {
+        trace!(uri = ?uri, "receive render page message");
 
         engine.process_mounts(engine.rules().mounts())?;
 
-        if let Some(page) = engine.page_store().get(request.uri()) {
+        if let Some(page) = engine.page_store().get(uri) {
             let lints = engine.lint(std::iter::once(page))?;
             if lints.has_deny() {
                 Err(anyhow::anyhow!(lints.to_string()))
             } else {
-                let mut rendered = engine
+                let rendered = engine
                     .render(std::iter::once(page))?
                     .into_iter()
                     .next()
                     .unwrap();
-                let html_assets = rewrite_asset_targets(
-                    std::slice::from_mut(&mut rendered),
-                    engine.page_store(),
-                )?;
 
-                // check that each required asset was processed
+                // asset discovery & pipeline processing
                 {
+                    let html_assets =
+                        crate::discover::html_asset::find(&rendered.target, &rendered.html)?;
                     let unhandled_assets = engine.run_pipelines(&html_assets)?;
-                    for asset in &unhandled_assets {
-                        error!(asset = ?asset, "missing asset");
-                    }
-                    if !unhandled_assets.is_empty() {
-                        return Err(anyhow::anyhow!("one or more assets are missing"));
+                    // check for missing assets in pages
+                    {
+                        for asset in &unhandled_assets {
+                            error!(asset = ?asset, "missing asset");
+                        }
+                        if !unhandled_assets.is_empty() {
+                            return Err(anyhow::anyhow!("one or more assets are missing"));
+                        }
                     }
                 }
                 Ok(Some(rendered))

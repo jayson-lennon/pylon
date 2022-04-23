@@ -121,6 +121,10 @@ impl RelSystemPath {
         self.target.as_path()
     }
 
+    pub fn base(&self) -> &Path {
+        self.base.as_path()
+    }
+
     pub fn to_path_buf(&self) -> PathBuf {
         PathBuf::from(self)
     }

@@ -8,6 +8,8 @@ use std::path::PathBuf;
 
 use tracing::instrument;
 
+use crate::core::Uri;
+
 #[instrument(skip(condition), ret)]
 pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Result<Vec<PathBuf>> {
     let mut paths = vec![];
@@ -24,9 +26,87 @@ pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Resu
     Ok(paths)
 }
 
+#[derive(Debug, Clone)]
+pub enum UrlType {
+    Offsite,
+    Absolute,
+    Relative(String),
+    InternalDoc(Uri),
+}
+
+pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
+    use std::str::from_utf8;
+    match link.as_ref().as_bytes() {
+        // Internal doc: @/
+        [b'@', b'/', target @ ..] => {
+            UrlType::InternalDoc(Uri::from_path(from_utf8(target).unwrap()))
+        }
+        // Absolute: /
+        [b'/', ..] => UrlType::Absolute,
+        // Relative: ./
+        [b'.', b'/', target @ ..] => UrlType::Relative(from_utf8(target).unwrap().to_owned()),
+        [..] => UrlType::Offsite,
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn get_link_target_identifies_internal_doc() {
+        let internal_link = "@/some/path/page.md";
+        let link = super::get_url_type(internal_link);
+        match link {
+            UrlType::InternalDoc(uri) => assert_eq!(uri, Uri::from_path("some/path/page.md")),
+            #[allow(unreachable_patterns)]
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn get_link_target_identifies_absolute_target() {
+        let abs_target = "/some/path/page.md";
+        let link = super::get_url_type(abs_target);
+        match link {
+            UrlType::Absolute => (),
+            #[allow(unreachable_patterns)]
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn get_link_target_identifies_relative_target() {
+        let rel_target = "./some/path/page.md";
+        let link = super::get_url_type(rel_target);
+        match link {
+            UrlType::Relative(target) => assert_eq!(target, "some/path/page.md"),
+            #[allow(unreachable_patterns)]
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn get_link_target_identifies_offsite_target() {
+        let offsite_target = "http://example.com";
+        let link = super::get_url_type(offsite_target);
+        match link {
+            UrlType::Offsite => (),
+            #[allow(unreachable_patterns)]
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn get_link_target_identifies_offsite_target_without_protocol() {
+        let offsite_target = "example.com";
+        let link = super::get_url_type(offsite_target);
+        match link {
+            UrlType::Offsite => (),
+            #[allow(unreachable_patterns)]
+            _ => panic!("wrong variant"),
+        }
+    }
 
     #[test]
     fn gets_all_paths_with_subdirs() {

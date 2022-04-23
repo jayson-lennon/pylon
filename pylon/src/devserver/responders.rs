@@ -1,4 +1,5 @@
-use crate::core::Uri;
+use crate::core::page::RenderedPage;
+use crate::core::{RelSystemPath, Uri};
 use crate::{AsStdError, Result};
 use poem::http::StatusCode;
 use poem::{
@@ -122,33 +123,36 @@ pub fn try_static_file<S: AsRef<str>>(
     }
 }
 
-pub async fn try_rendered_file(path: String, broker: Data<&EngineBroker>) -> Result<Response> {
-    use crate::devserver::broker::{EngineMsg, RenderPageRequest};
+pub async fn try_rendered_file<S: AsRef<str>>(
+    broker: &EngineBroker,
+    path: S,
+) -> Result<Option<RenderedPage>> {
+    use crate::devserver::broker::EngineMsg;
+    use crate::devserver::broker::EngineRequest;
 
     trace!("try to serve rendered file");
 
-    let uri = Uri::from_path(path);
-    let (req, page) = RenderPageRequest::new(uri);
+    let uri = Uri::from_path(path.as_ref());
+    let (send, recv) = EngineRequest::new(uri);
 
-    broker.send_engine_msg(EngineMsg::RenderPage(req)).await?;
+    broker.send_engine_msg(EngineMsg::RenderPage(send)).await?;
+    recv.recv().await?
+}
 
-    match page.recv().await? {
-        // Page found (HTTP 200)
-        Ok(Some(page)) => Ok(Response::builder()
-            .content_type(mime::TEXT_HTML_UTF_8)
-            .body(html_with_live_reload_script(&page.html))),
+pub fn serve_rendered_file<S: AsRef<str>>(html: S) -> Response {
+    Response::builder()
+        .content_type(mime::TEXT_HTML_UTF_8)
+        .body(html_with_live_reload_script(html.as_ref()))
+}
 
-        // Page not found (HTTP 404)
-        Ok(None) => Ok(Response::builder()
-            .content_type(mime::TEXT_HTML_UTF_8)
-            .status(StatusCode::NOT_FOUND)
-            .body(page_not_found())),
-
-        // Error rendering page (HTTP 400)
-        Err(e) => Ok(Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(error_page_with_msg(e.to_string()))),
-    }
+pub async fn run_pipelines<S: Into<String>>(broker: &EngineBroker, path: S) -> Result<()> {
+    use crate::devserver::broker::EngineMsg;
+    use crate::devserver::broker::EngineRequest;
+    let (send, recv) = EngineRequest::new(path.into());
+    broker
+        .send_engine_msg(EngineMsg::ProcessPipelines(send))
+        .await?;
+    Ok(())
 }
 
 #[instrument(skip(mount_point, broker), ret)]
@@ -160,12 +164,18 @@ pub async fn handle(
 ) -> std::result::Result<Response, poem::error::Error> {
     let path = path_to_file(path.to_string());
 
+    match try_rendered_file(*broker, &path).await {
+        Ok(Some(page)) => return Ok(serve_rendered_file(&page.html)),
+        Err(e) => return Err(poem::error::InternalServerError(AsStdError(e))),
+        _ => (),
+    }
+
     if let Some(res) = try_static_file(path.clone(), &mount_point) {
+        run_pipelines(*broker, &path)
+            .await
+            .map_err(|e| poem::error::InternalServerError(AsStdError(e)))?;
         Ok(res)
     } else {
-        trace!("static file not found");
-        try_rendered_file(path, broker)
-            .await
-            .map_err(|e| poem::error::BadRequest(AsStdError(e)))
+        panic!()
     }
 }
