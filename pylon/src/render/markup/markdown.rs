@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+
 use crate::{
-    core::{Page, PageStore, Uri},
-    Result,
+    core::{Page, PageStore, RelSystemPath, Uri},
+    discover, util, Result,
 };
 use anyhow::anyhow;
 
@@ -23,11 +25,6 @@ impl Default for MarkdownRenderer {
     }
 }
 
-#[derive(Debug, Clone)]
-enum CustomHref {
-    InternalLink(Uri),
-}
-
 fn render(page: &Page, page_store: &PageStore) -> Result<String> {
     use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag};
 
@@ -43,25 +40,36 @@ fn render(page: &Page, page_store: &PageStore) -> Result<String> {
     for event in parser {
         match event {
             Event::Start(Tag::Link(LinkType::Inline, href, title)) => {
-                if let Some(custom) = get_custom_href(&href) {
-                    match custom {
-                        CustomHref::InternalLink(ref uri) => {
-                            let page = page_store.get(uri).ok_or_else(|| {
-                                anyhow!(
-                                    "unable to find internal link '{}' on page '{}'",
-                                    &uri,
-                                    page.uri()
-                                )
-                            })?;
-                            events.push(Event::Start(Tag::Link(
-                                LinkType::Inline,
-                                CowStr::Boxed(page.uri.into_boxed_str()),
-                                title,
-                            )));
-                        }
+                use discover::UrlType;
+                match discover::get_url_type(&href) {
+                    // internal doc links get converted into target Uri
+                    UrlType::InternalDoc(ref uri) => {
+                        let page = page_store.get(uri).ok_or_else(|| {
+                            anyhow!(
+                                "unable to find internal link '{}' on page '{}'",
+                                &uri,
+                                page.uri()
+                            )
+                        })?;
+                        events.push(Event::Start(Tag::Link(
+                            LinkType::Inline,
+                            CowStr::Boxed(page.uri.into_boxed_str()),
+                            title,
+                        )));
                     }
-                } else {
-                    events.push(Event::Start(Tag::Link(LinkType::Inline, href, title)));
+                    // no changes needed for absolute targets or offsite targets
+                    UrlType::Absolute | UrlType::Offsite => {
+                        events.push(Event::Start(Tag::Link(LinkType::Inline, href, title)));
+                    }
+                    // relative links need to get converted to absolute links
+                    UrlType::Relative(target) => {
+                        let target = util::rel_to_abs(&target, &page.src_path);
+                        events.push(Event::Start(Tag::Link(
+                            LinkType::Inline,
+                            CowStr::Boxed(target.into_boxed_str()),
+                            title,
+                        )));
+                    }
                 }
             }
             other => events.push(other),
@@ -73,35 +81,16 @@ fn render(page: &Page, page_store: &PageStore) -> Result<String> {
     Ok(buf)
 }
 
-fn get_custom_href<S: AsRef<str>>(href: S) -> Option<CustomHref> {
-    use std::str::from_utf8;
-    match href.as_ref().as_bytes() {
-        [b'@', b'/', uri @ ..] => Some(CustomHref::InternalLink(Uri::from_path(
-            from_utf8(uri).unwrap(),
-        ))),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::all)]
 
-    use crate::core::{page::page::test::page_from_doc_with_paths, Page, PageStore, Uri};
+    use crate::core::{
+        page::page::test::page_from_doc_with_paths, Page, PageStore, RelSystemPath, Uri,
+    };
     use regex::Regex;
 
-    use super::{CustomHref, MarkdownRenderer};
-
-    #[test]
-    fn identifies_internal_link() {
-        let internal_link = "@/some/path/page.md";
-        let href = super::get_custom_href(internal_link).unwrap();
-        match href {
-            CustomHref::InternalLink(uri) => assert_eq!(uri, Uri::from_path("some/path/page.md")),
-            #[allow(unreachable_patterns)]
-            _ => panic!("wrong variant"),
-        }
-    }
+    use super::MarkdownRenderer;
 
     fn internal_doc_link_render(test_page: Page, linked_page: Page) -> String {
         let mut store = PageStore::new();
@@ -113,10 +102,10 @@ mod test {
         let test_page = store
             .get_with_key(key)
             .expect("page is missing from page store");
-        let rendered = renderer
+        let rendered_page = renderer
             .render(&test_page, &store)
             .expect("failed to render test page");
-        rendered
+        rendered_page
     }
 
     fn get_href_attr(rendered: &str) -> String {

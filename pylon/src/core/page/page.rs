@@ -5,6 +5,7 @@ use crate::Renderers;
 use crate::Result;
 use anyhow::{anyhow, Context};
 use serde::Serialize;
+use std::ffi::OsStr;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -126,6 +127,10 @@ impl Page {
     pub fn template_name(&self) -> TemplateName {
         debug_assert!(self.frontmatter.template_name.is_some());
         self.frontmatter.template_name.as_ref().cloned().unwrap()
+    }
+
+    pub fn is_index_page(&self) -> bool {
+        self.frontmatter.use_index && self.src_path.file_stem() == "index"
     }
 }
 
