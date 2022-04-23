@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use itertools::Itertools;
 use std::{
     collections::HashSet,
@@ -13,14 +14,14 @@ use crate::{
     core::config::EngineConfig,
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::{script_engine::ScriptEngineConfig, LinkedAssets, Page, PageStore},
+    core::{script_engine::ScriptEngineConfig, Page, PageStore},
     devserver::{DevServer, EngineBroker},
+    discover::html_asset::{HtmlAsset, HtmlAssets},
     render::Renderers,
     util, Result,
 };
 
 use super::{
-    linked_asset::LinkedAsset,
     page::{lint::LintResults, LintResult, RenderedPage, RenderedPageCollection},
     rules::Mount,
     Uri,
@@ -142,17 +143,14 @@ impl Engine {
     }
 
     #[instrument(skip_all)]
-    pub fn run_pipelines<'a>(
-        &self,
-        linked_assets: &'a LinkedAssets,
-    ) -> Result<HashSet<&'a LinkedAsset>> {
+    pub fn run_pipelines<'a>(&self, html_assets: &'a HtmlAssets) -> Result<HashSet<&'a HtmlAsset>> {
         trace!("running pipelines");
 
         let engine: &Engine = self;
 
         let mut unhandled_assets = HashSet::new();
 
-        for asset in linked_assets {
+        for asset in html_assets {
             // Ignore anchor links for now. Issue https://github.com/jayson-lennon/pylon/issues/75
             // to eventually make this work.
             if asset.has_tag_name("a") {
@@ -316,9 +314,9 @@ impl Engine {
         // mount directories
         self.process_mounts(self.rules().mounts())?;
 
-        // check that each required asset was processed
+        let unhandled_assets = self.run_pipelines(&assets)?;
+        // check for missing assets in pages
         {
-            let unhandled_assets = self.run_pipelines(&assets)?;
             for asset in &unhandled_assets {
                 error!(asset = ?asset, "missing asset");
             }
@@ -326,6 +324,8 @@ impl Engine {
                 return Err(anyhow::anyhow!("one or more assets are missing"));
             }
         }
+        // TODO: check for missing assets in CSS
+        {}
         Ok(())
     }
 
@@ -667,7 +667,37 @@ doc2"#;
     }
 
     #[test]
-    fn doesnt_reprocessing_existing_assets() {
+    fn locates_css_urls() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+              "main.css": r#" @font-face {
+                                font-family: "Test";
+                                src:
+                                    local("Test"),
+                                    url("fonts/vendor/test/test.woff2") format("woff2"),
+                                    url("fonts/vendor/jost/test.woff") format("woff");
+                            }"#,
+            },
+          src: {}
+        };
+
+        let config = EngineConfig::new(
+            tree.path().join("src"),
+            tree.path().join("target"),
+            tree.path().join("templates"),
+            tree.path().join("rules.rhai"),
+        );
+
+        let engine = Engine::new(config).unwrap();
+
+        assert!(engine.build_site().is_ok());
+        panic!();
+    }
+
+    #[test]
+    fn doesnt_reprocess_existing_assets() {
         let doc = r#"+++
             template_name = "test.tera"
             +++"#;

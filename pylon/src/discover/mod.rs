@@ -1,3 +1,6 @@
+pub mod css_asset;
+pub mod html_asset;
+
 use std::fs;
 use std::io;
 use std::path::Path;
