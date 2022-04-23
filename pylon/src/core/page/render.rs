@@ -7,11 +7,11 @@ use tracing::{error, instrument, trace};
 use crate::{
     core::{
         engine::Engine,
-        linked_asset::LinkedAsset,
         page::{ContextItem, PageKey},
         rules::{ContextKey, GlobStore, RuleProcessor},
-        LinkedAssets, Page, PageStore, RelSystemPath, Uri,
+        Page, PageStore, RelSystemPath, Uri,
     },
+    discover::html_asset::{HtmlAsset, HtmlAssets},
     site_context::SiteContext,
     Result,
 };
@@ -234,7 +234,7 @@ fn get_overwritten_identifiers(contexts: &[ContextItem]) -> HashSet<String> {
 pub fn rewrite_asset_targets(
     rendered_pages: &mut [RenderedPage],
     store: &PageStore,
-) -> Result<LinkedAssets> {
+) -> Result<HtmlAssets> {
     use lol_html::{rewrite_str, RewriteStrSettings};
     use parking_lot::Mutex;
 
@@ -352,7 +352,7 @@ pub fn rewrite_asset_targets(
         }
     }
 
-    Ok(LinkedAssets::from_hashset(
+    Ok(HtmlAssets::from_hashset(
         Arc::try_unwrap(all_assets).unwrap().into_inner(),
     ))
 }
@@ -361,14 +361,14 @@ fn rewrite_asset_uri_with_use_index<A: AsRef<str>>(
     el: &mut lol_html::html_content::Element,
     attr: A,
     target_path: &RelSystemPath,
-) -> Result<LinkedAsset> {
+) -> Result<HtmlAsset> {
     let attr = attr.as_ref();
     let attr_value = el
         .get_attribute(attr)
         .ok_or_else(|| anyhow!("missing '{}' attribute in HTML tag. this is a bug", attr))?;
     // assets using an absolute path don't need to be modified
     if attr_value.starts_with('/') {
-        Ok(LinkedAsset::new_unmodified(
+        Ok(HtmlAsset::new_unmodified(
             &el.tag_name(),
             &attr_value,
             Uri::from_path(&attr_value),
@@ -391,7 +391,7 @@ fn rewrite_asset_uri_with_use_index<A: AsRef<str>>(
 
         el.set_attribute(attr, &format!("{}", target.display()))?;
 
-        Ok(LinkedAsset::new_modified(
+        Ok(HtmlAsset::new_modified(
             el.tag_name(),
             attr_value,
             Uri::from_path(&target),
@@ -403,14 +403,14 @@ fn rewrite_asset_uri_without_use_index<A: AsRef<str>>(
     el: &mut lol_html::html_content::Element,
     attr: A,
     target_path: &RelSystemPath,
-) -> Result<LinkedAsset> {
+) -> Result<HtmlAsset> {
     let attr = attr.as_ref();
     let attr_value = el
         .get_attribute(attr)
         .ok_or_else(|| anyhow!("missing '{}' attribute in HTML tag. this is a bug", attr))?;
     // assets using an absolute path don't need to be modified
     if attr_value.starts_with('/') {
-        Ok(LinkedAsset::new_unmodified(
+        Ok(HtmlAsset::new_unmodified(
             &el.tag_name(),
             &attr_value,
             Uri::from_path(&attr_value),
@@ -423,7 +423,7 @@ fn rewrite_asset_uri_without_use_index<A: AsRef<str>>(
 
         target.push(&attr_value);
 
-        Ok(LinkedAsset::new_modified(
+        Ok(HtmlAsset::new_modified(
             &el.tag_name(),
             &attr_value,
             Uri::from_path(&target),

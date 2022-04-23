@@ -39,6 +39,7 @@ rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
 parking_lot = "0.12"
 lol_html = "0.3"
 fs_extra = "1.2"
+parcel_css = "1.0.0-alpha.23"
 
 [dev-dependencies]
 temptree = "0.2.0"

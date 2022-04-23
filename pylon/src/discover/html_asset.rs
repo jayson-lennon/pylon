@@ -3,12 +3,12 @@ use std::collections::HashSet;
 use crate::core::uri::Uri;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct LinkedAssetSource {
+pub struct HtmlAssetSource {
     tag: String,
     src: String,
 }
 
-impl LinkedAssetSource {
+impl HtmlAssetSource {
     pub fn new<S: Into<String>>(tag: S, src: S) -> Self {
         Self {
             tag: tag.into(),
@@ -18,14 +18,14 @@ impl LinkedAssetSource {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct LinkedAsset {
+pub struct HtmlAsset {
     modified: bool,
     uri: Uri,
     src: String,
     tag: String,
 }
 
-impl LinkedAsset {
+impl HtmlAsset {
     pub fn new_modified<S: Into<String>>(tag: S, src: S, uri: Uri) -> Self {
         Self {
             modified: true,
@@ -54,17 +54,17 @@ impl LinkedAsset {
 }
 
 #[derive(Debug)]
-pub struct LinkedAssets {
-    inner: HashSet<LinkedAsset>,
+pub struct HtmlAssets {
+    inner: HashSet<HtmlAsset>,
 }
 
-impl LinkedAssets {
+impl HtmlAssets {
     pub fn new() -> Self {
         Self {
             inner: HashSet::new(),
         }
     }
-    pub fn from_hashset(assets: HashSet<LinkedAsset>) -> Self {
+    pub fn from_hashset(assets: HashSet<HtmlAsset>) -> Self {
         Self { inner: assets }
     }
 
@@ -72,7 +72,7 @@ impl LinkedAssets {
         self.inner.iter().map(|asset| &asset.uri)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &LinkedAsset> {
+    pub fn iter(&self) -> impl Iterator<Item = &HtmlAsset> {
         self.into_iter()
     }
 
@@ -81,14 +81,14 @@ impl LinkedAssets {
     }
 }
 
-impl Default for LinkedAssets {
+impl Default for HtmlAssets {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl IntoIterator for LinkedAssets {
-    type Item = LinkedAsset;
+impl IntoIterator for HtmlAssets {
+    type Item = HtmlAsset;
     type IntoIter = std::collections::hash_set::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -96,9 +96,9 @@ impl IntoIterator for LinkedAssets {
     }
 }
 
-impl<'a> IntoIterator for &'a LinkedAssets {
-    type Item = &'a LinkedAsset;
-    type IntoIter = std::collections::hash_set::Iter<'a, LinkedAsset>;
+impl<'a> IntoIterator for &'a HtmlAssets {
+    type Item = &'a HtmlAsset;
+    type IntoIter = std::collections::hash_set::Iter<'a, HtmlAsset>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter()
@@ -110,50 +110,50 @@ mod test {
     use super::*;
 
     #[test]
-    fn new_linked_assets() {
-        let assets = LinkedAssets::new();
+    fn new_html_assets() {
+        let assets = HtmlAssets::new();
         assert!(assets.inner.is_empty());
     }
 
     #[test]
-    fn new_linked_assets_with_default() {
-        let assets = LinkedAssets::default();
+    fn new_html_assets_with_default() {
+        let assets = HtmlAssets::default();
         assert!(assets.inner.is_empty());
     }
 
     #[test]
-    fn linked_assets_from_hashset() {
+    fn html_assets_from_hashset() {
         let mut assets = HashSet::new();
-        assets.insert(LinkedAsset::new_unmodified(
+        assets.insert(HtmlAsset::new_unmodified(
             "a",
             "/test",
             Uri::from_path("test"),
         ));
-        assets.insert(LinkedAsset::new_unmodified(
+        assets.insert(HtmlAsset::new_unmodified(
             "b",
             "/test",
             Uri::from_path("test"),
         ));
 
-        let assets = LinkedAssets::from_hashset(assets);
+        let assets = HtmlAssets::from_hashset(assets);
         assert_eq!(assets.inner.len(), 2);
     }
 
     #[test]
-    fn linked_assets_iter() {
+    fn html_assets_iter() {
         let mut assets = HashSet::new();
-        assets.insert(LinkedAsset::new_unmodified(
+        assets.insert(HtmlAsset::new_unmodified(
             "a",
             "/test",
             Uri::from_path("test"),
         ));
-        assets.insert(LinkedAsset::new_unmodified(
+        assets.insert(HtmlAsset::new_unmodified(
             "b",
             "/test",
             Uri::from_path("test"),
         ));
 
-        let assets = LinkedAssets::from_hashset(assets);
+        let assets = HtmlAssets::from_hashset(assets);
 
         let assets = assets.iter_uris();
         assert_eq!(assets.count(), 2);
