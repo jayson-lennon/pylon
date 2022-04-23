@@ -10,7 +10,7 @@ use crate::core::Uri;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
 use crate::Result;
 use tokio::runtime::Handle;
-use tracing::{error, trace};
+use tracing::{error, trace, warn};
 
 type EngineSender = async_channel::Sender<EngineMsg>;
 type EngineReceiver = async_channel::Receiver<EngineMsg>;
@@ -176,6 +176,8 @@ impl EngineBroker {
         let engine_handle = thread::spawn(move || {
             let mut engine = Engine::new(config)?;
 
+            // engine.process_mounts(engine.rules().mounts())?;
+
             let _devserver =
                 engine.start_devserver(bind, debounce_ms, engine.config(), broker.clone())?;
 
@@ -184,9 +186,12 @@ impl EngineBroker {
                     Ok(msg) => match msg {
                         EngineMsg::RenderPage(request) => {
                             let page = handle_msg::render(&engine, &request);
-                            request
-                                .respond_sync(&broker.handle(), page)
-                                .expect("failed to respond to render page request. this is a bug");
+                            if let Err(e) = request.respond_sync(&broker.handle(), page) {
+                                warn!(
+                                    err = %e,
+                                    "tried to respond with a rendered page on a closed channel",
+                                );
+                            }
                         }
 
                         EngineMsg::FilesystemUpdate(events) => {
@@ -233,6 +238,8 @@ mod handle_msg {
 
         trace!(request = ?request, "receive render page message");
 
+        engine.process_mounts(engine.rules().mounts())?;
+
         if let Some(page) = engine.page_store().get(request.uri()) {
             let lints = engine.lint(std::iter::once(page))?;
             if lints.has_deny() {
@@ -243,16 +250,14 @@ mod handle_msg {
                     .into_iter()
                     .next()
                     .unwrap();
-                let linked_assets = rewrite_asset_targets(
+                let html_assets = rewrite_asset_targets(
                     std::slice::from_mut(&mut rendered),
                     engine.page_store(),
                 )?;
 
-                engine.process_mounts(engine.rules().mounts())?;
-
                 // check that each required asset was processed
                 {
-                    let unhandled_assets = engine.run_pipelines(&linked_assets)?;
+                    let unhandled_assets = engine.run_pipelines(&html_assets)?;
                     for asset in &unhandled_assets {
                         error!(asset = ?asset, "missing asset");
                     }
