@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::{
     core::{Page, PageStore, RelSystemPath, Uri},
-    Result,
+    discover, util, Result,
 };
 use anyhow::anyhow;
 
@@ -25,14 +25,6 @@ impl Default for MarkdownRenderer {
     }
 }
 
-#[derive(Debug, Clone)]
-enum HrefType {
-    Offsite,
-    Absolute,
-    Relative(String),
-    InternalDoc(Uri),
-}
-
 fn render(page: &Page, page_store: &PageStore) -> Result<String> {
     use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag};
 
@@ -48,9 +40,10 @@ fn render(page: &Page, page_store: &PageStore) -> Result<String> {
     for event in parser {
         match event {
             Event::Start(Tag::Link(LinkType::Inline, href, title)) => {
-                match get_href_target(&href) {
+                use discover::UrlType;
+                match discover::get_url_type(&href) {
                     // internal doc links get converted into target Uri
-                    HrefType::InternalDoc(ref uri) => {
+                    UrlType::InternalDoc(ref uri) => {
                         let page = page_store.get(uri).ok_or_else(|| {
                             anyhow!(
                                 "unable to find internal link '{}' on page '{}'",
@@ -65,15 +58,15 @@ fn render(page: &Page, page_store: &PageStore) -> Result<String> {
                         )));
                     }
                     // no changes needed for absolute targets or offsite targets
-                    HrefType::Absolute | HrefType::Offsite => {
+                    UrlType::Absolute | UrlType::Offsite => {
                         events.push(Event::Start(Tag::Link(LinkType::Inline, href, title)));
                     }
                     // relative links need to get converted to absolute links
-                    HrefType::Relative(target) => {
-                        let target = build_absolute_target(&target, &page.src_path);
+                    UrlType::Relative(target) => {
+                        let target = util::rel_to_abs(&target, &page.src_path);
                         events.push(Event::Start(Tag::Link(
                             LinkType::Inline,
-                            CowStr::Boxed(target),
+                            CowStr::Boxed(target.into_boxed_str()),
                             title,
                         )));
                     }
@@ -88,31 +81,6 @@ fn render(page: &Page, page_store: &PageStore) -> Result<String> {
     Ok(buf)
 }
 
-fn build_absolute_target<S: AsRef<str>>(
-    relative_target: S,
-    from_page_path: &RelSystemPath,
-) -> Box<str> {
-    let mut abs_path = PathBuf::from("/");
-    abs_path.push(from_page_path.with_base("").to_path_buf().parent().unwrap());
-    abs_path.push(&relative_target.as_ref());
-    abs_path.to_string_lossy().to_string().into_boxed_str()
-}
-
-fn get_href_target<S: AsRef<str>>(href: S) -> HrefType {
-    use std::str::from_utf8;
-    match href.as_ref().as_bytes() {
-        // Internal doc: @/
-        [b'@', b'/', target @ ..] => {
-            HrefType::InternalDoc(Uri::from_path(from_utf8(target).unwrap()))
-        }
-        // Absolute: /
-        [b'/', ..] => HrefType::Absolute,
-        // Relative: ./
-        [b'.', b'/', target @ ..] => HrefType::Relative(from_utf8(target).unwrap().to_owned()),
-        [..] => HrefType::Offsite,
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::all)]
@@ -122,78 +90,7 @@ mod test {
     };
     use regex::Regex;
 
-    use super::{HrefType, MarkdownRenderer};
-
-    #[test]
-    fn builds_absolute_target() {
-        let rel_target = "some/resource.txt";
-        let page_path = RelSystemPath::new("src", "1/2/3.md");
-        let abs_target = super::build_absolute_target(rel_target, &page_path);
-        assert_eq!(&*abs_target, "/1/2/some/resource.txt");
-    }
-
-    #[test]
-    fn builds_absolute_target_when_at_root() {
-        let rel_target = "resource.txt";
-        let page_path = RelSystemPath::new("src", "page.md");
-        let abs_target = super::build_absolute_target(rel_target, &page_path);
-        assert_eq!(&*abs_target, "/resource.txt");
-    }
-
-    #[test]
-    fn get_href_target_identifies_internal_doc() {
-        let internal_link = "@/some/path/page.md";
-        let href = super::get_href_target(internal_link);
-        match href {
-            HrefType::InternalDoc(uri) => assert_eq!(uri, Uri::from_path("some/path/page.md")),
-            #[allow(unreachable_patterns)]
-            _ => panic!("wrong variant"),
-        }
-    }
-
-    #[test]
-    fn get_href_target_identifies_absolute_target() {
-        let abs_target = "/some/path/page.md";
-        let href = super::get_href_target(abs_target);
-        match href {
-            HrefType::Absolute => (),
-            #[allow(unreachable_patterns)]
-            _ => panic!("wrong variant"),
-        }
-    }
-
-    #[test]
-    fn get_href_target_identifies_relative_target() {
-        let rel_target = "./some/path/page.md";
-        let href = super::get_href_target(rel_target);
-        match href {
-            HrefType::Relative(target) => assert_eq!(target, "some/path/page.md"),
-            #[allow(unreachable_patterns)]
-            _ => panic!("wrong variant"),
-        }
-    }
-
-    #[test]
-    fn get_href_target_identifies_offsite_target() {
-        let offsite_target = "http://example.com";
-        let href = super::get_href_target(offsite_target);
-        match href {
-            HrefType::Offsite => (),
-            #[allow(unreachable_patterns)]
-            _ => panic!("wrong variant"),
-        }
-    }
-
-    #[test]
-    fn get_href_target_identifies_offsite_target_without_protocol() {
-        let offsite_target = "example.com";
-        let href = super::get_href_target(offsite_target);
-        match href {
-            HrefType::Offsite => (),
-            #[allow(unreachable_patterns)]
-            _ => panic!("wrong variant"),
-        }
-    }
+    use super::MarkdownRenderer;
 
     fn internal_doc_link_render(test_page: Page, linked_page: Page) -> String {
         let mut store = PageStore::new();

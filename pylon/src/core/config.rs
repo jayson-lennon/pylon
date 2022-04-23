@@ -22,4 +22,18 @@ impl EngineConfig {
             rule_script: rule_script.as_ref().to_path_buf(),
         }
     }
+
+    pub fn src_root(&self) -> &Path {
+        self.src_root.as_path()
+    }
+
+    pub fn target_root(&self) -> &Path {
+        self.target_root.as_path()
+    }
+    pub fn tempalte_root(&self) -> &Path {
+        self.template_root.as_path()
+    }
+    pub fn rule_script(&self) -> &Path {
+        self.rule_script.as_path()
+    }
 }
