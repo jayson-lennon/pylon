@@ -14,7 +14,7 @@ use crate::{
     core::config::EngineConfig,
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::{script_engine::ScriptEngineConfig, Page, PageStore},
+    core::{script_engine::ScriptEngineConfig, Page, PageStore, RelSystemPath},
     devserver::{DevServer, EngineBroker},
     discover::html_asset::{HtmlAsset, HtmlAssets},
     render::Renderers,
@@ -153,7 +153,7 @@ impl Engine {
         for asset in html_assets {
             // Ignore anchor links for now. Issue https://github.com/jayson-lennon/pylon/issues/75
             // to eventually make this work.
-            if asset.has_tag_name("a") {
+            if asset.tag() == "a" {
                 continue;
             }
 
@@ -183,7 +183,8 @@ impl Engine {
                     // asset has an associate pipeline, so we won't report an error
                     asset_has_pipeline = true;
 
-                    let relative_asset = &asset.uri().as_str()[1..];
+                    let asset_uri = &asset.uri();
+                    let relative_asset = &asset_uri.as_str()[1..];
                     // Make a new target in order to create directories for the asset.
                     let mut target_dir = PathBuf::from(&engine.config.target_root);
                     target_dir.push(relative_asset);
@@ -277,14 +278,13 @@ impl Engine {
     #[instrument(skip_all)]
     pub fn build_site(&self) -> Result<()> {
         use crate::core::page::lint::LintLevel;
-        use crate::core::page::render::rewrite_asset_targets;
 
         trace!("running build");
 
         let pages = self.page_store().iter().map(|(_, page)| page);
 
-        // check lints
         {
+            trace!("running lints");
             let lints = self.lint(pages.clone())?;
             let mut abort = false;
             for lint in lints {
@@ -303,29 +303,35 @@ impl Engine {
             }
         }
 
+        trace!("rendering pages");
         let mut rendered = self.render(pages)?;
-
-        trace!("rewriting asset links");
-        let assets = rewrite_asset_targets(rendered.as_mut_slice(), self.page_store())?;
 
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
 
-        // mount directories
+        trace!("processing mounts");
         self.process_mounts(self.rules().mounts())?;
 
-        let unhandled_assets = self.run_pipelines(&assets)?;
-        // check for missing assets in pages
         {
-            for asset in &unhandled_assets {
-                error!(asset = ?asset, "missing asset");
-            }
-            if !unhandled_assets.is_empty() {
-                return Err(anyhow::anyhow!("one or more assets are missing"));
+            trace!("locating HTML assets");
+            let html_assets = crate::discover::html_asset::find_all(&self.config.target_root)?;
+
+            trace!("running pipelines");
+            let unhandled_assets = self.run_pipelines(&html_assets)?;
+            // check for missing assets in pages
+            {
+                for asset in &unhandled_assets {
+                    error!(asset = ?asset, "missing asset");
+                }
+                if !unhandled_assets.is_empty() {
+                    return Err(anyhow::anyhow!("one or more assets are missing"));
+                }
             }
         }
-        // TODO: check for missing assets in CSS
-        {}
+
+        {
+            // TODO: check for missing assets in CSS
+        }
         Ok(())
     }
 
@@ -750,18 +756,19 @@ doc2"#;
         // located before running the pipeline.
         {
             let pages = engine.page_store().iter().map(|(_, page)| page);
-            let mut rendered = engine.render(pages).expect("failed to render");
-            let assets = crate::core::page::render::rewrite_asset_targets(
-                rendered.as_mut_slice(),
-                engine.page_store(),
-            )
-            .expect("failed to rewrite asset targets");
+            let rendered = engine.render(pages).expect("failed to render");
+
             engine
                 .process_mounts(engine.rules().mounts())
                 .expect("failed to process mounts");
+
+            let html_assets = crate::discover::html_asset::find_all(engine.config.target_root())
+                .expect("failed to discover html assets");
+
             let unhandled_assets = engine
-                .run_pipelines(&assets)
+                .run_pipelines(&html_assets)
                 .expect("failed to run pipelines");
+
             assert!(unhandled_assets.is_empty());
         }
     }
