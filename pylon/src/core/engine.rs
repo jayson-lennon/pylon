@@ -340,21 +340,29 @@ impl Engine {
         &self,
         bind: SocketAddr,
         debounce_ms: u64,
-        engine_config: &EngineConfig,
         engine_broker: EngineBroker,
     ) -> Result<DevServer> {
         use crate::devserver;
         use std::time::Duration;
 
+        let engine = self;
+
         trace!("starting devserver");
 
         // spawn filesystem monitoring thread
         {
-            let watch_dirs = vec![
-                &engine_config.template_root,
-                &engine_config.src_root,
-                &engine_config.rule_script,
-            ];
+            let watch_dirs = {
+                let mut dirs = vec![
+                    engine.config().template_root(),
+                    engine.config().src_root(),
+                    engine.config().rule_script(),
+                ];
+
+                #[allow(clippy::redundant_closure_for_method_calls)]
+                dirs.extend(engine.rules().mounts().map(|mount| mount.src()));
+                dirs
+            };
+
             devserver::fswatcher::start_watching(
                 &watch_dirs,
                 engine_broker.clone(),
@@ -362,7 +370,7 @@ impl Engine {
             )?;
         }
 
-        let devserver = DevServer::run(engine_broker, &engine_config.target_root, bind);
+        let devserver = DevServer::run(engine_broker, engine.config().target_root(), bind);
         Ok(devserver)
     }
 }

@@ -189,8 +189,7 @@ impl EngineBroker {
 
             // engine.process_mounts(engine.rules().mounts())?;
 
-            let _devserver =
-                engine.start_devserver(bind, debounce_ms, engine.config(), broker.clone())?;
+            let _devserver = engine.start_devserver(bind, debounce_ms, broker.clone())?;
 
             loop {
                 match broker.recv_engine_msg_sync() {

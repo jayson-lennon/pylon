@@ -30,7 +30,7 @@ impl EngineConfig {
     pub fn target_root(&self) -> &Path {
         self.target_root.as_path()
     }
-    pub fn tempalte_root(&self) -> &Path {
+    pub fn template_root(&self) -> &Path {
         self.template_root.as_path()
     }
     pub fn rule_script(&self) -> &Path {
