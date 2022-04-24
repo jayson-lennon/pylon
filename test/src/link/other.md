@@ -1,5 +1,0 @@
-+++
-+++
-other page
-
-[alt](alt)

@@ -856,13 +856,11 @@ doc2"#;
 
         let doc1 = r#"+++
             template_name = "empty.tera"
-            use_index = false
             +++
         "#;
 
         let doc2 = r#"+++
             template_name = "test.tera"
-            use_index = false
             [meta]
             author = "test"
             +++
@@ -917,13 +915,11 @@ doc2"#;
 
         let doc1 = r#"+++
             template_name = "empty.tera"
-            use_index = false
             +++
         "#;
 
         let doc2 = r#"+++
             template_name = "test.tera"
-            use_index = false
             [meta]
             author = "test"
             +++
