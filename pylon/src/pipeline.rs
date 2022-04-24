@@ -13,14 +13,6 @@ impl ShellCommand {
     pub fn new<T: AsRef<str>>(cmd: T) -> Self {
         Self(cmd.as_ref().to_string())
     }
-
-    pub fn has_input(&self) -> bool {
-        self.0.contains("$INPUT")
-    }
-
-    pub fn has_output(&self) -> bool {
-        self.0.contains("$OUTPUT")
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -95,48 +87,56 @@ impl Pipeline {
         let target_asset = target_asset.as_ref();
 
         let mut tmp_files = vec![];
-        let mut input_path = {
-            let mut buf = PathBuf::from(src_root);
-            buf.push(target_asset);
-            buf
-        };
 
-        let output_path = {
+        let target_path = {
             let mut buf = PathBuf::from(output_root);
             buf.push(target_asset);
             buf
         };
 
+        let src_path = {
+            let mut buf = PathBuf::from(src_root);
+            buf.push(target_asset);
+            buf
+        };
+
+        let mut scratch_path = {
+            let scratch_path = new_scratch_file("")?;
+            tmp_files.push(scratch_path.clone());
+            scratch_path
+        };
+
+        let mut autocopy = false;
+
         for op in &self.ops {
             let _span = info_span!("perform pipeline operation").entered();
             match op {
                 Operation::Copy => {
-                    trace!("copy: {:?} -> {:?}", input_path, output_path);
-                    std::fs::copy(&input_path, &output_path).with_context(||format!("Failed performing copy operation in pipeline. '{input_path:?}' -> '{output_path:?}'"))?;
+                    trace!("copy: {:?} -> {:?}", src_path, target_path);
+                    std::fs::copy(&src_path, &target_path).with_context(||format!("Failed performing copy operation in pipeline. '{src_path:?}' -> '{target_path:?}'"))?;
                 }
                 Operation::Shell(command) => {
                     trace!("shell command: {:?}", command);
-                    let artifact_path = {
-                        if command.has_output() {
-                            let tmp = crate::util::gen_temp_file()
-                                .with_context(|| {
-                                    "Failed to generate temp file for pipeline shell operation"
-                                        .to_string()
-                                })?
-                                .path()
-                                .to_path_buf();
-                            tmp_files.push(tmp.clone());
-                            tmp
-                        } else {
-                            output_path.clone()
-                        }
-                    };
+                    autocopy = true;
                     let command = {
                         command
                             .0
-                            .replace("$INPUT", input_path.to_string_lossy().as_ref())
-                            .replace("$OUTPUT", artifact_path.to_string_lossy().as_ref())
+                            .replace("$SOURCE", src_path.to_string_lossy().as_ref())
+                            .replace("$SCRATCH", scratch_path.to_string_lossy().as_ref())
+                            .replace("$TARGET", target_path.to_string_lossy().as_ref())
                     };
+
+                    if command.contains("$NEW_SCRATCH") {
+                        scratch_path = new_scratch_file(&std::fs::read_to_string(&scratch_path)?)
+                            .with_context(|| {
+                            "failed to create new scratch file for shell operation"
+                        })?;
+                        tmp_files.push(scratch_path.clone());
+                    }
+
+                    let command =
+                        command.replace("$NEW_SCRATCH", scratch_path.to_string_lossy().as_ref());
+
                     {
                         let output = std::process::Command::new("sh")
                             .arg("-c")
@@ -159,15 +159,28 @@ impl Pipeline {
                             return Err(anyhow!("pipeline processing failure"));
                         }
                     }
-                    input_path = artifact_path;
                 }
             }
         }
+        if autocopy {
+            std::fs::copy(&scratch_path, &target_path).with_context(||format!("Failed performing copy operation in pipeline. '{scratch_path:?}' -> '{target_path:?}'"))?;
+        }
 
-        clean_temp_files(&tmp_files)?;
+        clean_temp_files(&tmp_files).with_context(|| "failed to cleanup pipeline scratch files")?;
 
         Ok(())
     }
+}
+
+#[instrument(skip_all)]
+fn new_scratch_file(content: &str) -> Result<PathBuf> {
+    let tmp = crate::util::gen_temp_file()
+        .with_context(|| "Failed to generate temp file for pipeline shell operation".to_string())?
+        .path()
+        .to_path_buf();
+    std::fs::write(&tmp, content.as_bytes())
+        .with_context(|| "failed to write contents into scratch file")?;
+    Ok(tmp)
 }
 
 fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<()> {
@@ -243,12 +256,14 @@ mod test {
     }
 
     #[test]
-    fn multiple_ops() {
+    fn multiple_shell_ops() {
         let mut pipeline = Pipeline::new("*.txt").unwrap();
         pipeline.push_op(Operation::Shell(ShellCommand::new(
-            r#"sed 's/old/new/g' $INPUT > $OUTPUT"#,
+            r#"sed 's/old/new/g' $SOURCE > $NEW_SCRATCH"#,
         )));
-        pipeline.push_op(Operation::Copy);
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/new/hot/g' $SCRATCH > $NEW_SCRATCH"#,
+        )));
 
         let src_root = tempdir().unwrap();
         let output_root = tempdir().unwrap();
@@ -265,7 +280,38 @@ mod test {
         assert!(target_path.exists());
 
         let target_content = fs::read_to_string(target_path).unwrap();
-        assert_eq!(&target_content, "new");
+        assert_eq!(&target_content, "hot");
+    }
+
+    #[test]
+    fn multiple_shell_ops_with_new_scratches() {
+        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"cat $SOURCE > $NEW_SCRATCH"#,
+        )));
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"echo test >> $NEW_SCRATCH"#,
+        )));
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"echo test >> $NEW_SCRATCH"#,
+        )));
+
+        let src_root = tempdir().unwrap();
+        let output_root = tempdir().unwrap();
+        let target_asset = "test.txt";
+
+        let src_path = gen_file_path(src_root.path(), "test.txt");
+        fs::write(&src_path, b"initial").unwrap();
+
+        pipeline
+            .run(src_root.path(), output_root.path(), target_asset)
+            .unwrap();
+
+        let target_path = gen_file_path(output_root.path(), "test.txt");
+        assert!(target_path.exists());
+
+        let target_content = fs::read_to_string(target_path).unwrap();
+        assert_eq!(&target_content, "initialtest\ntest\n");
     }
 
     #[test]
@@ -288,18 +334,6 @@ mod test {
             Operation::Shell(_) => (),
             _ => panic!("wrong variant"),
         }
-    }
-
-    #[test]
-    fn shell_command_has_input() {
-        let cmd = ShellCommand::new("echo $INPUT");
-        assert!(cmd.has_input());
-    }
-
-    #[test]
-    fn shell_command_has_output() {
-        let cmd = ShellCommand::new("echo $OUTPUT");
-        assert!(cmd.has_output());
     }
 
     #[test]
