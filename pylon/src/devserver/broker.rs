@@ -51,7 +51,6 @@ pub struct FilesystemUpdateEvents {
 }
 
 impl FilesystemUpdateEvents {
-    #[must_use]
     pub fn new() -> Self {
         Self {
             changed: HashSet::new(),
@@ -245,17 +244,17 @@ mod handle_msg {
     use tracing::{error, instrument, trace};
 
     use crate::{
-        core::{engine::Engine, page::RenderedPage, Page, RelSystemPath, Uri},
+        core::{engine::Engine, page::RenderedPage, Page, SysPath, Uri},
         Result,
     };
 
     use super::FilesystemUpdateEvents;
 
     pub fn process_pipelines<S: AsRef<str>>(engine: &Engine, page_path: S) -> Result<()> {
-        let sys_path = RelSystemPath::new(
+        let sys_path = SysPath::new(
             &engine.config().target_root,
             &PathBuf::from(page_path.as_ref()),
-        );
+        )?;
         let raw_html = std::fs::read_to_string(sys_path.to_path_buf())?;
         let html_assets = crate::discover::html_asset::find(&sys_path, &raw_html)?;
 
@@ -300,9 +299,11 @@ mod handle_msg {
 
                 // asset discovery & pipeline processing
                 {
-                    let html_assets =
+                    let mut html_assets =
                         crate::discover::html_asset::find(&rendered.target, &rendered.html)
                             .with_context(|| "failed to discover HTML assets")?;
+                    html_assets.drop_offsite();
+
                     let unhandled_assets = engine
                         .run_pipelines(&html_assets)
                         .with_context(|| "failed to run pipelines")?;

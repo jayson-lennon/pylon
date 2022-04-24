@@ -1,6 +1,7 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::must_use_candidate)]
+#![allow(clippy::return_self_not_must_use)]
 #![allow(clippy::from_iter_instead_of_collect)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::single_match_else)]

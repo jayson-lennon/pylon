@@ -160,7 +160,6 @@ pub mod script {
             let pipeline = Pipeline::with_ops(target_glob, &parsed_ops).map_err(|e| {
                 EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
             })?;
-            dbg!(&pipeline);
             rules.add_pipeline(pipeline);
 
             dbg!("pipeline added");

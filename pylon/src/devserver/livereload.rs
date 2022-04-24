@@ -71,7 +71,6 @@ struct WsClient {
 }
 
 impl WsClient {
-    #[must_use]
     pub fn new(id: WsClientId) -> Self {
         let (tx, rx) = async_channel::unbounded();
         Self { id, tx, rx }
@@ -85,7 +84,6 @@ pub struct ClientBroker {
 }
 
 impl ClientBroker {
-    #[must_use]
     pub fn new(engine_broker: EngineBroker) -> Self {
         let client_broker = ClientBroker {
             clients: Arc::new(Mutex::new(DenseSlotMap::new())),

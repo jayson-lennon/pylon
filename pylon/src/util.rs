@@ -1,6 +1,6 @@
 use anyhow::Context;
 
-use crate::{core::RelSystemPath, Result};
+use crate::{core::SysPath, Result};
 use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 use tracing::{instrument, trace};
@@ -81,7 +81,7 @@ impl TryFrom<&str> for Glob {
     }
 }
 
-pub fn rel_to_abs<S: AsRef<str>>(relative_target: S, from_page_path: &RelSystemPath) -> String {
+pub fn rel_to_abs<S: AsRef<str>>(relative_target: S, from_page_path: &SysPath) -> String {
     let mut abs_path = PathBuf::from("/");
     abs_path.push(from_page_path.with_base("").to_path_buf().parent().unwrap());
     abs_path.push(&relative_target.as_ref());
@@ -96,7 +96,7 @@ mod test {
     #[test]
     fn rel_to_abs_deep() {
         let rel_target = "some/resource.txt";
-        let page_path = RelSystemPath::new("src", "1/2/3.md");
+        let page_path = SysPath::new("src", "1/2/3.md").unwrap();
         let abs_target = super::rel_to_abs(rel_target, &page_path);
         assert_eq!(&*abs_target, "/1/2/some/resource.txt");
     }
@@ -104,7 +104,7 @@ mod test {
     #[test]
     fn rel_to_abs_root() {
         let rel_target = "resource.txt";
-        let page_path = RelSystemPath::new("src", "page.md");
+        let page_path = SysPath::new("src", "page.md").unwrap();
         let abs_target = super::rel_to_abs(rel_target, &page_path);
         assert_eq!(&*abs_target, "/resource.txt");
     }
@@ -112,7 +112,7 @@ mod test {
     #[test]
     fn rel_to_abs_same_dir() {
         let rel_target = "resource.txt";
-        let page_path = RelSystemPath::new("src", "1/2/3/page.md");
+        let page_path = SysPath::new("src", "1/2/3/page.md").unwrap();
         let abs_target = super::rel_to_abs(rel_target, &page_path);
         assert_eq!(&*abs_target, "/1/2/3/resource.txt");
     }

@@ -3,25 +3,41 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::Result;
+use anyhow::anyhow;
 use serde::Serialize;
 
 /// Relative path to a resource on the system.
 #[derive(Clone, Debug, Default, Serialize, Hash, Eq, PartialEq)]
-pub struct RelSystemPath {
+pub struct SysPath {
     base: PathBuf,
     target: PathBuf,
 }
 
-impl RelSystemPath {
-    #[must_use]
-    pub fn new<P: Into<PathBuf> + std::fmt::Debug>(base: P, target: P) -> Self {
+impl SysPath {
+    pub fn new<B, T>(base: B, target: T) -> Result<Self>
+    where
+        B: Into<PathBuf> + std::fmt::Debug,
+        T: AsRef<Path> + std::fmt::Debug,
+    {
         let base = base.into();
-        let target = target.into();
-        debug_assert!(target.file_name().is_some());
-        Self { base, target }
+        let target = target.as_ref();
+
+        if target.file_name().is_none() {
+            return Err(anyhow!("target must have filename"));
+        }
+
+        let target = {
+            if target.has_root() {
+                target.strip_prefix(&base)?.to_path_buf()
+            } else {
+                target.to_path_buf()
+            }
+        };
+
+        Ok(Self { base, target })
     }
 
-    #[must_use]
     pub fn with_base<P: Into<PathBuf>>(&self, base: P) -> Self {
         let base = base.into();
         Self {
@@ -30,7 +46,6 @@ impl RelSystemPath {
         }
     }
 
-    #[must_use]
     pub fn with_extension<S: AsRef<str>>(&self, extension: S) -> Self {
         let extension: &str = extension.as_ref();
         let mut target = self.target.clone();
@@ -41,7 +56,6 @@ impl RelSystemPath {
         }
     }
 
-    #[must_use]
     pub fn with_file_name<S: AsRef<str>>(&self, name: S) -> Self {
         let name: &str = name.as_ref();
         let mut target = self.target.clone();
@@ -52,7 +66,6 @@ impl RelSystemPath {
         }
     }
 
-    #[must_use]
     pub fn add_parent<P: AsRef<Path>>(&self, parent: P) -> Self {
         let name = self.target.clone();
         let name = name.file_name().unwrap();
@@ -67,7 +80,6 @@ impl RelSystemPath {
         }
     }
 
-    #[must_use]
     pub fn remove_parent(&self) -> Self {
         let name = self.target.clone();
         let name = name.file_name().unwrap();
@@ -82,7 +94,6 @@ impl RelSystemPath {
         }
     }
 
-    #[must_use]
     pub fn with_file_stem<S: AsRef<Path>>(&self, stem: S) -> Self {
         let extension = self.target.clone();
         let extension = extension.extension().unwrap();
@@ -97,7 +108,6 @@ impl RelSystemPath {
         }
     }
 
-    #[must_use]
     pub fn pop(&self) -> Self {
         let mut target = self.target.clone();
         target.pop();
@@ -130,23 +140,23 @@ impl RelSystemPath {
     }
 }
 
-impl From<RelSystemPath> for PathBuf {
-    fn from(path: RelSystemPath) -> Self {
+impl From<SysPath> for PathBuf {
+    fn from(path: SysPath) -> Self {
         let mut new_path = path.base;
         new_path.push(path.target);
         new_path
     }
 }
 
-impl From<&RelSystemPath> for PathBuf {
-    fn from(path: &RelSystemPath) -> Self {
+impl From<&SysPath> for PathBuf {
+    fn from(path: &SysPath) -> Self {
         let mut new_path = path.base.clone();
         new_path.push(path.target.clone());
         new_path
     }
 }
 
-impl std::fmt::Display for RelSystemPath {
+impl std::fmt::Display for SysPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_path_buf().display())
     }
@@ -154,12 +164,12 @@ impl std::fmt::Display for RelSystemPath {
 
 #[cfg(test)]
 mod test {
-    use super::RelSystemPath;
+    use super::SysPath;
     use std::path::PathBuf;
 
     #[test]
     fn changes_base() {
-        let path = RelSystemPath::new("base", "target");
+        let path = SysPath::new("base", "target").unwrap();
         let updated = path.with_base("changed");
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("changed/target"));
@@ -167,7 +177,7 @@ mod test {
 
     #[test]
     fn changes_extension() {
-        let path = RelSystemPath::new("base", "target.ext");
+        let path = SysPath::new("base", "target.ext").unwrap();
         let updated = path.with_extension("new");
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("base/target.new"));
@@ -175,7 +185,7 @@ mod test {
 
     #[test]
     fn removes_extension() {
-        let path = RelSystemPath::new("base", "target.ext");
+        let path = SysPath::new("base", "target.ext").unwrap();
         let updated = path.with_extension("");
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("base/target"));
@@ -183,7 +193,7 @@ mod test {
 
     #[test]
     fn changes_file_name() {
-        let path = RelSystemPath::new("base", "original_file");
+        let path = SysPath::new("base", "original_file").unwrap();
         let updated = path.with_file_name("new_file");
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("base/new_file"));
@@ -191,7 +201,7 @@ mod test {
 
     #[test]
     fn removes_file_name() {
-        let path = RelSystemPath::new("base", "original_file");
+        let path = SysPath::new("base", "original_file").unwrap();
         let updated = path.with_file_name("");
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("base"));
@@ -199,7 +209,7 @@ mod test {
 
     #[test]
     fn changes_file_stem() {
-        let path = RelSystemPath::new("base", "original_file.ext");
+        let path = SysPath::new("base", "original_file.ext").unwrap();
         let updated = path.with_file_stem("new_file");
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("base/new_file.ext"));
@@ -207,7 +217,7 @@ mod test {
 
     #[test]
     fn adds_parent() {
-        let path = RelSystemPath::new("base", "a/b/file.test");
+        let path = SysPath::new("base", "a/b/file.test").unwrap();
         let updated = path.add_parent("t");
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("base/a/b/t/file.test"));
@@ -215,7 +225,7 @@ mod test {
 
     #[test]
     fn adding_blank_parent_is_noop() {
-        let path = RelSystemPath::new("base", "a/b/file.test");
+        let path = SysPath::new("base", "a/b/file.test").unwrap();
         let updated = path.add_parent("");
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("base/a/b/file.test"));
@@ -223,7 +233,7 @@ mod test {
 
     #[test]
     fn removes_parent() {
-        let path = RelSystemPath::new("base", "a/b/file.test");
+        let path = SysPath::new("base", "a/b/file.test").unwrap();
         let updated = path.remove_parent();
         let buf = PathBuf::from(updated);
         assert_eq!(buf, PathBuf::from("base/a/file.test"));
@@ -231,28 +241,28 @@ mod test {
 
     #[test]
     fn gets_file_name() {
-        let path = RelSystemPath::new("base", "a/b/file.ext");
+        let path = SysPath::new("base", "a/b/file.ext").unwrap();
         assert_eq!(path.file_name(), "file.ext");
     }
 
     #[test]
     fn gets_file_stem() {
-        let path = RelSystemPath::new("base", "a/b/file.ext");
+        let path = SysPath::new("base", "a/b/file.ext").unwrap();
         assert_eq!(path.file_stem(), "file");
     }
 
     #[test]
     fn display_impl() {
-        let path = RelSystemPath::new("base", "a/b/file");
+        let path = SysPath::new("base", "a/b/file").unwrap();
         assert_eq!(path.to_string(), "base/a/b/file");
 
-        let path = RelSystemPath::new("", "a/b/file");
+        let path = SysPath::new("", "a/b/file").unwrap();
         assert_eq!(path.to_string(), "a/b/file");
     }
 
     #[test]
     fn to_path_buf() {
-        let path = RelSystemPath::new("base", "a/b/file");
+        let path = SysPath::new("base", "a/b/file").unwrap();
         let buf = path.to_path_buf();
 
         assert_eq!(buf, PathBuf::from("base/a/b/file"));
@@ -260,7 +270,7 @@ mod test {
 
     #[test]
     fn from_rel_system_path_ref() {
-        let path = RelSystemPath::new("base", "a/b/file");
+        let path = SysPath::new("base", "a/b/file").unwrap();
         let buf = PathBuf::from(&path);
 
         assert_eq!(buf, PathBuf::from("base/a/b/file"));

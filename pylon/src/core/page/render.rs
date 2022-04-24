@@ -9,7 +9,7 @@ use crate::{
         engine::Engine,
         page::{ContextItem, PageKey},
         rules::{ContextKey, GlobStore, RuleProcessor},
-        Page, RelSystemPath,
+        Page, SysPath,
     },
     site_context::SiteContext,
     Result,
@@ -125,14 +125,14 @@ pub fn build_context(
 pub struct RenderedPage {
     pub page_key: PageKey,
     pub html: String,
-    pub target: RelSystemPath,
+    pub target: SysPath,
 }
 
 impl RenderedPage {
     pub fn new<S: Into<String> + std::fmt::Debug>(
         page_key: PageKey,
         html: S,
-        target: RelSystemPath,
+        target: SysPath,
     ) -> Self {
         Self {
             page_key,

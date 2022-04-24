@@ -37,7 +37,6 @@ impl PageStore {
         self.pages.get_mut(*page_key)
     }
 
-    #[must_use]
     #[instrument(skip_all, fields(page=%page.uri()))]
     pub fn update(&mut self, page: Page) -> PageKey {
         trace!("updating existing page");

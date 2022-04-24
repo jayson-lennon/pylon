@@ -18,7 +18,6 @@ pub struct Lint {
 }
 
 impl Lint {
-    #[must_use]
     pub fn new<S: Into<String>>(level: LintLevel, msg: S, lint_fn: rhai::FnPtr) -> Self {
         Self {
             level,
@@ -56,7 +55,6 @@ pub struct LintCollection {
 }
 
 impl LintCollection {
-    #[must_use]
     pub fn new() -> Self {
         Self {
             lints: SlotMap::with_key(),
@@ -105,7 +103,6 @@ pub struct LintResult {
 }
 
 impl LintResult {
-    #[must_use]
     pub fn new<S: Into<String>>(level: LintLevel, msg: S, page_uri: Uri) -> Self {
         Self {
             level,

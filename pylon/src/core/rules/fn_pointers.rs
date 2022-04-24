@@ -20,7 +20,6 @@ where
     K: slotmap::Key,
     T: Clone,
 {
-    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: SlotMap::with_key(),
