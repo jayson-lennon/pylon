@@ -4,7 +4,7 @@ use std::path::Path;
 
 use tracing::instrument;
 
-use crate::core::PageStore;
+
 use crate::core::{uri::Uri, SysPath};
 use crate::discover::UrlType;
 use crate::{discover, util, Result};
