@@ -1,4 +1,4 @@
-use crate::core::RelSystemPath;
+use crate::core::SysPath;
 use crate::core::Uri;
 use crate::render::template::TemplateName;
 use crate::Renderers;
@@ -17,8 +17,8 @@ use super::{PageKey, RawMarkdown};
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Page {
-    pub src_path: RelSystemPath,
-    pub target_path: RelSystemPath,
+    pub src_path: SysPath,
+    pub target_path: SysPath,
 
     pub raw_doc: String,
     pub page_key: PageKey,
@@ -48,7 +48,7 @@ impl Page {
             file_path
         };
 
-        let src_path = src_path(src_root, file_path);
+        let src_path = src_path(src_root, file_path)?;
 
         let mut file = std::fs::File::open(&PathBuf::from(&src_path))
             .with_context(|| format!("failed opening source file {}", src_path))?;
@@ -72,7 +72,7 @@ impl Page {
         let target_root = target_root.as_ref();
         let file_path = file_path.as_ref();
 
-        let src_path = src_path(src_root, file_path);
+        let src_path = src_path(src_root, file_path)?;
 
         let mut raw_doc = String::new();
         reader
@@ -115,11 +115,11 @@ impl Page {
         self.uri.clone()
     }
     #[instrument(ret)]
-    pub fn src_path(&self) -> RelSystemPath {
+    pub fn src_path(&self) -> SysPath {
         self.src_path.clone()
     }
     #[instrument(ret)]
-    pub fn target_path(&self) -> RelSystemPath {
+    pub fn target_path(&self) -> SysPath {
         self.target_path.clone()
     }
 
@@ -134,8 +134,8 @@ impl Page {
     }
 }
 
-fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> RelSystemPath {
-    RelSystemPath::new(src_root.as_ref(), file_path.as_ref())
+fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> Result<SysPath> {
+    SysPath::new(src_root.as_ref(), file_path.as_ref())
 }
 
 fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
@@ -150,11 +150,7 @@ fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
     Ok((frontmatter, raw_markdown))
 }
 
-fn target_path<P: AsRef<Path>>(
-    src_path: &RelSystemPath,
-    target_root: P,
-    use_index: bool,
-) -> RelSystemPath {
+fn target_path<P: AsRef<Path>>(src_path: &SysPath, target_root: P, use_index: bool) -> SysPath {
     let target = src_path.with_base(target_root.as_ref());
     if use_index && src_path.file_stem() != "index" {
         target
@@ -165,7 +161,7 @@ fn target_path<P: AsRef<Path>>(
     }
 }
 
-fn uri(target_path: &RelSystemPath, _use_index: bool) -> Uri {
+fn uri(target_path: &SysPath, _use_index: bool) -> Uri {
     let target = target_path.target();
     if target_path.file_stem() == "index" {
         debug_assert!(target.parent().is_some());
@@ -176,10 +172,7 @@ fn uri(target_path: &RelSystemPath, _use_index: bool) -> Uri {
 }
 
 #[instrument(skip_all, fields(page=%src_path.to_string()))]
-fn get_template_name(
-    template_names: &HashSet<&str>,
-    src_path: &RelSystemPath,
-) -> Result<TemplateName> {
+fn get_template_name(template_names: &HashSet<&str>, src_path: &SysPath) -> Result<TemplateName> {
     let _span = trace_span!("no template specified").entered();
     match get_default_template_name(template_names, src_path.clone()) {
         Some(template) => Ok(template),
@@ -195,7 +188,7 @@ fn get_template_name(
 #[instrument(ret)]
 fn get_default_template_name(
     default_template_names: &HashSet<&str>,
-    rel_system_path: RelSystemPath,
+    rel_system_path: SysPath,
 ) -> Option<TemplateName> {
     // This function chomps the page path until no more components are remaining.
     let mut ancestors = rel_system_path.target().ancestors();
@@ -243,7 +236,7 @@ pub mod test {
     use std::io;
 
     use crate::{
-        core::{RelSystemPath, Uri},
+        core::{SysPath, Uri},
         render::template::TemplateName,
         Renderers, Result,
     };
@@ -371,12 +364,12 @@ pub mod test {
 
         assert_eq!(
             page.src_path(),
-            RelSystemPath::new("src_root", "sample/stem.ext")
+            SysPath::new("src_root", "sample/stem.ext").unwrap()
         );
 
         assert_eq!(
             page.target_path(),
-            RelSystemPath::new("target_root", "sample/stem/index.html")
+            SysPath::new("target_root", "sample/stem/index.html").unwrap()
         );
 
         assert_eq!(page.uri(), Uri::new("/sample/stem").unwrap());
@@ -408,7 +401,7 @@ use_index = false
         let page = page_from_doc(doc).unwrap();
         assert_eq!(
             page.target_path(),
-            RelSystemPath::new("target_root", "sample/stem.html")
+            SysPath::new("target_root", "sample/stem.html").unwrap()
         );
     }
 

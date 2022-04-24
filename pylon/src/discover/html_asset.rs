@@ -4,7 +4,8 @@ use std::path::Path;
 
 use tracing::instrument;
 
-use crate::core::{uri::Uri, RelSystemPath};
+use crate::core::PageStore;
+use crate::core::{uri::Uri, SysPath};
 use crate::discover::UrlType;
 use crate::{discover, util, Result};
 
@@ -12,13 +13,15 @@ use crate::{discover, util, Result};
 pub struct HtmlAsset {
     target: String,
     tag: String,
+    url_type: UrlType,
 }
 
 impl HtmlAsset {
-    pub fn new<S: Into<String>>(target: S, tag: S) -> Self {
+    pub fn new<S: Into<String>>(target: S, tag: S, url_type: &UrlType) -> Self {
         Self {
             target: target.into(),
             tag: tag.into(),
+            url_type: url_type.clone(),
         }
     }
 
@@ -32,6 +35,10 @@ impl HtmlAsset {
 
     pub fn uri(&self) -> Uri {
         Uri::from_path(&self.target)
+    }
+
+    pub fn url_type(&self) -> &UrlType {
+        &self.url_type
     }
 }
 
@@ -64,6 +71,15 @@ impl HtmlAssets {
 
     pub fn insert(&mut self, asset: HtmlAsset) {
         self.inner.insert(asset);
+    }
+
+    pub fn drop_offsite(&mut self) {
+        let assets = self.inner.drain().collect::<HashSet<_>>();
+        for asset in assets {
+            if asset.url_type != UrlType::Offsite {
+                self.inner.insert(asset);
+            }
+        }
     }
 }
 
@@ -100,7 +116,7 @@ pub fn find_all<P: AsRef<Path>>(root: P) -> Result<HtmlAssets> {
 
     for path in html_paths {
         let raw_html = std::fs::read_to_string(&path)?;
-        let assets = find(&RelSystemPath::new(root, path.as_path()), &raw_html)?;
+        let assets = find(&SysPath::new(root, path.as_path())?, &raw_html)?;
         all_assets.extend(assets);
     }
 
@@ -109,7 +125,7 @@ pub fn find_all<P: AsRef<Path>>(root: P) -> Result<HtmlAssets> {
 
 #[instrument(skip(html))]
 /// This function rewrites the asset location if applicable
-pub fn find<S: AsRef<str>>(page_path: &RelSystemPath, html: S) -> Result<HtmlAssets> {
+pub fn find<S: AsRef<str>>(page_path: &SysPath, html: S) -> Result<HtmlAssets> {
     use scraper::{Html, Selector};
 
     let selectors = [
@@ -138,9 +154,13 @@ pub fn find<S: AsRef<str>>(page_path: &RelSystemPath, html: S) -> Result<HtmlAss
             if let Some(url) = el.value().attr(attr) {
                 dbg!(&url);
                 match discover::get_url_type(url) {
-                    UrlType::Absolute | UrlType::Offsite => {
+                    UrlType::Absolute => {
                         dbg!("absolute");
-                        assets.insert(HtmlAsset::new(url, tag));
+                        assets.insert(HtmlAsset::new(url, tag, &UrlType::Absolute));
+                    }
+                    UrlType::Offsite => {
+                        dbg!("offsiet");
+                        assets.insert(HtmlAsset::new(url, tag, &UrlType::Offsite));
                     }
                     // relative links need to get converted to absolute links
                     UrlType::Relative(target) => {
@@ -148,7 +168,11 @@ pub fn find<S: AsRef<str>>(page_path: &RelSystemPath, html: S) -> Result<HtmlAss
                         dbg!(&target);
                         dbg!(&page_path);
                         let target = util::rel_to_abs(&target, page_path);
-                        assets.insert(HtmlAsset::new(target, tag.to_string()));
+                        assets.insert(HtmlAsset::new(
+                            target.clone(),
+                            tag.to_string(),
+                            &UrlType::Relative(target),
+                        ));
                     }
                     UrlType::InternalDoc(_) => panic!(
                         "encountered internal doc link while discovering assets. this is a bug"
@@ -162,7 +186,7 @@ pub fn find<S: AsRef<str>>(page_path: &RelSystemPath, html: S) -> Result<HtmlAss
 
 #[cfg(test)]
 mod test {
-    use crate::core::RelSystemPath;
+    use crate::core::SysPath;
 
     macro_rules! pair {
         ($tagname:literal, $tagsrc:literal, $target:ident) => {
@@ -190,8 +214,8 @@ mod test {
 
     #[test]
     fn finds_assets_with_relative_path() {
-        let path = RelSystemPath::new("test", "file_path/is/index.html");
-        let html = tags("./test.png");
+        let path = SysPath::new("test", "file_path/is/index.html").unwrap();
+        let html = tags("test.png");
         for (tagname, entry) in html {
             let assets = super::find(&path, &entry).unwrap();
             dbg!(&assets);
@@ -203,7 +227,7 @@ mod test {
 
     #[test]
     fn finds_assets_with_absolute_path() {
-        let path = RelSystemPath::new("test", "file_path/is/index.html");
+        let path = SysPath::new("test", "file_path/is/index.html").unwrap();
         let html = tags("/test.png");
         for (tagname, entry) in html {
             let assets = super::find(&path, &entry).unwrap();

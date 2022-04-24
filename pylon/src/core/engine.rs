@@ -15,7 +15,10 @@ use crate::{
     core::script_engine::ScriptEngine,
     core::{script_engine::ScriptEngineConfig, Page, PageStore},
     devserver::{DevServer, EngineBroker},
-    discover::html_asset::{HtmlAsset, HtmlAssets},
+    discover::{
+        html_asset::{HtmlAsset, HtmlAssets},
+        UrlType,
+    },
     render::Renderers,
     util, Result,
 };
@@ -161,15 +164,21 @@ impl Engine {
                 // as exists on the system.
 
                 // start with the `target root`
-                let mut target_sys_path = PathBuf::from(&self.config().target_root);
-
-                // drop the leading `/` from the Uri
-                let relative_uri = PathBuf::from(&asset.uri().as_str()[1..]);
-                target_sys_path.push(relative_uri);
-
-                // If the asset already exists, then we just skip processing.
-                if target_sys_path.exists() {
-                    continue;
+                match asset.url_type() {
+                    UrlType::Relative(abs) => {
+                        let target = PathBuf::from(&abs[1..]);
+                        if target.exists() {
+                            continue;
+                        }
+                    }
+                    _ => {
+                        let mut target_sys_path = PathBuf::from(&self.config().target_root);
+                        let relative_uri = PathBuf::from(&asset.uri().as_str()[1..]);
+                        target_sys_path.push(relative_uri);
+                        if target_sys_path.exists() {
+                            continue;
+                        }
+                    }
                 }
             }
 
@@ -188,6 +197,7 @@ impl Engine {
                     target_dir.push(relative_asset);
                     let target_dir = target_dir.parent().expect("should have parent directory");
                     util::make_parent_dirs(target_dir)?;
+                    dbg!(&target_dir);
                     pipeline.run(
                         &engine.config.src_root,
                         &engine.config.target_root,
@@ -311,14 +321,16 @@ impl Engine {
 
         {
             trace!("locating HTML assets");
-            let html_assets = crate::discover::html_asset::find_all(&self.config.target_root)?;
+            let mut html_assets = crate::discover::html_asset::find_all(&self.config.target_root)?;
+            html_assets.drop_offsite();
+            dbg!(&html_assets);
 
             trace!("running pipelines");
             let unhandled_assets = self.run_pipelines(&html_assets)?;
             // check for missing assets in pages
             {
                 for asset in &unhandled_assets {
-                    error!(asset = ?asset, "missing asset");
+                    error!(asset = ?asset, "missing asset or no pipeline defined");
                 }
                 if !unhandled_assets.is_empty() {
                     return Err(anyhow::anyhow!("one or more assets are missing"));
@@ -674,7 +686,7 @@ doc2"#;
 
         let engine = Engine::new(config).unwrap();
 
-        assert!(engine.build_site().is_ok());
+        engine.build_site().expect("failed to build site");
     }
 
     #[test]
@@ -878,7 +890,7 @@ doc2"#;
         );
 
         let engine = Engine::new(config).unwrap();
-        assert!(engine.build_site().is_ok());
+        engine.build_site().expect("failed to build site");
 
         let mut target_doc1 = tree.path().join("target");
         target_doc1.push("doc1.html");

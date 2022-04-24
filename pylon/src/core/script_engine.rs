@@ -28,7 +28,6 @@ pub struct ScriptEngineConfig {
 }
 
 impl ScriptEngineConfig {
-    #[must_use]
     pub fn new() -> Self {
         Self {
             package: CmsPackage::new(),
@@ -53,7 +52,6 @@ pub struct ScriptEngine {
 }
 
 impl ScriptEngine {
-    #[must_use]
     pub fn new(packages: &[rhai::Shared<Module>]) -> Self {
         let engine = Self::new_engine(packages);
 

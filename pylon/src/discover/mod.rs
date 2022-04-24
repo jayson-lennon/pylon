@@ -26,7 +26,7 @@ pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Resu
     Ok(paths)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UrlType {
     Offsite,
     Absolute,
@@ -44,8 +44,9 @@ pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
         // Absolute: /
         [b'/', ..] => UrlType::Absolute,
         // Relative: ./
-        [b'.', b'/', target @ ..] => UrlType::Relative(from_utf8(target).unwrap().to_owned()),
-        [..] => UrlType::Offsite,
+        [b'h', b't', b't', b'p', b':', b'/', b'/', ..] => UrlType::Offsite,
+        [b'h', b't', b't', b'p', b's', b':', b'/', b'/', ..] => UrlType::Offsite,
+        [target @ ..] => UrlType::Relative(from_utf8(target).unwrap().to_owned()),
     }
 }
 
@@ -77,7 +78,7 @@ mod test {
 
     #[test]
     fn get_link_target_identifies_relative_target() {
-        let rel_target = "./some/path/page.md";
+        let rel_target = "some/path/page.md";
         let link = super::get_url_type(rel_target);
         match link {
             UrlType::Relative(target) => assert_eq!(target, "some/path/page.md"),
@@ -89,17 +90,6 @@ mod test {
     #[test]
     fn get_link_target_identifies_offsite_target() {
         let offsite_target = "http://example.com";
-        let link = super::get_url_type(offsite_target);
-        match link {
-            UrlType::Offsite => (),
-            #[allow(unreachable_patterns)]
-            _ => panic!("wrong variant"),
-        }
-    }
-
-    #[test]
-    fn get_link_target_identifies_offsite_target_without_protocol() {
-        let offsite_target = "example.com";
         let link = super::get_url_type(offsite_target);
         match link {
             UrlType::Offsite => (),
