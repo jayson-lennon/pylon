@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+
 use itertools::Itertools;
 use std::{
     collections::HashSet,
@@ -14,7 +14,7 @@ use crate::{
     core::config::EngineConfig,
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::{script_engine::ScriptEngineConfig, Page, PageStore, RelSystemPath},
+    core::{script_engine::ScriptEngineConfig, Page, PageStore},
     devserver::{DevServer, EngineBroker},
     discover::html_asset::{HtmlAsset, HtmlAssets},
     render::Renderers,
@@ -24,7 +24,6 @@ use crate::{
 use super::{
     page::{lint::LintResults, LintResult, RenderedPage, RenderedPageCollection},
     rules::Mount,
-    Uri,
 };
 
 #[derive(Debug)]
@@ -304,7 +303,7 @@ impl Engine {
         }
 
         trace!("rendering pages");
-        let mut rendered = self.render(pages)?;
+        let rendered = self.render(pages)?;
 
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;

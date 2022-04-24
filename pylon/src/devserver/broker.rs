@@ -6,7 +6,7 @@ use std::{collections::HashSet, path::PathBuf};
 use crate::core::config::EngineConfig;
 use crate::core::engine::Engine;
 use crate::core::page::RenderedPage;
-use crate::core::{RelSystemPath, Uri};
+use crate::core::{Uri};
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
 use crate::Result;
 use tokio::runtime::Handle;

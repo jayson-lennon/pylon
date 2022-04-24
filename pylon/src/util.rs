@@ -1,6 +1,6 @@
 use anyhow::Context;
 
-use crate::{core::RelSystemPath, discover, Result};
+use crate::{core::RelSystemPath, Result};
 use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 use tracing::{instrument, trace};

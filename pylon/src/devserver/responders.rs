@@ -1,5 +1,5 @@
 use crate::core::page::RenderedPage;
-use crate::core::{RelSystemPath, Uri};
+use crate::core::Uri;
 use crate::{AsStdError, Result};
 use poem::http::StatusCode;
 use poem::{
@@ -148,7 +148,7 @@ pub fn serve_rendered_file<S: AsRef<str>>(html: S) -> Response {
 pub async fn run_pipelines<S: Into<String>>(broker: &EngineBroker, path: S) -> Result<()> {
     use crate::devserver::broker::EngineMsg;
     use crate::devserver::broker::EngineRequest;
-    let (send, recv) = EngineRequest::new(path.into());
+    let (send, _recv) = EngineRequest::new(path.into());
     broker
         .send_engine_msg(EngineMsg::ProcessPipelines(send))
         .await?;
@@ -176,6 +176,9 @@ pub async fn handle(
             .map_err(|e| poem::error::InternalServerError(AsStdError(e)))?;
         Ok(res)
     } else {
-        panic!()
+        Ok(Response::builder()
+            .content_type(mime::TEXT_HTML_UTF_8)
+            .status(StatusCode::NOT_FOUND)
+            .body(page_not_found()))
     }
 }

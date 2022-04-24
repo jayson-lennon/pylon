@@ -4,7 +4,7 @@ use std::path::Path;
 
 use tracing::instrument;
 
-use crate::core::{page::RenderedPage, uri::Uri, RelSystemPath};
+use crate::core::{uri::Uri, RelSystemPath};
 use crate::discover::UrlType;
 use crate::{discover, util, Result};
 

@@ -5,7 +5,7 @@ use crate::Renderers;
 use crate::Result;
 use anyhow::{anyhow, Context};
 use serde::Serialize;
-use std::ffi::OsStr;
+
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},

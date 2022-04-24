@@ -84,6 +84,6 @@ pub fn find_css_assets<P: AsRef<Path>>(path: P) -> Result<CssAssets> {
     Ok(CssAssets { inner: all_assets })
 }
 
-fn find_assets(sheet: StyleSheet) -> Result<HashSet<CssAsset>> {
+fn find_assets(_sheet: StyleSheet) -> Result<HashSet<CssAsset>> {
     todo!();
 }
