@@ -41,7 +41,7 @@ impl PageStore {
     pub fn update(&mut self, page: Page) -> PageKey {
         trace!("updating existing page");
 
-        let (mut old_search_keys, mut new_search_keys) = (vec![], vec![]);
+        let (old_search_keys, new_search_keys) = (vec![], vec![]);
 
         let page_key = match self.get_mut(&page.uri()) {
             Some(old) => {
