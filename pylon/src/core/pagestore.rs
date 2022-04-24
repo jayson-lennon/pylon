@@ -48,13 +48,6 @@ impl PageStore {
                 let mut page = page;
                 page.page_key = old.page_key;
 
-                // `use_index` causes the path of the documents to change, so
-                // we need to update the search keys when it differs.
-                if old.frontmatter.use_index != page.frontmatter.use_index {
-                    old_search_keys = build_search_keys(old);
-                    new_search_keys = build_search_keys(&page);
-                }
-
                 *old = page;
                 old.page_key
             }
@@ -133,18 +126,12 @@ impl<'a> IntoIterator for &'a PageStore {
 }
 
 fn build_search_keys(page: &Page) -> Vec<Uri> {
-    let mut search_keys = vec![
+    let search_keys = vec![
         page.uri(),
         Uri::from_path(&page.uri().as_str().replace(".html", ".md")),
     ];
 
-    if page.frontmatter.use_index {
-        let path = page.src_path();
-        let uri_md = Uri::from_path(path.target());
-        let uri_html = Uri::from_path(uri_md.as_str().replace(".md", ".html"));
-        search_keys.push(uri_md);
-        search_keys.push(uri_html);
-    }
+    dbg!(&search_keys);
 
     search_keys
 }
@@ -183,24 +170,15 @@ pub mod script {
 mod test {
 
     use super::PageStore;
-    use crate::core::{page::page::test as page_test, Uri};
+    use crate::core::{
+        page::page::test::{doc::MINIMAL, new_page},
+        Uri,
+    };
 
     #[test]
     fn inserts_and_queries_pages() {
-        let page1 = page_test::page_from_doc_with_paths(
-            page_test::doc::MINIMAL,
-            "src",
-            "tgt",
-            "path/1/page.md",
-        )
-        .unwrap();
-        let page2 = page_test::page_from_doc_with_paths(
-            page_test::doc::MINIMAL,
-            "src",
-            "tgt",
-            "path/2/page.md",
-        )
-        .unwrap();
+        let page1 = new_page(MINIMAL, "path/1/page.md", "src", "target").unwrap();
+        let page2 = new_page(MINIMAL, "path/2/page.md", "src", "target").unwrap();
 
         let mut store = PageStore::new();
         let key1 = store.insert(page1);
@@ -216,44 +194,8 @@ mod test {
     }
 
     #[test]
-    fn builds_search_key_when_using_index_target() {
-        let page = page_test::page_from_doc_with_paths(
-            page_test::doc::MINIMAL,
-            "src",
-            "tgt",
-            "path/1/page.md",
-        )
-        .unwrap();
-
-        let mut store = PageStore::new();
-        let key = store.insert(page);
-
-        assert!(store.get_with_key(key).is_some());
-
-        let page = store.get(&Uri::from_path("/path/1/page")).unwrap();
-        assert_eq!(page.page_key, key);
-
-        let page = store.get(&Uri::from_path("/path/1/page.md")).unwrap();
-        assert_eq!(page.page_key, key);
-
-        let page = store.get(&Uri::from_path("/path/1/page.html")).unwrap();
-        assert_eq!(page.page_key, key);
-    }
-
-    #[test]
-    fn builds_search_key_when_using_direct_target() {
-        let page = page_test::page_from_doc_with_paths(
-            r#"
-            +++
-            use_index = false
-            title = "test"
-            template_name = "test"
-            +++"#,
-            "src",
-            "tgt",
-            "path/1/page.md",
-        )
-        .unwrap();
+    fn builds_search_key() {
+        let page = new_page(MINIMAL, "path/1/page.md", "src", "target").unwrap();
 
         let mut store = PageStore::new();
         let key = store.insert(page);
@@ -265,51 +207,5 @@ mod test {
 
         let page = store.get(&Uri::from_path("/path/1/page.html")).unwrap();
         assert_eq!(page.page_key, key);
-
-        assert!(store
-            .get(&Uri::from_path("/path/1/page/index.html"))
-            .is_none());
-        assert!(store
-            .get(&Uri::from_path("/path/1/page/index.md"))
-            .is_none());
-    }
-
-    #[test]
-    fn updates_search_keys_when_useindex_changes() {
-        let before = page_test::page_from_doc_with_paths(
-            r#"+++
-            use_index = true
-            template_name = "empty.tera"
-            +++"#,
-            "src",
-            "tgt",
-            "path/1/page.md",
-        )
-        .unwrap();
-        let after = page_test::page_from_doc_with_paths(
-            r#"+++
-            use_index = false
-            template_name = "empty.tera"
-            +++"#,
-            "src",
-            "tgt",
-            "path/1/page.md",
-        )
-        .unwrap();
-
-        let mut store = PageStore::new();
-        let key_before = store.insert(before);
-
-        assert!(store.get(&Uri::from_path("/path/1/page.md")).is_some());
-        assert!(store.get(&Uri::from_path("/path/1/page.html")).is_some());
-        assert!(store.get(&Uri::from_path("/path/1/page")).is_some());
-
-        let key_after = store.update(after);
-
-        assert_eq!(key_before, key_after);
-
-        assert!(store.get(&Uri::from_path("/path/1/page.md")).is_some());
-        assert!(store.get(&Uri::from_path("/path/1/page.html")).is_some());
-        assert!(store.get(&Uri::from_path("/path/1/page")).is_none());
     }
 }

@@ -239,12 +239,15 @@ mod test {
         );
         let engine = Engine::new(config).unwrap();
 
-        let page = engine.page_store().get(&Uri::from_path("/test")).unwrap();
+        let page = engine
+            .page_store()
+            .get(&Uri::from_path("/test.md"))
+            .unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
         assert_eq!(lints[0].msg, "Missing author");
-        assert_eq!(lints[0].page_uri, Uri::from_path("/test"));
+        assert_eq!(lints[0].page_uri, Uri::from_path("/test.html"));
     }
 
     #[test]
@@ -282,16 +285,19 @@ mod test {
         );
         let engine = Engine::new(config).unwrap();
 
-        let page = engine.page_store().get(&Uri::from_path("/test")).unwrap();
+        let page = engine
+            .page_store()
+            .get(&Uri::from_path("/test.md"))
+            .unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
         assert_eq!(lints[0].msg, "Missing author");
-        assert_eq!(lints[0].page_uri, Uri::from_path("/test"));
+        assert_eq!(lints[0].page_uri, Uri::from_path("/test.html"));
 
         assert_eq!(lints[1].level, LintLevel::Warn);
         assert_eq!(lints[1].msg, "Missing publish date");
-        assert_eq!(lints[1].page_uri, Uri::from_path("/test"));
+        assert_eq!(lints[1].page_uri, Uri::from_path("/test.html"));
     }
 
     #[test]

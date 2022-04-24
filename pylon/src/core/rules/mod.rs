@@ -279,7 +279,6 @@ pub mod script {
 
                     let doc1 = r#"+++
             template_name = "empty.tera"
-            use_index = false
             +++
         "#;
 
@@ -348,7 +347,6 @@ mod test {
 
         let doc1 = r#"+++
             template_name = "empty.tera"
-            use_index = false
             +++
         "#;
 

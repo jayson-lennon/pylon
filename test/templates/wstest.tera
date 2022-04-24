@@ -1,8 +1,0 @@
-{% extends "index.tera" %}
-
-{% block body %}
-<h3>web socket test page</h3>
-
-{{ content | safe }}
-
-{% endblock body %}

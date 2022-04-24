@@ -1,5 +1,3 @@
-
-
 use crate::{
     core::{Page, PageStore},
     discover, util, Result,
@@ -85,9 +83,7 @@ fn render(page: &Page, page_store: &PageStore) -> Result<String> {
 mod test {
     #![allow(clippy::all)]
 
-    use crate::core::{
-        page::page::test::page_from_doc_with_paths, Page, PageStore,
-    };
+    use crate::core::{page::page::test::new_page, Page, PageStore};
     use regex::Regex;
 
     use super::MarkdownRenderer;
@@ -118,86 +114,25 @@ mod test {
     }
 
     #[test]
-    fn internal_doc_link_use_index() {
-        let test_page = page_from_doc_with_paths(
+    fn internal_doc_link() {
+        let test_page = new_page(
             r#"+++
             template_name = "content_only.tera"
             +++
             [internal link](@/test/doc.md)"#,
+            "test/test.md",
             "src",
             "target",
-            "test/test.md",
         )
         .unwrap();
 
-        let linked_page = page_from_doc_with_paths(
+        let linked_page = new_page(
             r#"+++
-            use_index = true
             template_name = "empty.tera"
             +++"#,
-            "src",
-            "target",
             "test/doc.md",
-        )
-        .unwrap();
-
-        let rendered = internal_doc_link_render(test_page, linked_page);
-        let href = get_href_attr(&rendered);
-
-        assert_eq!(href, "/test/doc");
-    }
-
-    #[test]
-    fn internal_doc_link_use_index_root() {
-        let test_page = page_from_doc_with_paths(
-            r#"+++
-            template_name = "content_only.tera"
-            +++
-            [internal link](@/doc.md)"#,
             "src",
             "target",
-            "test/test.md",
-        )
-        .unwrap();
-
-        let linked_page = page_from_doc_with_paths(
-            r#"+++
-            use_index = true
-            template_name = "empty.tera"
-            +++"#,
-            "src",
-            "target",
-            "doc.md",
-        )
-        .unwrap();
-
-        let rendered = internal_doc_link_render(test_page, linked_page);
-        let href = get_href_attr(&rendered);
-
-        assert_eq!(href, "/doc");
-    }
-
-    #[test]
-    fn internal_doc_link_no_index() {
-        let test_page = page_from_doc_with_paths(
-            r#"+++
-            template_name = "content_only.tera"
-            +++
-            [internal link](@/test/doc.md)"#,
-            "src",
-            "target",
-            "test/test.md",
-        )
-        .unwrap();
-
-        let linked_page = page_from_doc_with_paths(
-            r#"+++
-            use_index = false
-            template_name = "empty.tera"
-            +++"#,
-            "src",
-            "target",
-            "test/doc.md",
         )
         .unwrap();
 
@@ -208,26 +143,25 @@ mod test {
     }
 
     #[test]
-    fn internal_doc_link_no_index_root() {
-        let test_page = page_from_doc_with_paths(
+    fn internal_doc_link_at_root() {
+        let test_page = new_page(
             r#"+++
             template_name = "content_only.tera"
             +++
             [internal link](@/doc.md)"#,
+            "test/test.md",
             "src",
             "target",
-            "test/test.md",
         )
         .unwrap();
 
-        let linked_page = page_from_doc_with_paths(
+        let linked_page = new_page(
             r#"+++
-            use_index = false
             template_name = "empty.tera"
             +++"#,
+            "doc.md",
             "src",
             "target",
-            "doc.md",
         )
         .unwrap();
 

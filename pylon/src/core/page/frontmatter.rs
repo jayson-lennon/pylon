@@ -5,17 +5,10 @@ pub use script::rhai_module;
 
 use crate::render::template::TemplateName;
 
-fn default_true() -> bool {
-    true
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct FrontMatter {
     pub template_name: Option<TemplateName>,
-
-    #[serde(default = "default_true")]
-    pub use_index: bool,
 
     pub meta: HashMap<String, serde_json::Value>,
 }
@@ -36,11 +29,6 @@ pub mod script {
                 .template_name
                 .clone()
                 .map_or_else(|| "".into(), TemplateName::into_string)
-        }
-
-        #[rhai_fn(get = "use_index")]
-        pub fn use_index(frontmatter: &mut FrontMatter) -> bool {
-            frontmatter.use_index
         }
 
         /// Returns all attached metadata.
@@ -87,17 +75,6 @@ pub mod script {
 
             let name = rhai_module::template_name(&mut frontmatter);
             assert_eq!(name.as_str(), "");
-        }
-
-        #[test]
-        fn get_use_index() {
-            let mut frontmatter = FrontMatter {
-                use_index: true,
-                ..FrontMatter::default()
-            };
-
-            let use_index = rhai_module::use_index(&mut frontmatter);
-            assert!(use_index);
         }
 
         #[test]

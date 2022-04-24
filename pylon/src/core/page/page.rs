@@ -82,9 +82,9 @@ impl Page {
         let (mut frontmatter, raw_markdown) = split_raw_doc(&raw_doc)
             .with_context(|| format!("failed parsing raw document for {}", src_path))?;
 
-        let target_path = target_path(&src_path, target_root, frontmatter.use_index);
+        let target_path = target_path(&src_path, target_root);
 
-        let uri = uri(&target_path, frontmatter.use_index);
+        let uri = uri(&target_path);
 
         if frontmatter.template_name.is_none() {
             let all_templates = renderers.tera.get_template_names().collect::<HashSet<_>>();
@@ -128,10 +128,6 @@ impl Page {
         debug_assert!(self.frontmatter.template_name.is_some());
         self.frontmatter.template_name.as_ref().cloned().unwrap()
     }
-
-    pub fn is_index_page(&self) -> bool {
-        self.frontmatter.use_index && self.src_path.file_stem() == "index"
-    }
 }
 
 fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> Result<SysPath> {
@@ -150,25 +146,14 @@ fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
     Ok((frontmatter, raw_markdown))
 }
 
-fn target_path<P: AsRef<Path>>(src_path: &SysPath, target_root: P, use_index: bool) -> SysPath {
+fn target_path<P: AsRef<Path>>(src_path: &SysPath, target_root: P) -> SysPath {
     let target = src_path.with_base(target_root.as_ref());
-    if use_index && src_path.file_stem() != "index" {
-        target
-            .add_parent(target.with_extension("").file_name())
-            .with_file_name("index.html")
-    } else {
-        target.with_extension("html")
-    }
+    target.with_extension("html")
 }
 
-fn uri(target_path: &SysPath, _use_index: bool) -> Uri {
+fn uri(target_path: &SysPath) -> Uri {
     let target = target_path.target();
-    if target_path.file_stem() == "index" {
-        debug_assert!(target.parent().is_some());
-        Uri::from_path(target.parent().unwrap())
-    } else {
-        Uri::from_path(target)
-    }
+    Uri::from_path(target)
 }
 
 #[instrument(skip_all, fields(page=%src_path.to_string()))]
@@ -195,11 +180,12 @@ fn get_default_template_name(
 
     for path in ancestors.by_ref() {
         let template_name = {
-            // Add the default page name ("page.tera") to the new path.
             let mut template_name = PathBuf::from(path);
-            template_name.push("page.tera");
+            template_name.push("default.tera");
             template_name.to_string_lossy().to_string()
         };
+        dbg!("check default template", &template_name);
+        dbg!(default_template_names);
 
         if default_template_names.contains(&template_name.as_str()) {
             return Some(TemplateName::new(template_name));
@@ -232,6 +218,7 @@ fn split_document(raw: &str) -> Result<(&str, &str)> {
 #[cfg(test)]
 pub mod test {
     #![allow(clippy::all)]
+    #![allow(unused_variables)]
 
     use std::io;
 
@@ -240,6 +227,7 @@ pub mod test {
         render::template::TemplateName,
         Renderers, Result,
     };
+    use temptree::temptree;
 
     use super::Page;
 
@@ -300,38 +288,23 @@ pub mod test {
             content"#;
     }
 
-    pub fn basic_page() -> Page {
-        page_from_doc(doc::MINIMAL).unwrap()
-    }
-
-    pub fn page_from_doc_with_paths(
-        doc: &str,
-        src_root: &str,
-        target_root: &str,
-        doc_path: &str,
-    ) -> Result<Page> {
-        let renderers = Renderers::new("test/templates");
+    pub fn new_page(doc: &str, doc_path: &str, src_root: &str, target_root: &str) -> Result<Page> {
+        let tree = temptree! {
+            templates: {
+                "default.tera": "",
+            }
+        };
+        let template_root = tree.path().join("templates");
+        let renderers = Renderers::new(template_root);
         let mut reader = io::Cursor::new(doc.as_bytes());
         Page::from_reader(src_root, target_root, doc_path, &mut reader, &renderers)
-    }
-
-    pub fn page_from_doc(doc: &str) -> Result<Page> {
-        let renderers = Renderers::new("test/templates");
-        let mut reader = io::Cursor::new(doc.as_bytes());
-        Page::from_reader(
-            "src_root",
-            "target_root",
-            "sample/stem.ext",
-            &mut reader,
-            &renderers,
-        )
     }
 
     macro_rules! new_page_ok {
         ($name:ident => $doc:path) => {
             #[test]
             fn $name() {
-                let page = page_from_doc($doc);
+                let page = new_page($doc, "test/doc.md", "src", "target");
                 assert!(page.is_ok());
             }
         };
@@ -341,7 +314,7 @@ pub mod test {
         ($name:ident => $doc:path) => {
             #[test]
             fn $name() {
-                let page = page_from_doc($doc);
+                let page = new_page($doc, "test/doc.md", "src", "target");
                 assert!(page.is_err());
             }
         };
@@ -360,21 +333,27 @@ pub mod test {
 
     #[test]
     fn make_new_happy_paths() {
-        let page = basic_page();
+        let page = new_page(
+            r#"
+        +++
+        +++
+        sample content"#,
+            "test/doc.md",
+            "src",
+            "target",
+        )
+        .unwrap();
 
-        assert_eq!(
-            page.src_path(),
-            SysPath::new("src_root", "sample/stem.ext").unwrap()
-        );
+        assert_eq!(page.src_path(), SysPath::new("src", "test/doc.md").unwrap());
 
         assert_eq!(
             page.target_path(),
-            SysPath::new("target_root", "sample/stem/index.html").unwrap()
+            SysPath::new("target", "test/doc.html").unwrap()
         );
 
-        assert_eq!(page.uri(), Uri::new("/sample/stem").unwrap());
+        assert_eq!(page.uri(), Uri::new("/test/doc.html").unwrap());
 
-        assert_eq!(page.template_name(), TemplateName::new("empty.tera"));
+        assert_eq!(page.template_name(), TemplateName::new("default.tera"));
     }
 
     #[test]
@@ -383,38 +362,20 @@ pub mod test {
         use slotmap::SlotMap;
 
         let mut map: SlotMap<PageKey, _> = SlotMap::with_key();
-        let mut page = basic_page();
+        let mut page = new_page(
+            r#"
+        +++
+        +++
+        sample content"#,
+            "test/doc.md",
+            "src",
+            "target",
+        )
+        .unwrap();
         map.insert(page.clone());
         let new_key = map.insert(page.clone());
 
         page.set_page_key(new_key);
         assert_eq!(page.page_key, new_key);
-    }
-
-    #[test]
-    fn proper_target_without_use_index() {
-        let doc = r#"
-+++
-template_name = "empty.tera"
-use_index = false
-+++"#;
-        let page = page_from_doc(doc).unwrap();
-        assert_eq!(
-            page.target_path(),
-            SysPath::new("target_root", "sample/stem.html").unwrap()
-        );
-    }
-
-    #[test]
-    fn proper_uri_without_use_index() {
-        let doc = r#"
-+++
-template_name = "empty.tera"
-use_index = false
-+++"#;
-
-        let page = page_from_doc(doc).unwrap();
-
-        assert_eq!(page.uri(), Uri::from_path("/sample/stem.html"));
     }
 }

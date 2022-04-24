@@ -88,26 +88,28 @@ pub mod script {
         #[cfg(test)]
         mod test {
             use super::rhai_module;
-            use crate::core::page::page::test as test_util;
+            use crate::core::page::page::test::{doc::MINIMAL, new_page};
 
             #[test]
             fn uri_fn() {
-                let mut page = test_util::basic_page();
+                let mut page =
+                    new_page(MINIMAL, "test/test.md", "src_root", "target_root").unwrap();
                 let uri = rhai_module::uri(&mut page);
-                assert_eq!(uri, String::from("/sample/stem"));
+                assert_eq!(uri, String::from("/test/test.html"));
             }
 
             #[test]
             fn get_frontmatter() {
-                let mut page = test_util::basic_page();
+                let mut page =
+                    new_page(MINIMAL, "test/test.md", "src_root", "target_root").unwrap();
                 let frontmatter = rhai_module::frontmatter(&mut page);
-                assert_eq!(frontmatter.use_index, true);
                 assert_eq!(frontmatter.template_name, Some("empty.tera".into()));
             }
 
             #[test]
             fn get_all_meta() {
-                let mut page = test_util::basic_page();
+                let mut page =
+                    new_page(MINIMAL, "test/test.md", "src_root", "target_root").unwrap();
 
                 let dynamic = rhai_module::all_meta(&mut page);
                 assert!(dynamic.is_ok());
@@ -117,13 +119,16 @@ pub mod script {
 
             #[test]
             fn get_existing_meta_item() {
-                let mut page = test_util::page_from_doc(
+                let mut page = new_page(
                     r#"+++
                 template_name = "empty.tera"
 
                 [meta]
                 test = "sample"
                 +++"#,
+                    "test/test.md",
+                    "src_root",
+                    "target_root",
                 )
                 .unwrap();
 
@@ -133,13 +138,16 @@ pub mod script {
 
             #[test]
             fn get_nonexistent_meta_item() {
-                let mut page = test_util::page_from_doc(
+                let mut page = new_page(
                     r#"+++
                 template_name = "empty.tera"
 
                 [meta]
                 test = "sample"
                 +++"#,
+                    "test/test.md",
+                    "src_root",
+                    "target_root",
                 )
                 .unwrap();
 
