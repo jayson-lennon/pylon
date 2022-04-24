@@ -1,4 +1,3 @@
-
 use itertools::Itertools;
 use std::{
     collections::HashSet,
@@ -141,7 +140,7 @@ impl Engine {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip(self))]
     pub fn run_pipelines<'a>(&self, html_assets: &'a HtmlAssets) -> Result<HashSet<&'a HtmlAsset>> {
         trace!("running pipelines");
 
@@ -189,7 +188,6 @@ impl Engine {
                     target_dir.push(relative_asset);
                     let target_dir = target_dir.parent().expect("should have parent directory");
                     util::make_parent_dirs(target_dir)?;
-
                     pipeline.run(
                         &engine.config.src_root,
                         &engine.config.target_root,

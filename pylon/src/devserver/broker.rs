@@ -6,7 +6,7 @@ use std::{collections::HashSet, path::PathBuf};
 use crate::core::config::EngineConfig;
 use crate::core::engine::Engine;
 use crate::core::page::RenderedPage;
-use crate::core::{Uri};
+use crate::core::Uri;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
 use crate::Result;
 use tokio::runtime::Handle;
@@ -241,6 +241,7 @@ impl EngineBroker {
 mod handle_msg {
     use std::path::PathBuf;
 
+    use anyhow::Context;
     use tracing::{error, instrument, trace};
 
     use crate::{
@@ -279,15 +280,20 @@ mod handle_msg {
     pub fn render(engine: &Engine, uri: &Uri) -> Result<Option<RenderedPage>> {
         trace!(uri = ?uri, "receive render page message");
 
-        engine.process_mounts(engine.rules().mounts())?;
+        engine
+            .process_mounts(engine.rules().mounts())
+            .with_context(|| "failed to process mounts while rendering page")?;
 
         if let Some(page) = engine.page_store().get(uri) {
-            let lints = engine.lint(std::iter::once(page))?;
+            let lints = engine
+                .lint(std::iter::once(page))
+                .with_context(|| "failed to lint page")?;
             if lints.has_deny() {
                 Err(anyhow::anyhow!(lints.to_string()))
             } else {
                 let rendered = engine
-                    .render(std::iter::once(page))?
+                    .render(std::iter::once(page))
+                    .with_context(|| "failed to render page")?
                     .into_iter()
                     .next()
                     .unwrap();
@@ -295,8 +301,11 @@ mod handle_msg {
                 // asset discovery & pipeline processing
                 {
                     let html_assets =
-                        crate::discover::html_asset::find(&rendered.target, &rendered.html)?;
-                    let unhandled_assets = engine.run_pipelines(&html_assets)?;
+                        crate::discover::html_asset::find(&rendered.target, &rendered.html)
+                            .with_context(|| "failed to discover HTML assets")?;
+                    let unhandled_assets = engine
+                        .run_pipelines(&html_assets)
+                        .with_context(|| "failed to run pipelines")?;
                     // check for missing assets in pages
                     {
                         for asset in &unhandled_assets {
