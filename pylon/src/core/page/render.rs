@@ -9,9 +9,8 @@ use crate::{
         engine::Engine,
         page::{ContextItem, PageKey},
         rules::{ContextKey, GlobStore, RuleProcessor},
-        Page, PageStore, RelSystemPath, Uri,
+        Page, RelSystemPath,
     },
-    discover::html_asset::{HtmlAsset, HtmlAssets},
     site_context::SiteContext,
     Result,
 };

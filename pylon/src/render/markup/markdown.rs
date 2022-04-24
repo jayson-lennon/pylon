@@ -1,7 +1,7 @@
-use std::path::PathBuf;
+
 
 use crate::{
-    core::{Page, PageStore, RelSystemPath, Uri},
+    core::{Page, PageStore},
     discover, util, Result,
 };
 use anyhow::anyhow;
@@ -86,7 +86,7 @@ mod test {
     #![allow(clippy::all)]
 
     use crate::core::{
-        page::page::test::page_from_doc_with_paths, Page, PageStore, RelSystemPath, Uri,
+        page::page::test::page_from_doc_with_paths, Page, PageStore,
     };
     use regex::Regex;
 
