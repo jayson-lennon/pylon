@@ -37,11 +37,16 @@ impl FromStr for Operation {
 pub struct Pipeline {
     pub target_glob: Glob,
     ops: Vec<Operation>,
+    base_dir: PathBuf,
 }
 
 impl Pipeline {
     #[instrument(skip(target_glob))]
-    pub fn new<G: TryInto<Glob, Error = globset::Error>>(target_glob: G) -> Result<Self> {
+    pub fn new<P, G>(base_dir: P, target_glob: G) -> Result<Self>
+    where
+        P: Into<PathBuf> + std::fmt::Debug,
+        G: TryInto<Glob, Error = globset::Error>,
+    {
         let target_glob = target_glob.try_into()?;
 
         trace!("make new pipeline using glob target {}", target_glob.glob());
@@ -49,14 +54,16 @@ impl Pipeline {
         Ok(Self {
             target_glob,
             ops: vec![],
+            base_dir: base_dir.into(),
         })
     }
 
     #[instrument(skip(target_glob))]
-    pub fn with_ops<G: TryInto<Glob, Error = globset::Error>>(
-        target_glob: G,
-        ops: &[Operation],
-    ) -> Result<Self> {
+    pub fn with_ops<P, G>(base_dir: P, target_glob: G, ops: &[Operation]) -> Result<Self>
+    where
+        P: Into<PathBuf> + std::fmt::Debug,
+        G: TryInto<Glob, Error = globset::Error>,
+    {
         let target_glob = target_glob.try_into()?;
 
         trace!("make new pipeline using glob target {}", target_glob.glob());
@@ -64,6 +71,7 @@ impl Pipeline {
         Ok(Self {
             target_glob,
             ops: ops.into(),
+            base_dir: base_dir.into(),
         })
     }
 
@@ -76,13 +84,11 @@ impl Pipeline {
     }
 
     #[instrument(skip(self))]
-    pub fn run<S, O, T>(&self, src_root: S, output_root: O, target_asset: T) -> Result<()>
+    pub fn run<O, T>(&self, output_root: O, target_asset: T) -> Result<()>
     where
-        S: AsRef<Path> + std::fmt::Debug,
         O: AsRef<Path> + std::fmt::Debug,
         T: AsRef<Path> + std::fmt::Debug,
     {
-        let src_root = src_root.as_ref();
         let output_root = output_root.as_ref();
         let target_asset = target_asset.as_ref();
 
@@ -95,7 +101,7 @@ impl Pipeline {
         };
 
         let src_path = {
-            let mut buf = PathBuf::from(src_root);
+            let mut buf = self.base_dir.clone();
             buf.push(target_asset);
             buf
         };
@@ -132,6 +138,7 @@ impl Pipeline {
                     };
 
                     if command.contains("$NEW_SCRATCH") {
+                        eprintln!("make new scratch file");
                         scratch_path = new_scratch_file(&std::fs::read(&scratch_path)?)
                             .with_context(|| {
                                 "failed to create new scratch file for shell operation"
@@ -209,27 +216,19 @@ mod test {
 
     use super::{Operation, Pipeline, ShellCommand};
     use std::fs;
-    use std::path::{Path, PathBuf};
-    use tempfile::tempdir;
-
-    fn gen_file_path(dir: &Path, name: &str) -> PathBuf {
-        let mut path = PathBuf::from(dir);
-        path.push(name);
-
-        path
-    }
+    use temptree::temptree;
 
     #[test]
     fn new_with_ops() {
         let ops = vec![Operation::Copy];
 
-        let pipeline = Pipeline::with_ops("*.txt", ops.as_slice());
+        let pipeline = Pipeline::with_ops("base", "*.txt", ops.as_slice());
         assert!(pipeline.is_ok());
     }
 
     #[test]
     fn is_match() {
-        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        let mut pipeline = Pipeline::new("base", "*.txt").unwrap();
         pipeline.push_op(Operation::Copy);
 
         assert_eq!(pipeline.is_match("test.txt"), true);
@@ -239,30 +238,33 @@ mod test {
 
     #[test]
     fn op_copy() {
-        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        let tree = temptree! {
+          src: {
+              "test.txt": "data",
+          },
+          target: {},
+        };
+
+        let mut pipeline = Pipeline::new(tree.path().join("src"), "*.txt").unwrap();
         pipeline.push_op(Operation::Copy);
 
-        let src_root = tempdir().unwrap();
-        let output_root = tempdir().unwrap();
-        let target_asset = "test.txt";
-
-        let src_path = gen_file_path(src_root.path(), "test.txt");
-        fs::write(&src_path, b"test data").unwrap();
-
         pipeline
-            .run(src_root.path(), output_root.path(), target_asset)
+            .run(tree.path().join("target"), "test.txt")
             .unwrap();
 
-        let target_path = gen_file_path(output_root.path(), "test.txt");
-        assert!(target_path.exists());
-
-        let target_content = fs::read_to_string(target_path).unwrap();
-        assert_eq!(&target_content, "test data");
+        let target_content = fs::read_to_string(tree.path().join("target/test.txt")).unwrap();
+        assert_eq!(&target_content, "data");
     }
 
     #[test]
     fn multiple_shell_ops() {
-        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        let tree = temptree! {
+          src: {
+              "test.txt": "old",
+          },
+          target: {},
+        };
+        let mut pipeline = Pipeline::new(tree.path().join("src"), "*.txt").unwrap();
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             r#"sed 's/old/new/g' $SOURCE > $NEW_SCRATCH"#,
         )));
@@ -270,27 +272,23 @@ mod test {
             r#"sed 's/new/hot/g' $SCRATCH > $NEW_SCRATCH"#,
         )));
 
-        let src_root = tempdir().unwrap();
-        let output_root = tempdir().unwrap();
-        let target_asset = "test.txt";
-
-        let src_path = gen_file_path(src_root.path(), "test.txt");
-        fs::write(&src_path, b"old").unwrap();
-
         pipeline
-            .run(src_root.path(), output_root.path(), target_asset)
+            .run(tree.path().join("target"), "test.txt")
             .unwrap();
 
-        let target_path = gen_file_path(output_root.path(), "test.txt");
-        assert!(target_path.exists());
-
-        let target_content = fs::read_to_string(target_path).unwrap();
+        let target_content = fs::read_to_string(tree.path().join("target/test.txt")).unwrap();
         assert_eq!(&target_content, "hot");
     }
 
     #[test]
     fn multiple_shell_ops_autocopy_disabled() {
-        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        let tree = temptree! {
+          src: {
+              "test.txt": "old",
+          },
+          target: {},
+        };
+        let mut pipeline = Pipeline::new(tree.path().join("src"), "*.txt").unwrap();
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             r#"sed 's/old/new/g' $SOURCE > $NEW_SCRATCH"#,
         )));
@@ -298,53 +296,12 @@ mod test {
             r#"sed 's/new/hot/g' $SCRATCH > $TARGET"#,
         )));
 
-        let src_root = tempdir().unwrap();
-        let output_root = tempdir().unwrap();
-        let target_asset = "test.txt";
-
-        let src_path = gen_file_path(src_root.path(), "test.txt");
-        fs::write(&src_path, b"old").unwrap();
-
         pipeline
-            .run(src_root.path(), output_root.path(), target_asset)
+            .run(tree.path().join("target"), "test.txt")
             .unwrap();
 
-        let target_path = gen_file_path(output_root.path(), "test.txt");
-        assert!(target_path.exists());
-
-        let target_content = fs::read_to_string(target_path).unwrap();
+        let target_content = fs::read_to_string(tree.path().join("target/test.txt")).unwrap();
         assert_eq!(&target_content, "hot");
-    }
-
-    #[test]
-    fn multiple_shell_ops_with_new_scratches() {
-        let mut pipeline = Pipeline::new("*.txt").unwrap();
-        pipeline.push_op(Operation::Shell(ShellCommand::new(
-            r#"cat $SOURCE > $NEW_SCRATCH"#,
-        )));
-        pipeline.push_op(Operation::Shell(ShellCommand::new(
-            r#"echo test >> $NEW_SCRATCH"#,
-        )));
-        pipeline.push_op(Operation::Shell(ShellCommand::new(
-            r#"echo test >> $NEW_SCRATCH"#,
-        )));
-
-        let src_root = tempdir().unwrap();
-        let output_root = tempdir().unwrap();
-        let target_asset = "test.txt";
-
-        let src_path = gen_file_path(src_root.path(), "test.txt");
-        fs::write(&src_path, b"initial").unwrap();
-
-        pipeline
-            .run(src_root.path(), output_root.path(), target_asset)
-            .unwrap();
-
-        let target_path = gen_file_path(output_root.path(), "test.txt");
-        assert!(target_path.exists());
-
-        let target_content = fs::read_to_string(target_path).unwrap();
-        assert_eq!(&target_content, "initialtest\ntest\n");
     }
 
     #[test]
@@ -371,17 +328,17 @@ mod test {
 
     #[test]
     fn handles_broken_shell_op() {
-        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        let tree = temptree! {
+          src: {
+              "test.txt": "data",
+          },
+          target: {},
+        };
+
+        let mut pipeline = Pipeline::new(tree.path().join("src"), "*.txt").unwrap();
         pipeline.push_op(Operation::Shell(ShellCommand::new("__COMMAND_NOT_FOUND__")));
 
-        let src_root = tempdir().unwrap();
-        let output_root = tempdir().unwrap();
-        let target_asset = "test.txt";
-
-        let src_path = gen_file_path(src_root.path(), "test.txt");
-        fs::write(&src_path, b"test data").unwrap();
-
-        let result = pipeline.run(src_root.path(), output_root.path(), target_asset);
+        let result = pipeline.run(tree.path().join("target"), "test.txt");
 
         assert!(result.is_err());
     }
