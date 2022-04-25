@@ -369,6 +369,7 @@ impl Engine {
 
                 #[allow(clippy::redundant_closure_for_method_calls)]
                 dirs.extend(engine.rules().mounts().map(|mount| mount.src()));
+                dirs.extend(engine.rules().watches());
                 dirs
             };
 

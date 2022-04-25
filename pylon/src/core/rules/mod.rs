@@ -44,6 +44,7 @@ pub struct Rules {
     page_contexts: GlobStore<ContextKey, rhai::FnPtr>,
     lints: LintCollection,
     mounts: Vec<Mount>,
+    watches: Vec<PathBuf>,
 }
 
 impl Rules {
@@ -91,6 +92,14 @@ impl Rules {
     pub fn mounts(&self) -> impl Iterator<Item = &Mount> {
         self.mounts.iter()
     }
+
+    pub fn add_watch<P: Into<PathBuf>>(&mut self, path: P) {
+        self.watches.push(path.into());
+    }
+
+    pub fn watches(&self) -> impl Iterator<Item = &Path> {
+        self.watches.iter().map(PathBuf::as_path)
+    }
 }
 
 impl Default for Rules {
@@ -101,6 +110,7 @@ impl Default for Rules {
             page_contexts: GlobStore::new(),
             lints: LintCollection::new(),
             mounts: vec![],
+            watches: vec![],
         }
     }
 }
@@ -235,6 +245,13 @@ pub mod script {
             rules.add_mount(src, target);
         }
 
+        #[instrument(skip(rules))]
+        pub fn watch(rules: &mut Rules, path: &str) {
+            trace!("add watch");
+
+            rules.add_watch(path);
+        }
+
         #[cfg(test)]
         mod test {
             use crate::core::config::EngineConfig;
@@ -259,6 +276,13 @@ pub mod script {
                 let mut rules = Rules::default();
                 super::mount(&mut rules, "src", "target");
                 assert_eq!(rules.mounts().count(), 1);
+            }
+
+            #[test]
+            fn adds_watch() {
+                let mut rules = Rules::default();
+                super::watch(&mut rules, "test");
+                assert_eq!(rules.watches().count(), 1);
             }
 
             #[test]
