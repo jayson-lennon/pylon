@@ -14,7 +14,7 @@ use crate::{
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
     core::{script_engine::ScriptEngineConfig, Page, PageStore},
-    devserver::{DevServer, EngineBroker},
+    devserver::{broker::RenderBehavior, DevServer, EngineBroker},
     discover::{
         html_asset::{HtmlAsset, HtmlAssets},
         UrlType,
@@ -78,6 +78,7 @@ impl Engine {
         config: EngineConfig,
         bind: S,
         debounce_ms: u64,
+        render_behavior: RenderBehavior,
     ) -> Result<(JoinHandle<Result<()>>, EngineBroker)> {
         let bind = bind.into();
 
@@ -89,7 +90,7 @@ impl Engine {
                 .build()?,
         );
 
-        let broker = EngineBroker::new(rt);
+        let broker = EngineBroker::new(rt, render_behavior);
         let broker_clone = broker.clone();
 
         let engine_handle = broker.spawn_engine_thread(config, bind, debounce_ms)?;
@@ -458,9 +459,13 @@ pub mod test {
 
         let (config, tree) = simple_config();
 
-        let (engine_handle, broker) =
-            Engine::with_broker(config, SocketAddr::from_str("127.0.0.1:9999").unwrap(), 200)
-                .expect("failed to create engine with broker");
+        let (engine_handle, broker) = Engine::with_broker(
+            config,
+            SocketAddr::from_str("127.0.0.1:9999").unwrap(),
+            200,
+            RenderBehavior::Memory,
+        )
+        .expect("failed to create engine with broker");
 
         broker
             .send_engine_msg_sync(EngineMsg::Quit)

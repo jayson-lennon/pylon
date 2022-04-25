@@ -1,5 +1,6 @@
 use clap::Parser;
 use pylon::core::{config::EngineConfig, engine::Engine};
+use pylon::devserver::broker::RenderBehavior;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -40,6 +41,9 @@ struct ServeOptions {
 
     #[clap(long, default_value = "127.0.0.1:8000", env = "CMS_BIND_ADDR")]
     bind: SocketAddr,
+
+    #[clap(long, default_value = "write", env = "CMS_RENDER_BEHAVIOR")]
+    render_behavior: RenderBehavior,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -67,7 +71,8 @@ fn main() -> Result<(), anyhow::Error> {
 
     match args.command {
         Command::Serve(opt) => {
-            let (handle, _broker) = Engine::with_broker(config, opt.bind, opt.debounce_ms)?;
+            let (handle, _broker) =
+                Engine::with_broker(config, opt.bind, opt.debounce_ms, opt.render_behavior)?;
             println!("{:?}", handle.join());
         }
         Command::Build => {
