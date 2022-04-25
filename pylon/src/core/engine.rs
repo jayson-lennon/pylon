@@ -207,11 +207,7 @@ impl Engine {
                     let target_dir = target_dir.parent().expect("should have parent directory");
                     util::make_parent_dirs(target_dir)?;
                     dbg!(&target_dir);
-                    pipeline.run(
-                        &engine.config.src_root,
-                        &engine.config.target_root,
-                        relative_asset,
-                    )?;
+                    pipeline.run(&engine.config.target_root, relative_asset)?;
                 }
             }
             if !asset_has_pipeline {
@@ -678,10 +674,9 @@ doc2"#;
         let doc = r#"+++
             template_name = "test.tera"
             +++"#;
-        let rules = r#"rules.add_pipeline("**/*.png", ["[COPY]"]);"#;
 
         let tree = temptree! {
-          "rules.rhai": rules,
+          "rules.rhai": "",
           templates: {
               "test.tera": r#"<img src="found_it.png">"#,
           },
@@ -691,6 +686,18 @@ doc2"#;
               "found_it.png": "",
           }
         };
+
+        let rules = {
+            let pipeline_base = tree.path().join("src");
+            let pipeline_base = pipeline_base.to_string_lossy();
+            r#"
+                rules.add_pipeline("BASE", "**/*.png", ["[COPY]"]);
+            "#
+            .replace("BASE", &pipeline_base)
+        };
+
+        let rule_script = tree.path().join("rules.rhai");
+        std::fs::write(&rule_script, rules).unwrap();
 
         let config = EngineConfig::new(
             tree.path().join("src"),
@@ -761,7 +768,7 @@ doc2"#;
             let target = target.to_string_lossy();
             r#"
                 rules.mount("wwwroot", "target");
-                rules.add_pipeline("**/*.png", ["[COPY]"]);
+                rules.add_pipeline("base", "**/*.png", ["[COPY]"]);
             "#
             .replace("wwwroot", &wwwroot)
             .replace("target", &target)
@@ -862,13 +869,6 @@ doc2"#;
 
     #[test]
     fn builds_site_no_lint_errors() {
-        let rules = r#"
-            rules.add_lint(WARN, "Missing author", "**", |page| {
-                page.meta("author") == "" || type_of(page.meta("author")) == "()"
-            });
-            rules.add_pipeline("**/*.png", ["[COPY]"]);
-        "#;
-
         let doc1 = r#"+++
             template_name = "empty.tera"
             +++
@@ -882,7 +882,7 @@ doc2"#;
         "#;
 
         let tree = temptree! {
-          "rules.rhai": rules,
+          "rules.rhai": "",
           templates: {
               "test.tera": r#"<img src="blank.png">"#,
               "empty.tera": ""
@@ -894,6 +894,21 @@ doc2"#;
               "blank.png": "",
           },
         };
+
+        let rules = {
+            let pipeline_base = tree.path().join("src");
+            let pipeline_base = pipeline_base.to_string_lossy();
+            r#"
+            rules.add_lint(WARN, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+            rules.add_pipeline("BASE", "**/*.png", ["[COPY]"]);
+            "#
+            .replace("BASE", &pipeline_base)
+        };
+
+        let rule_script = tree.path().join("rules.rhai");
+        std::fs::write(&rule_script, &rules).unwrap();
 
         let config = EngineConfig::new(
             tree.path().join("src"),
@@ -925,7 +940,7 @@ doc2"#;
             rules.add_lint(DENY, "Missing author", "**", |page| {
                 page.meta("author") == "" || type_of(page.meta("author")) == "()"
             });
-            rules.add_pipeline("**/*.png", ["[COPY]"]);
+            rules.add_pipeline("base", "**/*.png", ["[COPY]"]);
         "#;
 
         let doc1 = r#"+++
