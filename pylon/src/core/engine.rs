@@ -28,6 +28,12 @@ use super::{
     rules::Mount,
 };
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum PipelineBehavior {
+    Overwrite,
+    NoOverwrite,
+}
+
 #[derive(Debug)]
 pub struct Engine {
     config: EngineConfig,
@@ -144,7 +150,11 @@ impl Engine {
     }
 
     #[instrument(skip(self))]
-    pub fn run_pipelines<'a>(&self, html_assets: &'a HtmlAssets) -> Result<HashSet<&'a HtmlAsset>> {
+    pub fn run_pipelines<'a>(
+        &self,
+        html_assets: &'a HtmlAssets,
+        behavior: PipelineBehavior,
+    ) -> Result<HashSet<&'a HtmlAsset>> {
         trace!("running pipelines");
 
         let engine: &Engine = self;
@@ -160,23 +170,21 @@ impl Engine {
 
             // Ignore any assets that already exist in the target directory.
             {
-                // We need to construct a relative path to the target asset
-                // as exists on the system.
-
-                // start with the `target root`
-                match asset.url_type() {
-                    UrlType::Relative(abs) => {
-                        let target = PathBuf::from(&abs[1..]);
-                        if target.exists() {
-                            continue;
+                if behavior == PipelineBehavior::NoOverwrite {
+                    match asset.url_type() {
+                        UrlType::Relative(abs) => {
+                            let target = PathBuf::from(&abs[1..]);
+                            if target.exists() {
+                                continue;
+                            }
                         }
-                    }
-                    _ => {
-                        let mut target_sys_path = PathBuf::from(&self.config().target_root);
-                        let relative_uri = PathBuf::from(&asset.uri().as_str()[1..]);
-                        target_sys_path.push(relative_uri);
-                        if target_sys_path.exists() {
-                            continue;
+                        _ => {
+                            let mut target_sys_path = PathBuf::from(&self.config().target_root);
+                            let relative_uri = PathBuf::from(&asset.uri().as_str()[1..]);
+                            target_sys_path.push(relative_uri);
+                            if target_sys_path.exists() {
+                                continue;
+                            }
                         }
                     }
                 }
@@ -326,7 +334,8 @@ impl Engine {
             dbg!(&html_assets);
 
             trace!("running pipelines");
-            let unhandled_assets = self.run_pipelines(&html_assets)?;
+            let unhandled_assets =
+                self.run_pipelines(&html_assets, PipelineBehavior::NoOverwrite)?;
             // check for missing assets in pages
             {
                 for asset in &unhandled_assets {
@@ -784,7 +793,7 @@ doc2"#;
                 .expect("failed to discover html assets");
 
             let unhandled_assets = engine
-                .run_pipelines(&html_assets)
+                .run_pipelines(&html_assets, PipelineBehavior::Overwrite)
                 .expect("failed to run pipelines");
 
             assert!(unhandled_assets.is_empty());
