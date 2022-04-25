@@ -155,6 +155,7 @@ pub mod script {
         #[rhai_fn(name = "add_pipeline", return_raw)]
         pub fn add_pipeline(
             rules: &mut Rules,
+            base_dir: &str,
             target_glob: &str,
             ops: rhai::Array,
         ) -> Result<(), Box<EvalAltResult>> {
@@ -167,7 +168,7 @@ pub mod script {
                 let op = Operation::from_str(&op)?;
                 parsed_ops.push(op);
             }
-            let pipeline = Pipeline::with_ops(target_glob, &parsed_ops).map_err(|e| {
+            let pipeline = Pipeline::with_ops(base_dir, target_glob, &parsed_ops).map_err(|e| {
                 EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
             })?;
             rules.add_pipeline(pipeline);
@@ -267,7 +268,8 @@ pub mod script {
             fn adds_pipeline() {
                 let mut rules = Rules::default();
                 let values = vec!["[COPY]".into()];
-                super::add_pipeline(&mut rules, "*", values).expect("failed to add pipeline");
+                super::add_pipeline(&mut rules, "base", "*", values)
+                    .expect("failed to add pipeline");
                 assert_eq!(rules.pipelines().count(), 1);
             }
 
@@ -289,7 +291,7 @@ pub mod script {
             fn rejects_bad_pipeline_op() {
                 let mut rules = Rules::default();
                 let values = vec![1.into()];
-                assert!(super::add_pipeline(&mut rules, "*", values).is_err());
+                assert!(super::add_pipeline(&mut rules, "base", "*", values).is_err());
             }
 
             #[test]
