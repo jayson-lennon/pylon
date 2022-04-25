@@ -117,7 +117,12 @@ impl Pipeline {
                 }
                 Operation::Shell(command) => {
                     trace!("shell command: {:?}", command);
-                    autocopy = true;
+                    if command.0.contains("$TARGET") {
+                        autocopy = false;
+                    } else {
+                        autocopy = true;
+                    }
+
                     let command = {
                         command
                             .0
@@ -162,6 +167,7 @@ impl Pipeline {
                 }
             }
         }
+
         if autocopy {
             std::fs::copy(&scratch_path, &target_path).with_context(||format!("Failed performing copy operation in pipeline. '{scratch_path:?}' -> '{target_path:?}'"))?;
         }
@@ -263,6 +269,34 @@ mod test {
         )));
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             r#"sed 's/new/hot/g' $SCRATCH > $NEW_SCRATCH"#,
+        )));
+
+        let src_root = tempdir().unwrap();
+        let output_root = tempdir().unwrap();
+        let target_asset = "test.txt";
+
+        let src_path = gen_file_path(src_root.path(), "test.txt");
+        fs::write(&src_path, b"old").unwrap();
+
+        pipeline
+            .run(src_root.path(), output_root.path(), target_asset)
+            .unwrap();
+
+        let target_path = gen_file_path(output_root.path(), "test.txt");
+        assert!(target_path.exists());
+
+        let target_content = fs::read_to_string(target_path).unwrap();
+        assert_eq!(&target_content, "hot");
+    }
+
+    #[test]
+    fn multiple_shell_ops_autocopy_disabled() {
+        let mut pipeline = Pipeline::new("*.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/old/new/g' $SOURCE > $NEW_SCRATCH"#,
+        )));
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/new/hot/g' $SCRATCH > $TARGET"#,
         )));
 
         let src_root = tempdir().unwrap();
