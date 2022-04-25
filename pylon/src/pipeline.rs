@@ -101,7 +101,7 @@ impl Pipeline {
         };
 
         let mut scratch_path = {
-            let scratch_path = new_scratch_file("")?;
+            let scratch_path = new_scratch_file(&[])?;
             tmp_files.push(scratch_path.clone());
             scratch_path
         };
@@ -132,10 +132,10 @@ impl Pipeline {
                     };
 
                     if command.contains("$NEW_SCRATCH") {
-                        scratch_path = new_scratch_file(&std::fs::read_to_string(&scratch_path)?)
+                        scratch_path = new_scratch_file(&std::fs::read(&scratch_path)?)
                             .with_context(|| {
-                            "failed to create new scratch file for shell operation"
-                        })?;
+                                "failed to create new scratch file for shell operation"
+                            })?;
                         tmp_files.push(scratch_path.clone());
                     }
 
@@ -179,13 +179,12 @@ impl Pipeline {
 }
 
 #[instrument(skip_all)]
-fn new_scratch_file(content: &str) -> Result<PathBuf> {
+fn new_scratch_file(content: &[u8]) -> Result<PathBuf> {
     let tmp = crate::util::gen_temp_file()
-        .with_context(|| "Failed to generate temp file for pipeline shell operation".to_string())?
+        .with_context(|| "Failed to generate temp file for pipeline shell operation")?
         .path()
         .to_path_buf();
-    std::fs::write(&tmp, content.as_bytes())
-        .with_context(|| "failed to write contents into scratch file")?;
+    std::fs::write(&tmp, content).with_context(|| "failed to write contents into scratch file")?;
     Ok(tmp)
 }
 
