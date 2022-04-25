@@ -106,19 +106,40 @@ pub enum EngineMsg {
     Quit,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum RenderBehavior {
+    Memory,
+    Write,
+}
+
+impl std::str::FromStr for RenderBehavior {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let s = s.to_lowercase();
+        match s.as_ref() {
+            "memory" => Ok(RenderBehavior::Memory),
+            "write" => Ok(RenderBehavior::Write),
+            _ => Err("unknown render behavior".to_owned()),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EngineBroker {
     rt: Arc<tokio::runtime::Runtime>,
     devserver: (DevServerSender, DevServerReceiver),
     engine: (EngineSender, EngineReceiver),
+    render_behavior: RenderBehavior,
 }
 
 impl EngineBroker {
-    pub fn new(rt: Arc<tokio::runtime::Runtime>) -> Self {
+    pub fn new(rt: Arc<tokio::runtime::Runtime>, behavior: RenderBehavior) -> Self {
         Self {
             rt,
             devserver: async_channel::unbounded(),
             engine: async_channel::unbounded(),
+            render_behavior: behavior,
         }
     }
 
@@ -205,7 +226,7 @@ impl EngineBroker {
                         }
                         EngineMsg::RenderPage(chan) => {
                             respond_sync!(chan, &broker.handle(), {
-                                handle_msg::render(&engine, &chan.inner)
+                                handle_msg::render(&engine, &chan.inner, broker.render_behavior)
                             });
                         }
 
@@ -249,6 +270,7 @@ mod handle_msg {
             page::RenderedPage,
             Page, SysPath, Uri,
         },
+        devserver::broker::RenderBehavior,
         Result,
     };
 
@@ -281,7 +303,11 @@ mod handle_msg {
     }
 
     #[instrument(skip_all)]
-    pub fn render(engine: &Engine, uri: &Uri) -> Result<Option<RenderedPage>> {
+    pub fn render(
+        engine: &Engine,
+        uri: &Uri,
+        render_behavior: RenderBehavior,
+    ) -> Result<Option<RenderedPage>> {
         trace!(uri = ?uri, "receive render page message");
 
         engine
@@ -301,6 +327,16 @@ mod handle_msg {
                     .into_iter()
                     .next()
                     .unwrap();
+
+                if render_behavior == RenderBehavior::Write {
+                    let target = rendered.target.to_path_buf();
+                    crate::util::make_parent_dirs(
+                        &target
+                            .parent()
+                            .expect("missing parent dir for rendered page. this is a bug"),
+                    )?;
+                    std::fs::write(rendered.target.to_path_buf(), &rendered.html)?;
+                }
 
                 // asset discovery & pipeline processing
                 {
