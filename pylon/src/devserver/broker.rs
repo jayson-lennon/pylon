@@ -211,7 +211,7 @@ impl EngineBroker {
 
                         EngineMsg::FilesystemUpdate(events) => {
                             let _ws_msg = broker.send_devserver_msg_sync(DevServerMsg::Notify(
-                                "buiding assets".to_owned(),
+                                "Building Assets...".to_owned(),
                             ));
 
                             if let Err(e) = handle_msg::fs_event(&mut engine, events) {
