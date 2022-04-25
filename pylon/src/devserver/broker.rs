@@ -244,7 +244,11 @@ mod handle_msg {
     use tracing::{error, instrument, trace};
 
     use crate::{
-        core::{engine::Engine, page::RenderedPage, Page, SysPath, Uri},
+        core::{
+            engine::{Engine, PipelineBehavior},
+            page::RenderedPage,
+            Page, SysPath, Uri,
+        },
         Result,
     };
 
@@ -260,7 +264,8 @@ mod handle_msg {
 
         // check that each required asset was processed
         {
-            let unhandled_assets = engine.run_pipelines(&html_assets)?;
+            let unhandled_assets =
+                engine.run_pipelines(&html_assets, PipelineBehavior::Overwrite)?;
             for asset in &unhandled_assets {
                 error!(asset = ?asset, "missing asset");
             }
@@ -305,7 +310,7 @@ mod handle_msg {
                     html_assets.drop_offsite();
 
                     let unhandled_assets = engine
-                        .run_pipelines(&html_assets)
+                        .run_pipelines(&html_assets, PipelineBehavior::Overwrite)
                         .with_context(|| "failed to run pipelines")?;
                     // check for missing assets in pages
                     {
