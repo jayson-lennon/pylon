@@ -212,6 +212,9 @@ impl EngineBroker {
             let _devserver = engine.start_devserver(bind, debounce_ms, broker.clone())?;
 
             loop {
+                if let Err(e) = handle_msg::process_mounts(&engine) {
+                    warn!(err=%e, "failed processing mounts")
+                }
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::ProcessMounts(chan) => {
@@ -309,10 +312,6 @@ mod handle_msg {
         render_behavior: RenderBehavior,
     ) -> Result<Option<RenderedPage>> {
         trace!(uri = ?uri, "receive render page message");
-
-        engine
-            .process_mounts(engine.rules().mounts())
-            .with_context(|| "failed to process mounts while rendering page")?;
 
         if let Some(page) = engine.page_store().get(uri) {
             let lints = engine
