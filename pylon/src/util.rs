@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 use tracing::{instrument, trace};
 
+pub const TMP_ARTIFACT_PREFIX: &str = "pylon-artifact_";
+
 #[macro_export]
 macro_rules! static_regex {
     ($re:literal $(,)?) => {{
@@ -19,7 +21,7 @@ pub(crate) use static_regex;
 
 pub fn gen_temp_file() -> Result<NamedTempFile> {
     tempfile::Builder::new()
-        .prefix("pipeworks-artifact_")
+        .prefix(TMP_ARTIFACT_PREFIX)
         .rand_bytes(12)
         .tempfile()
         .with_context(|| "failed creating temporary file for shell processing".to_string())
