@@ -1,6 +1,7 @@
 use clap::Parser;
 use pylon::core::{config::EngineConfig, engine::Engine};
 use pylon::devserver::broker::RenderBehavior;
+use pylon::render::highlight::SyntectHighlighter;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -10,28 +11,38 @@ use tracing_subscriber::FmtSubscriber;
 #[derive(clap::Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(long, default_value = "test/templates", env = "CMS_TEMPLATE_DIR")]
-    template_dir: PathBuf,
+    #[clap(long, default_value = "site-rules.rhai", env = "CMS_SITE_RULES")]
+    rule_script: PathBuf,
 
-    #[clap(long, default_value = "test/public", env = "CMS_OUTPUT_DIR")]
+    #[clap(long, default_value = "public", env = "CMS_OUTPUT_DIR")]
     output_dir: PathBuf,
 
-    #[clap(long, default_value = "test/src", env = "CMS_SRC_DIR")]
+    #[clap(long, default_value = "src", env = "CMS_SRC_DIR")]
     src_dir: PathBuf,
 
-    #[clap(long, default_value = "test/site-rules.rhai", env = "CMS_SITE_RULES")]
-    rule_script: PathBuf,
+    #[clap(long, default_value = "syntax_themes", env = "CMS_SYNTAX_THEME_DIR")]
+    syntax_themes_dir: PathBuf,
+
+    #[clap(long, default_value = "templates", env = "CMS_TEMPLATE_DIR")]
+    template_dir: PathBuf,
 
     #[clap(subcommand)]
     command: Command,
 }
 
-#[derive(clap::Subcommand)]
+#[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// Run dev server
-    Serve(ServeOptions),
     /// Build site
     Build,
+    /// Run dev server
+    Serve(ServeOptions),
+    /// Syntax theme options
+    BuildSyntax {
+        /// thTheme directory
+        theme_dir: PathBuf,
+        /// output directory
+        output_dir: PathBuf,
+    },
 }
 
 #[derive(clap::Args, Debug)]
@@ -44,6 +55,12 @@ struct ServeOptions {
 
     #[clap(long, default_value = "write", env = "CMS_RENDER_BEHAVIOR")]
     render_behavior: RenderBehavior,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum SyntaxCommand {
+    /// Generates CSS from tmThemes
+    Generate,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -62,13 +79,13 @@ fn main() -> Result<(), anyhow::Error> {
 
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = EngineConfig::new(
-        &args.src_dir,
-        &args.output_dir,
-        &args.template_dir,
-        &args.rule_script,
-    );
-
+    let config = EngineConfig {
+        rule_script: args.rule_script.clone(),
+        src_root: args.src_dir.clone(),
+        syntax_theme_root: args.syntax_themes_dir.clone(),
+        target_root: args.output_dir.clone(),
+        template_root: args.template_dir.clone(),
+    };
     match args.command {
         Command::Serve(opt) => {
             let (handle, _broker) =
@@ -78,6 +95,18 @@ fn main() -> Result<(), anyhow::Error> {
         Command::Build => {
             let engine = Engine::new(config)?;
             engine.build_site()?;
+        }
+        Command::BuildSyntax {
+            theme_dir,
+            output_dir,
+        } => {
+            let highlighter = SyntectHighlighter::new(theme_dir)?;
+            let themes = highlighter.generate_css_themes()?;
+            for theme in themes {
+                let mut output_path = output_dir.clone();
+                output_path.push(theme.name());
+                std::fs::write(&output_path, theme.css())?;
+            }
         }
     }
 

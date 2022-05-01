@@ -252,94 +252,100 @@ pub mod script {
 
             rules.add_watch(path);
         }
+    }
+    #[cfg(test)]
+    mod test_script {
+        use super::rhai_module::*;
+        use crate::core::rules::Rules;
+        use tempfile::TempDir;
 
-        #[cfg(test)]
-        mod test {
-            use crate::core::config::EngineConfig;
+        use crate::core::config::EngineConfig;
 
-            use super::*;
-
-            #[test]
-            fn makes_new_rules() {
-                new_rules();
+        fn default_test_config(tree: &TempDir) -> EngineConfig {
+            EngineConfig {
+                rule_script: tree.path().join("rules.rhai"),
+                src_root: tree.path().join("src"),
+                syntax_theme_root: tree.path().join("syntax_themes"),
+                target_root: tree.path().join("target"),
+                template_root: tree.path().join("templates"),
             }
+        }
 
-            #[test]
-            fn adds_pipeline() {
-                let mut rules = Rules::default();
-                let values = vec!["[COPY]".into()];
-                super::add_pipeline(&mut rules, "base", "*", values)
-                    .expect("failed to add pipeline");
-                assert_eq!(rules.pipelines().count(), 1);
-            }
+        #[test]
+        fn makes_new_rules() {
+            new_rules();
+        }
 
-            #[test]
-            fn adds_mount() {
-                let mut rules = Rules::default();
-                super::mount(&mut rules, "src", "target");
-                assert_eq!(rules.mounts().count(), 1);
-            }
+        #[test]
+        fn adds_pipeline() {
+            let mut rules = Rules::default();
+            let values = vec!["[COPY]".into()];
+            add_pipeline(&mut rules, "base", "*", values).expect("failed to add pipeline");
+            assert_eq!(rules.pipelines().count(), 1);
+        }
 
-            #[test]
-            fn adds_watch() {
-                let mut rules = Rules::default();
-                super::watch(&mut rules, "test");
-                assert_eq!(rules.watches().count(), 1);
-            }
+        #[test]
+        fn adds_mount() {
+            let mut rules = Rules::default();
+            mount(&mut rules, "src", "target");
+            assert_eq!(rules.mounts().count(), 1);
+        }
 
-            #[test]
-            fn rejects_bad_pipeline_op() {
-                let mut rules = Rules::default();
-                let values = vec![1.into()];
-                assert!(super::add_pipeline(&mut rules, "base", "*", values).is_err());
-            }
+        #[test]
+        fn adds_watch() {
+            let mut rules = Rules::default();
+            watch(&mut rules, "test");
+            assert_eq!(rules.watches().count(), 1);
+        }
 
-            #[test]
-            fn adds_page_context() {
-                use temptree::temptree;
+        #[test]
+        fn rejects_bad_pipeline_op() {
+            let mut rules = Rules::default();
+            let values = vec![1.into()];
+            assert!(add_pipeline(&mut rules, "base", "*", values).is_err());
+        }
 
-                let ptr = {
-                    let rules = r#"
+        #[test]
+        fn adds_page_context() {
+            use temptree::temptree;
+
+            let ptr = {
+                let rules = r#"
             rules.add_page_context("**", |page| { () });
         "#;
 
-                    let doc1 = r#"+++
+                let doc1 = r#"+++
             template_name = "empty.tera"
             +++
         "#;
 
-                    let tree = temptree! {
-                      "rules.rhai": rules,
-                      templates: {
-                          "empty.tera": ""
-                      },
-                      target: {},
-                      src: {
-                          "doc1.md": doc1,
-                      },
-                    };
-
-                    let config = EngineConfig::new(
-                        tree.path().join("src"),
-                        tree.path().join("target"),
-                        tree.path().join("templates"),
-                        tree.path().join("rules.rhai"),
-                    );
-
-                    let engine = crate::core::engine::Engine::new(config).unwrap();
-
-                    let all = engine
-                        .rules()
-                        .page_contexts()
-                        .iter()
-                        .map(|(_, p)| p)
-                        .collect::<Vec<_>>();
-                    all[0].clone()
+                let tree = temptree! {
+                  "rules.rhai": rules,
+                  templates: {
+                      "empty.tera": ""
+                  },
+                  target: {},
+                  src: {
+                      "doc1.md": doc1,
+                  },
+                  syntax_themes: {},
                 };
-                let mut rules = Rules::default();
-                assert!(super::add_page_context(&mut rules, "*", ptr).is_ok());
-                assert_eq!(rules.page_contexts().iter().count(), 1);
-            }
+
+                let config = default_test_config(&tree);
+
+                let engine = crate::core::engine::Engine::new(config).unwrap();
+
+                let all = engine
+                    .rules()
+                    .page_contexts()
+                    .iter()
+                    .map(|(_, p)| p)
+                    .collect::<Vec<_>>();
+                all[0].clone()
+            };
+            let mut rules = Rules::default();
+            assert!(add_page_context(&mut rules, "*", ptr).is_ok());
+            assert_eq!(rules.page_contexts().iter().count(), 1);
         }
     }
 }
@@ -347,9 +353,20 @@ pub mod script {
 #[cfg(test)]
 mod test {
     use crate::core::{config::EngineConfig, engine::Engine};
+    use tempfile::TempDir;
     use temptree::temptree;
 
     use super::*;
+
+    fn default_test_config(tree: &TempDir) -> EngineConfig {
+        EngineConfig {
+            rule_script: tree.path().join("rules.rhai"),
+            src_root: tree.path().join("src"),
+            syntax_theme_root: tree.path().join("syntax_themes"),
+            target_root: tree.path().join("target"),
+            template_root: tree.path().join("templates"),
+        }
+    }
 
     #[test]
     fn rules_default() {
@@ -385,14 +402,10 @@ mod test {
           src: {
               "doc1.md": doc1,
           },
+          syntax_themes: {},
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let engine = Engine::new(config).unwrap();
 

@@ -89,10 +89,27 @@ impl Pipeline {
         O: AsRef<Path> + std::fmt::Debug,
         T: AsRef<Path> + std::fmt::Debug,
     {
+        let mut scratch_files = vec![];
+        let result = self.do_run(&mut scratch_files, output_root, target_asset);
+
+        clean_temp_files(&scratch_files)
+            .with_context(|| "failed to cleanup pipeline scratch files")?;
+
+        result
+    }
+
+    fn do_run<O, T>(
+        &self,
+        scratch_files: &mut Vec<PathBuf>,
+        output_root: O,
+        target_asset: T,
+    ) -> Result<()>
+    where
+        O: AsRef<Path> + std::fmt::Debug,
+        T: AsRef<Path> + std::fmt::Debug,
+    {
         let output_root = output_root.as_ref();
         let target_asset = target_asset.as_ref();
-
-        let mut tmp_files = vec![];
 
         let target_path = {
             let mut buf = PathBuf::from(output_root);
@@ -106,11 +123,7 @@ impl Pipeline {
             buf
         };
 
-        let mut scratch_path = {
-            let scratch_path = new_scratch_file(&[])?;
-            tmp_files.push(scratch_path.clone());
-            scratch_path
-        };
+        let mut scratch_path = new_scratch_file(scratch_files, &[])?;
 
         let mut autocopy = false;
 
@@ -139,11 +152,11 @@ impl Pipeline {
 
                     if command.contains("$NEW_SCRATCH") {
                         eprintln!("make new scratch file");
-                        scratch_path = new_scratch_file(&std::fs::read(&scratch_path)?)
-                            .with_context(|| {
-                                "failed to create new scratch file for shell operation"
-                            })?;
-                        tmp_files.push(scratch_path.clone());
+                        scratch_path =
+                            new_scratch_file(scratch_files, &std::fs::read(&scratch_path)?)
+                                .with_context(|| {
+                                    "failed to create new scratch file for shell operation"
+                                })?;
                     }
 
                     let command =
@@ -179,20 +192,19 @@ impl Pipeline {
             std::fs::copy(&scratch_path, &target_path).with_context(||format!("Failed performing copy operation in pipeline. '{scratch_path:?}' -> '{target_path:?}'"))?;
         }
 
-        clean_temp_files(&tmp_files).with_context(|| "failed to cleanup pipeline scratch files")?;
-
         Ok(())
     }
 }
 
 #[instrument(skip_all)]
-fn new_scratch_file(content: &[u8]) -> Result<PathBuf> {
+fn new_scratch_file(files: &mut Vec<PathBuf>, content: &[u8]) -> Result<PathBuf> {
     let tmp = crate::util::gen_temp_file()
         .with_context(|| "Failed to generate temp file for pipeline shell operation")?
         .path()
         .to_path_buf();
+    files.push(tmp.clone());
     std::fs::write(&tmp, content).with_context(|| "failed to write contents into scratch file")?;
-    Ok(tmp)
+    Ok(files[files.len() - 1].clone())
 }
 
 fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<()> {
@@ -214,9 +226,32 @@ mod test {
     #![allow(clippy::all)]
     #![allow(clippy::pedantic)]
 
+    use crate::util::TMP_ARTIFACT_PREFIX;
+
     use super::{Operation, Pipeline, ShellCommand};
     use std::fs;
     use temptree::temptree;
+
+    #[test]
+    #[ignore]
+    fn check_artifacts() {
+        let tmp_dir = temptree! {
+            "empty": "",
+        };
+        let tmp_dir = tmp_dir
+            .path()
+            .parent()
+            .expect("temp file should have a parent dir");
+        let entries = std::fs::read_dir(tmp_dir).unwrap();
+        for entry in entries {
+            let entry = entry.unwrap();
+            let file_name = entry.file_name();
+            let file_name = file_name.to_string_lossy();
+            if file_name.starts_with(TMP_ARTIFACT_PREFIX) {
+                panic!("leftover artifact: {:?}", entry.path());
+            }
+        }
+    }
 
     #[test]
     fn new_with_ops() {
