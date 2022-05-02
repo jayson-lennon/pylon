@@ -100,7 +100,7 @@ impl Engine {
 
     #[instrument]
     pub fn new(config: EngineConfig) -> Result<Engine> {
-        let renderers = Renderers::new(&config.template_root, &config.syntax_theme_root)?;
+        let renderers = Renderers::new(&config.template_root)?;
 
         let page_store = do_build_page_store(&config.src_root, &config.target_root, &renderers)?;
 

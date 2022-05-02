@@ -1,15 +1,14 @@
 use anyhow::Context;
 
 use syntect::highlighting::{Theme, ThemeSet};
+use syntect::html::ClassStyle;
 use syntect::html::{css_for_theme_with_class_style, line_tokens_to_classed_spans};
-use syntect::html::{ClassStyle};
 use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
 use syntect::util::LinesWithEndings;
 
 use crate::Result;
 
-
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub const THEME_CLASS_PREFIX: &str = "syn-";
 const THEME_CLASS_STYLE: ClassStyle = ClassStyle::SpacedPrefixed {
@@ -18,31 +17,28 @@ const THEME_CLASS_STYLE: ClassStyle = ClassStyle::SpacedPrefixed {
 
 #[derive(Debug, Clone)]
 pub struct CssTheme {
-    name: String,
+    path: PathBuf,
     css: String,
 }
 
 impl CssTheme {
-    pub fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
     pub fn css(&self) -> &str {
         self.css.as_str()
+    }
+
+    pub fn path(&self) -> &Path {
+        self.path.as_path()
     }
 }
 
 #[derive(Debug)]
 pub struct SyntectHighlighter {
-    theme_set: ThemeSet,
     syntax_set: SyntaxSet,
 }
 
 impl SyntectHighlighter {
-    pub fn new<P: AsRef<Path>>(theme_root: P) -> Result<Self> {
-        let theme_set = ThemeSet::load_from_folder(theme_root)?;
+    pub fn new() -> Result<Self> {
         Ok(Self {
-            theme_set,
             syntax_set: SyntaxSet::load_defaults_newlines(),
         })
     }
@@ -55,23 +51,13 @@ impl SyntectHighlighter {
         self.syntax_set.find_syntax_by_token(token.as_ref())
     }
 
-    pub fn get_theme<S: AsRef<str>>(&self, name: S) -> Option<&Theme> {
-        self.theme_set.themes.get(name.as_ref())
-    }
-
-    pub fn generate_css_themes(&self) -> Result<Vec<CssTheme>> {
-        let mut css_themes = vec![];
-        for (key, theme) in &self.theme_set.themes {
-            let theme = CssTheme {
-                name: theme
-                    .name
-                    .clone()
-                    .with_context(|| format!("theme file '{key}' must have a name key"))?,
-                css: css_for_theme_with_class_style(theme, THEME_CLASS_STYLE),
-            };
-            css_themes.push(theme);
-        }
-        Ok(css_themes)
+    pub fn generate_css_theme<P: AsRef<Path>>(path: P) -> Result<CssTheme> {
+        let theme = ThemeSet::get_theme(path.as_ref())?;
+        let theme = CssTheme {
+            path: path.as_ref().to_path_buf(),
+            css: css_for_theme_with_class_style(&theme, THEME_CLASS_STYLE),
+        };
+        Ok(theme)
     }
 
     pub fn highlight<S: AsRef<str>>(&self, syntax: &SyntaxReference, code: S) -> Vec<String> {
@@ -138,27 +124,18 @@ mod test {
     use std::path::PathBuf;
 
     use super::*;
-    
-
-    impl SyntectHighlighter {
-        pub fn default_test() -> Self {
-            Self::new("").unwrap()
-        }
-    }
 
     #[test]
     fn creates_new_highlighter() {
         let test_data_dir = PathBuf::from("src/render/highlight/test");
-        let highlighter =
-            SyntectHighlighter::new(&test_data_dir).expect("failed to create syntect highlighter");
-        assert_eq!(highlighter.theme_set.themes.len(), 2);
+
+        SyntectHighlighter::new().expect("failed to create syntect highlighter");
     }
 
     #[test]
     fn gets_syntaxes() {
         let test_data_dir = PathBuf::from("src/render/highlight/test");
-        let highlighter =
-            SyntectHighlighter::new(&test_data_dir).expect("failed to create syntect highlighter");
+        let highlighter = SyntectHighlighter::new().expect("failed to create syntect highlighter");
 
         assert!(!highlighter.syntaxes().is_empty());
     }
@@ -166,8 +143,7 @@ mod test {
     #[test]
     fn gets_syntax_by_name() {
         let test_data_dir = PathBuf::from("src/render/highlight/test");
-        let highlighter =
-            SyntectHighlighter::new(&test_data_dir).expect("failed to create syntect highlighter");
+        let highlighter = SyntectHighlighter::new().expect("failed to create syntect highlighter");
 
         assert!(highlighter.get_syntax_by_token("rs").is_some());
     }
@@ -175,22 +151,18 @@ mod test {
     #[test]
     fn doesnt_find_nonexistent_syntax() {
         let test_data_dir = PathBuf::from("src/render/highlight/test");
-        let highlighter =
-            SyntectHighlighter::new(&test_data_dir).expect("failed to create syntect highlighter");
+        let highlighter = SyntectHighlighter::new().expect("failed to create syntect highlighter");
 
         assert!(highlighter.get_syntax_by_token("NOT_A_SYNTAX").is_none());
     }
 
     #[test]
-    fn generates_themes() {
-        let test_data_dir = PathBuf::from("src/render/highlight/test");
-        let highlighter =
-            SyntectHighlighter::new(&test_data_dir).expect("failed to create syntect highlighter");
-
-        let css_themes = highlighter
-            .generate_css_themes()
-            .expect("failed to generate themes");
-        assert_eq!(css_themes.len(), 2);
+    fn generates_theme() {
+        let css_theme = SyntectHighlighter::generate_css_theme(
+            "src/render/highlight/test/material-dark.tmTheme",
+        )
+        .expect("failed to generate css theme");
+        assert_eq!(css_theme.css, "/*\n * theme \"Material\" generated by syntect\n */\n\n.syn-code {\n color: #f8f8f2;\n background-color: #263238;\n}\n\n.syn-comment {\n color: #616161;\n}\n.syn-string {\n color: #ffd54f;\n}\n.syn-constant.syn-numeric {\n color: #7e57c2;\n}\n.syn-constant.syn-language {\n color: #7e57c2;\n}\n.syn-constant.syn-character, .syn-constant.syn-other {\n color: #7e57c2;\n}\n.syn-variable {\n color: #607d8b;\n}\n.syn-keyword {\n color: #ff5722;\n}\n.syn-storage {\n color: #e91e63;\n}\n.syn-storage.syn-type {\n color: #259b24;\n}\n.syn-entity.syn-name.syn-class {\n color: #8bc34a;\n}\n.syn-entity.syn-other.syn-inherited-class {\n color: #8bc34a;\n}\n.syn-entity.syn-name.syn-function {\n color: #009688;\n}\n.syn-variable.syn-parameter {\n color: #fd971f;\n}\n.syn-entity.syn-name.syn-tag {\n color: #26a69a;\n}\n.syn-entity.syn-other.syn-attribute-name {\n color: #ff5722;\n}\n.syn-support.syn-function {\n color: #03a9f4;\n}\n.syn-support.syn-constant {\n color: #03a9f4;\n}\n.syn-support.syn-type, .syn-support.syn-class {\n color: #607d8b;\n}\n.syn-support.syn-other.syn-variable {\n}\n.syn-invalid {\n color: #f8f8f0;\n background-color: #f92672;\n}\n.syn-invalid.syn-deprecated {\n color: #f8f8f0;\n background-color: #ae81ff;\n}\n.syn-text.syn-html.syn-markdown .syn-markup.syn-raw.syn-inline {\n color: #6a3db5;\n}\n.syn-text.syn-html.syn-markdown .syn-meta.syn-dummy.syn-line-break {\n color: #e10050;\n}\n.syn-markdown.syn-heading, .syn-markup.syn-heading, .syn-markup.syn-heading .syn-entity.syn-name, .syn-markup.syn-heading.syn-markdown, .syn-punctuation.syn-definition.syn-heading.syn-markdown {\n color: #228d1b;\nfont-weight: bold;\n}\n.syn-markup.syn-italic {\n color: #fc3e1b;\nfont-style: italic;\n}\n.syn-markup.syn-bold {\n color: #fc3e1b;\nfont-weight: bold;\n}\n.syn-markup.syn-underline {\n color: #fc3e1b;\nfont-style: underline;\n}\n.syn-markup.syn-quote, .syn-punctuation.syn-definition.syn-blockquote.syn-markdown {\n color: #fece3f;\nfont-style: italic;\n}\n.syn-markup.syn-quote {\n color: #fece3f;\nfont-style: italic;\n}\n.syn-string.syn-other.syn-link.syn-title.syn-markdown {\n color: #fb8419;\nfont-style: underline;\n}\n.syn-markup.syn-raw.syn-block {\n color: #228d1b;\n}\n.syn-punctuation.syn-definition.syn-fenced.syn-markdown, .syn-variable.syn-language.syn-fenced.syn-markdown, .syn-markup.syn-raw.syn-block.syn-fenced.syn-markdown {\n color: #228d1b;\n}\n.syn-variable.syn-language.syn-fenced.syn-markdown {\n color: #7aba3a;\n}\n.syn-punctuation.syn-definition.syn-list_item.syn-markdown, .syn-meta.syn-paragraph.syn-list.syn-markdown {\n color: #1397f1;\n}\n.syn-meta.syn-separator {\n color: #1397f1;\n background-color: #118675;\nfont-weight: bold;\n}\n.syn-markup.syn-table {\n color: #fb8419;\n}\n.syn-meta.syn-diff, .syn-meta.syn-diff.syn-header {\n color: #616161;\nfont-style: italic;\n}\n.syn-markup.syn-deleted {\n color: #e10050;\n}\n.syn-markup.syn-inserted {\n color: #7aba3a;\n}\n.syn-markup.syn-changed {\n color: #fb8419;\n}\n.syn-meta.syn-diff, .syn-meta.syn-diff.syn-range {\n color: #1397f1;\n}\n.syn-sublimelinter.syn-gutter-mark {\n color: #ffffff;\n}\n.syn-sublimelinter.syn-mark.syn-error {\n color: #d02000;\n}\n.syn-sublimelinter.syn-mark.syn-warning {\n color: #ddb700;\n}\n.syn-comment.syn-block.syn-attribute.syn-rust {\n color: #ff9800;\n}\n.syn-meta.syn-preprocessor.syn-rust {\n color: #795548;\n}\n.syn-meta.syn-namespace-block.syn-rust {\n color: #ffccbc;\n}\n.syn-support {\n color: #d1c4e9;\n}\n.syn-source.syn-json .syn-meta .syn-meta.syn-structure.syn-dictionary .syn-string {\n color: #ff5722;\n}\n.syn-source.syn-json .syn-meta .syn-meta .syn-meta.syn-structure.syn-dictionary .syn-string {\n color: #228d1b;\n}\n.syn-source.syn-json .syn-meta .syn-meta .syn-meta .syn-meta.syn-structure.syn-dictionary .syn-string {\n color: #ff5722;\n}\n.syn-source.syn-json .syn-meta .syn-meta .syn-meta .syn-meta .syn-meta.syn-structure.syn-dictionary .syn-string {\n color: #03a9f4;\n}\n.syn-source.syn-json .syn-meta .syn-meta .syn-meta .syn-meta .syn-meta .syn-meta.syn-structure.syn-dictionary .syn-string {\n color: #ffd54f;\n}\n");
     }
 }
 

@@ -36,13 +36,8 @@ enum Command {
     Build,
     /// Run dev server
     Serve(ServeOptions),
-    /// Syntax theme options
-    BuildSyntax {
-        /// thTheme directory
-        theme_dir: PathBuf,
-        /// output directory
-        output_dir: PathBuf,
-    },
+    /// Generate CSS theme from thTheme file
+    BuildSyntaxTheme { path: PathBuf },
 }
 
 #[derive(clap::Args, Debug)]
@@ -96,17 +91,9 @@ fn main() -> Result<(), anyhow::Error> {
             let engine = Engine::new(config)?;
             engine.build_site()?;
         }
-        Command::BuildSyntax {
-            theme_dir,
-            output_dir,
-        } => {
-            let highlighter = SyntectHighlighter::new(theme_dir)?;
-            let themes = highlighter.generate_css_themes()?;
-            for theme in themes {
-                let mut output_path = output_dir.clone();
-                output_path.push(theme.name());
-                std::fs::write(&output_path, theme.css())?;
-            }
+        Command::BuildSyntaxTheme { path } => {
+            let css_theme = SyntectHighlighter::generate_css_theme(path)?;
+            println!("{}", css_theme.css());
         }
     }
 

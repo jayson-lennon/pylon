@@ -155,15 +155,12 @@ mod test {
     use super::MarkdownRenderer;
 
     fn internal_doc_link_render(test_page: Page, linked_page: Page) -> String {
-        let tree = temptree! {
-            syntax_themes: {}
-        };
         let mut store = PageStore::new();
         let key = store.insert(test_page);
         store.insert(linked_page);
 
         let md_renderer = MarkdownRenderer::new();
-        let highlighter = SyntectHighlighter::new(tree.path().join("syntax_themes")).unwrap();
+        let highlighter = SyntectHighlighter::new().unwrap();
 
         let test_page = store
             .get_with_key(key)
@@ -260,7 +257,7 @@ code sample here
             .get_with_key(key)
             .expect("page is missing from page store");
 
-        let highlighter = SyntectHighlighter::new("src/render/highlight/test").unwrap();
+        let highlighter = SyntectHighlighter::new().unwrap();
 
         let rendered =
             super::render(page, &store, &highlighter).expect("failed to render markdown");
@@ -287,7 +284,7 @@ code sample here
             .get_with_key(key)
             .expect("page is missing from page store");
 
-        let highlighter = SyntectHighlighter::new("src/render/highlight/test").unwrap();
+        let highlighter = SyntectHighlighter::new().unwrap();
 
         let rendered =
             super::render(page, &store, &highlighter).expect("failed to render markdown");
@@ -320,7 +317,7 @@ let x = 1;
             .get_with_key(key)
             .expect("page is missing from page store");
 
-        let highlighter = SyntectHighlighter::new("src/render/highlight/test").unwrap();
+        let highlighter = SyntectHighlighter::new().unwrap();
 
         let rendered =
             super::render(page, &store, &highlighter).expect("failed to render markdown");
