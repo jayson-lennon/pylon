@@ -3,8 +3,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{collections::HashSet, path::PathBuf};
 
-use crate::core::config::EngineConfig;
-use crate::core::engine::Engine;
+use crate::core::engine::{Engine, EnginePaths};
 use crate::core::page::RenderedPage;
 use crate::core::Uri;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
@@ -189,7 +188,7 @@ impl EngineBroker {
 
     pub fn spawn_engine_thread<S: Into<SocketAddr> + std::fmt::Debug>(
         &self,
-        config: EngineConfig,
+        paths: EnginePaths,
         bind: S,
         debounce_ms: u64,
     ) -> Result<JoinHandle<Result<()>>> {
@@ -205,7 +204,7 @@ impl EngineBroker {
         let bind = bind.into();
         let broker = self.clone();
         let engine_handle = thread::spawn(move || {
-            let mut engine = Engine::new(config)?;
+            let mut engine = Engine::new(paths)?;
 
             // engine.process_mounts(engine.rules().mounts())?;
 
@@ -281,7 +280,7 @@ mod handle_msg {
 
     pub fn process_pipelines<S: AsRef<str>>(engine: &Engine, page_path: S) -> Result<()> {
         let sys_path = SysPath::new(
-            &engine.config().target_root,
+            &engine.paths().target_root,
             &PathBuf::from(page_path.as_ref()),
         )?;
         let raw_html = std::fs::read_to_string(sys_path.to_path_buf())?;
@@ -377,12 +376,12 @@ mod handle_msg {
                 let cwd = std::env::current_dir()?;
                 changed.strip_prefix(cwd)?
             };
-            if path.starts_with(&engine.config().src_root)
+            if path.starts_with(&engine.paths().src_root)
                 && path.extension().unwrap_or_default().to_string_lossy() == "md"
             {
                 let page = Page::from_file(
-                    &engine.config().src_root.as_path(),
-                    &engine.config().target_root.as_path(),
+                    &engine.paths().src_root.as_path(),
+                    &engine.paths().target_root.as_path(),
                     &path,
                     engine.renderers(),
                 )?;
@@ -390,11 +389,11 @@ mod handle_msg {
                 let _ = engine.page_store_mut().update(page);
             }
 
-            if path.starts_with(&engine.config().template_root) {
+            if path.starts_with(&engine.paths().template_root) {
                 reload_templates = true;
             }
 
-            if path == engine.config().rule_script {
+            if path == engine.paths().rule_script {
                 reload_rules = true;
             }
         }

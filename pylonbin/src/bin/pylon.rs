@@ -1,5 +1,5 @@
 use clap::Parser;
-use pylon::core::{config::EngineConfig, engine::Engine};
+use pylon::core::engine::{Engine, EnginePaths};
 use pylon::devserver::broker::RenderBehavior;
 use pylon::render::highlight::SyntectHighlighter;
 use std::net::SocketAddr;
@@ -74,7 +74,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = EngineConfig {
+    let paths = EnginePaths {
         rule_script: args.rule_script.clone(),
         src_root: args.src_dir.clone(),
         syntax_theme_root: args.syntax_themes_dir.clone(),
@@ -84,11 +84,11 @@ fn main() -> Result<(), anyhow::Error> {
     match args.command {
         Command::Serve(opt) => {
             let (handle, _broker) =
-                Engine::with_broker(config, opt.bind, opt.debounce_ms, opt.render_behavior)?;
+                Engine::with_broker(paths, opt.bind, opt.debounce_ms, opt.render_behavior)?;
             println!("{:?}", handle.join());
         }
         Command::Build => {
-            let engine = Engine::new(config)?;
+            let engine = Engine::new(paths)?;
             engine.build_site()?;
         }
         Command::BuildSyntaxTheme { path } => {

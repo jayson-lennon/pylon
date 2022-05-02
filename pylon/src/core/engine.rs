@@ -1,5 +1,4 @@
 use anyhow::Context;
-use arc_swap::ArcSwap;
 use itertools::Itertools;
 use std::{
     collections::HashSet,
@@ -12,7 +11,6 @@ use std::{
 use tracing::{error, instrument, trace, warn};
 
 use crate::{
-    core::config::EngineConfig,
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
     core::{script_engine::ScriptEngineConfig, Page, PageStore, SysPath},
@@ -37,8 +35,39 @@ pub enum PipelineBehavior {
 }
 
 #[derive(Debug)]
+pub struct EnginePaths {
+    pub rule_script: PathBuf,
+    pub src_root: PathBuf,
+    pub syntax_theme_root: PathBuf,
+    pub target_root: PathBuf,
+    pub template_root: PathBuf,
+}
+
+impl EnginePaths {
+    pub fn rule_script(&self) -> &Path {
+        self.rule_script.as_path()
+    }
+    pub fn src_root(&self) -> &Path {
+        self.src_root.as_path()
+    }
+    pub fn syntax_theme_root(&self) -> &Path {
+        self.rule_script.as_path()
+    }
+    pub fn target_root(&self) -> &Path {
+        self.target_root.as_path()
+    }
+    pub fn template_root(&self) -> &Path {
+        self.template_root.as_path()
+    }
+
+    pub fn project_root(&self) -> Result<PathBuf> {
+        Ok(self.rule_script.canonicalize()?)
+    }
+}
+
+#[derive(Debug)]
 pub struct Engine {
-    config: Arc<EngineConfig>,
+    paths: Arc<EnginePaths>,
     renderers: Renderers,
 
     // these are reset when the user script is updated
@@ -71,13 +100,13 @@ impl Engine {
         &self.rule_processor
     }
 
-    pub fn config(&self) -> Arc<EngineConfig> {
-        Arc::clone(&self.config)
+    pub fn paths(&self) -> Arc<EnginePaths> {
+        Arc::clone(&self.paths)
     }
 
     #[instrument]
     pub fn with_broker<S: Into<SocketAddr> + std::fmt::Debug>(
-        config: EngineConfig,
+        paths: EnginePaths,
         bind: S,
         debounce_ms: u64,
         render_behavior: RenderBehavior,
@@ -95,23 +124,23 @@ impl Engine {
         let broker = EngineBroker::new(rt, render_behavior);
         let broker_clone = broker.clone();
 
-        let engine_handle = broker.spawn_engine_thread(config, bind, debounce_ms)?;
+        let engine_handle = broker.spawn_engine_thread(paths, bind, debounce_ms)?;
 
         Ok((engine_handle, broker_clone))
     }
 
     #[instrument]
-    pub fn new(config: EngineConfig) -> Result<Engine> {
-        let renderers = Renderers::new(&config.template_root)?;
+    pub fn new(paths: EnginePaths) -> Result<Engine> {
+        let renderers = Renderers::new(&paths.template_root)?;
 
-        let page_store = do_build_page_store(&config.src_root, &config.target_root, &renderers)?;
+        let page_store = do_build_page_store(&paths.src_root, &paths.target_root, &renderers)?;
 
         let (script_engine, rule_processor, rules) =
-            Self::load_rules(&config.rule_script, &page_store)?;
+            Self::load_rules(&paths.rule_script, &page_store)?;
 
-        let config = Arc::new(config);
+        let paths = Arc::new(paths);
         Ok(Self {
-            config,
+            paths,
             renderers,
 
             script_engine,
@@ -149,7 +178,7 @@ impl Engine {
     #[instrument(skip(self), ret)]
     pub fn reload_rules(&mut self) -> Result<()> {
         let (script_engine, rule_processor, rules) =
-            Self::load_rules(&self.config().rule_script(), &self.page_store)?;
+            Self::load_rules(&self.paths().rule_script(), &self.page_store)?;
         self.script_engine = script_engine;
         self.rule_processor = rule_processor;
         self.rules = rules;
@@ -192,7 +221,7 @@ impl Engine {
                             }
                         }
                         _ => {
-                            let mut target_sys_path = PathBuf::from(&self.config().target_root);
+                            let mut target_sys_path = PathBuf::from(&self.paths().target_root);
                             let relative_uri = PathBuf::from(&asset.uri().as_str()[1..]);
                             target_sys_path.push(relative_uri);
                             if target_sys_path.exists() {
@@ -215,7 +244,7 @@ impl Engine {
                     let asset_uri = &asset.uri();
                     let relative_asset = &asset_uri.as_str()[1..];
                     // Make a new target in order to create directories for the asset.
-                    let mut target_dir = PathBuf::from(&engine.config().target_root());
+                    let mut target_dir = PathBuf::from(&engine.paths().target_root());
                     target_dir.push(relative_asset);
 
                     let target_dir = target_dir.parent().expect("should have parent directory");
@@ -225,7 +254,7 @@ impl Engine {
                     let src_path = {
                         let src = asset.initiator().to_path_buf();
                         dbg!(&src);
-                        let src = src.strip_prefix(&engine.config().target_root())?;
+                        let src = src.strip_prefix(&engine.paths().target_root())?;
                         dbg!(&src);
                         let src = SysPath::new("", src)?;
                         src
@@ -233,7 +262,7 @@ impl Engine {
                     dbg!(&src_path);
                     dbg!(&relative_asset);
                     pipeline.run(
-                        &engine.config().target_root(),
+                        &engine.paths().target_root(),
                         relative_asset,
                         &src_path.to_path_buf(),
                     )?;
@@ -300,8 +329,8 @@ impl Engine {
     pub fn rebuild_page_store(&mut self) -> Result<()> {
         trace!("rebuilding the page store");
         self.page_store = do_build_page_store(
-            &self.config().src_root(),
-            &self.config().target_root(),
+            &self.paths().src_root(),
+            &self.paths().target_root(),
             &self.renderers,
         )?;
         Ok(())
@@ -356,7 +385,7 @@ impl Engine {
         {
             trace!("locating HTML assets");
             let mut html_assets =
-                crate::discover::html_asset::find_all(&self.config().target_root())?;
+                crate::discover::html_asset::find_all(&self.paths().target_root())?;
             html_assets.drop_offsite();
             dbg!(&html_assets);
 
@@ -396,14 +425,10 @@ impl Engine {
 
         // spawn filesystem monitoring thread
         {
-            let config = engine.config();
+            let paths = engine.paths();
 
             let watch_dirs = {
-                let mut dirs = vec![
-                    config.template_root(),
-                    config.src_root(),
-                    config.rule_script(),
-                ];
+                let mut dirs = vec![paths.template_root(), paths.src_root(), paths.rule_script()];
 
                 #[allow(clippy::redundant_closure_for_method_calls)]
                 dirs.extend(engine.rules().mounts().map(|mount| mount.src()));
@@ -418,7 +443,7 @@ impl Engine {
             )?;
         }
 
-        let devserver = DevServer::run(engine_broker, engine.config().target_root(), bind);
+        let devserver = DevServer::run(engine_broker, engine.paths().target_root(), bind);
         Ok(devserver)
     }
 }
@@ -458,8 +483,8 @@ pub mod test {
 
     use super::*;
 
-    fn default_test_config(tree: &TempDir) -> EngineConfig {
-        EngineConfig {
+    fn default_test_paths(tree: &TempDir) -> EnginePaths {
+        EnginePaths {
             rule_script: tree.path().join("rules.rhai"),
             src_root: tree.path().join("src"),
             syntax_theme_root: tree.path().join("syntax_themes"),
@@ -469,7 +494,7 @@ pub mod test {
     }
 
     // `TempDir` needs to stay bound in order to maintain temporary directory tree
-    fn simple_config() -> (EngineConfig, TempDir) {
+    fn simple_init() -> (EnginePaths, TempDir) {
         let tree = temptree! {
           "rules.rhai": "",
           templates: {},
@@ -477,25 +502,25 @@ pub mod test {
           src: {},
           syntax_themes: {}
         };
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        (config, tree)
+        (paths, tree)
     }
 
     #[test]
     fn makes_new_engine() {
-        let (config, tree) = simple_config();
-        Engine::new(config).expect("should be able to make new engine");
+        let (paths, tree) = simple_init();
+        Engine::new(paths).expect("should be able to make new engine");
     }
 
     #[test]
     fn makes_new_engine_with_broker() {
         use std::str::FromStr;
 
-        let (config, tree) = simple_config();
+        let (paths, tree) = simple_init();
 
         let (engine_handle, broker) = Engine::with_broker(
-            config,
+            paths,
             SocketAddr::from_str("127.0.0.1:9999").unwrap(),
             200,
             RenderBehavior::Memory,
@@ -514,15 +539,15 @@ pub mod test {
 
     #[test]
     fn gets_renderers() {
-        let (config, tree) = simple_config();
-        let engine = Engine::new(config).unwrap();
+        let (paths, tree) = simple_init();
+        let engine = Engine::new(paths).unwrap();
         assert!(std::ptr::eq(engine.renderers(), &engine.renderers));
     }
 
     #[test]
     fn gets_mutable_page_store() {
-        let (config, tree) = simple_config();
-        let mut engine = Engine::new(config).unwrap();
+        let (paths, tree) = simple_init();
+        let mut engine = Engine::new(paths).unwrap();
         assert!(std::ptr::eq(engine.page_store_mut(), &engine.page_store));
     }
 
@@ -551,10 +576,9 @@ pub mod test {
           syntax_themes: {}
         };
 
-        let mut config = default_test_config(&tree);
-        config.rule_script = tree.path().join("old_rules.rhai");
+        let paths = default_test_paths(&tree);
 
-        let mut engine = Engine::new(config).unwrap();
+        let mut engine = Engine::new(paths).unwrap();
         assert_eq!(engine.rules().lints().len(), 2);
 
         std::fs::write(tree.path().join("rules.rhai"), new_rules)
@@ -576,9 +600,9 @@ pub mod test {
           syntax_themes: {}
         };
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let mut engine = Engine::new(config).unwrap();
+        let mut engine = Engine::new(paths).unwrap();
         assert_eq!(engine.renderers().tera.get_template_names().count(), 1);
 
         let mut new_template = tree.path().join("templates");
@@ -619,9 +643,9 @@ pub mod test {
           syntax_themes: {}
         };
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
 
         let lints = engine
             .lint(engine.page_store().iter().map(|(_, page)| page))
@@ -654,9 +678,9 @@ doc2"#;
           syntax_themes: {}
         };
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
 
         let rendered = engine
             .render(engine.page_store().iter().map(|(_, page)| page))
@@ -683,9 +707,9 @@ doc2"#;
           syntax_themes: {}
         };
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
 
         assert!(engine.build_site().is_err());
     }
@@ -721,9 +745,9 @@ doc2"#;
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, rules).unwrap();
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
 
         engine.build_site().expect("failed to build site");
     }
@@ -765,9 +789,9 @@ doc2"#;
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, rules).unwrap();
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
 
         // Here we go through the site building process manually in order to arrive
         // at the point where the pipelines are being processed. If the pipeline
@@ -784,7 +808,7 @@ doc2"#;
                 .process_mounts(engine.rules().mounts())
                 .expect("failed to process mounts");
 
-            let html_assets = crate::discover::html_asset::find_all(engine.config.target_root())
+            let html_assets = crate::discover::html_asset::find_all(engine.paths.target_root())
                 .expect("failed to discover html assets");
 
             let unhandled_assets = engine
@@ -819,9 +843,9 @@ doc2"#;
           syntax_themes: {}
         };
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let mut engine = Engine::new(config).unwrap();
+        let mut engine = Engine::new(paths).unwrap();
 
         let page_store = engine.page_store();
         assert_eq!(page_store.iter().count(), 1);
@@ -837,8 +861,8 @@ doc2"#;
 
     #[test]
     fn re_inits_everything() {
-        let (config, tree) = simple_config();
-        let mut engine = Engine::new(config).unwrap();
+        let (paths, tree) = simple_init();
+        let mut engine = Engine::new(paths).unwrap();
         assert!(engine.re_init().is_ok());
     }
 
@@ -886,9 +910,9 @@ doc2"#;
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, &rules).unwrap();
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
         engine.build_site().expect("failed to build site");
 
         let mut target_doc1 = tree.path().join("target");
@@ -941,9 +965,9 @@ doc2"#;
           syntax_themes: {}
         };
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
         assert!(engine.build_site().is_err());
     }
 
@@ -963,7 +987,7 @@ doc2"#;
           syntax_themes: {}
         };
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
         let rules = {
             let wwwroot = tree.path().join("wwwroot");
@@ -980,7 +1004,7 @@ doc2"#;
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, rules).unwrap();
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
         engine.build_site().expect("failed to build site");
 
         {
