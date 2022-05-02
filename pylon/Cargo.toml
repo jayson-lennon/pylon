@@ -40,6 +40,7 @@ parking_lot = "0.12"
 fs_extra = "1.2"
 scraper = "0.12"
 parcel_css = "1.0.0-alpha.23"
+syntect = "4.6"
 
 [dev-dependencies]
 temptree = "0.2.0"

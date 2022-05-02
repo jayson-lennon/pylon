@@ -203,10 +203,20 @@ pub fn lint(
 mod test {
 
     use super::*;
+    use tempfile::TempDir;
     use temptree::temptree;
 
     use crate::core::{config::EngineConfig, engine::Engine, page::LintLevel, Uri};
 
+    fn default_test_config(tree: &TempDir) -> EngineConfig {
+        EngineConfig {
+            rule_script: tree.path().join("rules.rhai"),
+            src_root: tree.path().join("content"),
+            syntax_theme_root: tree.path().join("syntax_themes"),
+            target_root: tree.path().join("output"),
+            template_root: tree.path().join("templates"),
+        }
+    }
     #[test]
     fn single_lint() {
         let test_page = r#"+++
@@ -228,15 +238,11 @@ mod test {
           output: {},
           content: {
               "test.md": test_page
-          }
+          },
+          syntax_themes: {},
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("content"),
-            tree.path().join("output"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
         let engine = Engine::new(config).unwrap();
 
         let page = engine
@@ -274,15 +280,11 @@ mod test {
           output: {},
           content: {
               "test.md": test_page
-          }
+          },
+          syntax_themes: {},
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("content"),
-            tree.path().join("output"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
         let engine = Engine::new(config).unwrap();
 
         let page = engine

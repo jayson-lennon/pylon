@@ -100,7 +100,7 @@ impl Engine {
 
     #[instrument]
     pub fn new(config: EngineConfig) -> Result<Engine> {
-        let renderers = Renderers::new(&config.template_root);
+        let renderers = Renderers::new(&config.template_root, &config.syntax_theme_root)?;
 
         let page_store = do_build_page_store(&config.src_root, &config.target_root, &renderers)?;
 
@@ -426,20 +426,27 @@ pub mod test {
 
     use super::*;
 
+    fn default_test_config(tree: &TempDir) -> EngineConfig {
+        EngineConfig {
+            rule_script: tree.path().join("rules.rhai"),
+            src_root: tree.path().join("src"),
+            syntax_theme_root: tree.path().join("syntax_themes"),
+            target_root: tree.path().join("target"),
+            template_root: tree.path().join("templates"),
+        }
+    }
+
     // `TempDir` needs to stay bound in order to maintain temporary directory tree
     fn simple_config() -> (EngineConfig, TempDir) {
         let tree = temptree! {
           "rules.rhai": "",
           templates: {},
           target: {},
-          src: {}
+          src: {},
+          syntax_themes: {}
         };
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
+
         (config, tree)
     }
 
@@ -509,15 +516,12 @@ pub mod test {
           "new_rules.rhai": new_rules,
           templates: {},
           target: {},
-          src: {}
+          src: {},
+          syntax_themes: {}
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("old_rules.rhai"),
-        );
+        let mut config = default_test_config(&tree);
+        config.rule_script = tree.path().join("old_rules.rhai");
 
         let mut engine = Engine::new(config).unwrap();
         assert_eq!(engine.rules().lints().len(), 2);
@@ -535,15 +539,11 @@ pub mod test {
               "a.tera": "",
           },
           target: {},
-          src: {}
+          src: {},
+          syntax_themes: {}
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let mut engine = Engine::new(config).unwrap();
         assert_eq!(engine.renderers().tera.get_template_names().count(), 1);
@@ -582,15 +582,11 @@ pub mod test {
           target: {},
           src: {
               "sample.md": doc,
-          }
+          },
+          syntax_themes: {}
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let engine = Engine::new(config).unwrap();
 
@@ -621,15 +617,11 @@ doc2"#;
           src: {
               "doc1.md": doc1,
               "doc2.md": doc2,
-          }
+          },
+          syntax_themes: {}
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let engine = Engine::new(config).unwrap();
 
@@ -654,15 +646,11 @@ doc2"#;
           target: {},
           src: {
               "doc.md": doc,
-          }
+          },
+          syntax_themes: {}
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let engine = Engine::new(config).unwrap();
 
@@ -684,7 +672,8 @@ doc2"#;
           src: {
               "doc.md": doc,
               "found_it.png": "",
-          }
+          },
+          syntax_themes: {}
         };
 
         let rules = {
@@ -699,46 +688,11 @@ doc2"#;
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, rules).unwrap();
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let engine = Engine::new(config).unwrap();
 
         engine.build_site().expect("failed to build site");
-    }
-
-    #[test]
-    fn locates_css_urls() {
-        let tree = temptree! {
-          "rules.rhai": "",
-          templates: {},
-          target: {
-              "main.css": r#" @font-face {
-                                font-family: "Test";
-                                src:
-                                    local("Test"),
-                                    url("fonts/vendor/test/test.woff2") format("woff2"),
-                                    url("fonts/vendor/jost/test.woff") format("woff");
-                            }"#,
-            },
-          src: {}
-        };
-
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
-
-        let engine = Engine::new(config).unwrap();
-
-        assert!(engine.build_site().is_ok());
-        panic!();
     }
 
     #[test]
@@ -758,7 +712,8 @@ doc2"#;
           },
           wwwroot: {
               "found_it.png": "",
-          }
+          },
+          syntax_themes: {}
         };
 
         let rules = {
@@ -777,12 +732,7 @@ doc2"#;
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, rules).unwrap();
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let engine = Engine::new(config).unwrap();
 
@@ -836,15 +786,11 @@ doc2"#;
           src_new: {
               "doc1.md": doc1,
               "doc2.md": doc2,
-          }
+          },
+          syntax_themes: {}
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let mut engine = Engine::new(config).unwrap();
 
@@ -893,6 +839,7 @@ doc2"#;
               "doc2.md": doc2,
               "blank.png": "",
           },
+          syntax_themes: {}
         };
 
         let rules = {
@@ -910,12 +857,7 @@ doc2"#;
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, &rules).unwrap();
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let engine = Engine::new(config).unwrap();
         engine.build_site().expect("failed to build site");
@@ -967,14 +909,10 @@ doc2"#;
               "doc2.md": doc2,
               "blank.png": "",
           },
+          syntax_themes: {}
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let engine = Engine::new(config).unwrap();
         assert!(engine.build_site().is_err());
@@ -992,15 +930,11 @@ doc2"#;
               inner: {
                   "file_2": "data"
               }
-          }
+          },
+          syntax_themes: {}
         };
 
-        let config = EngineConfig::new(
-            tree.path().join("src"),
-            tree.path().join("target"),
-            tree.path().join("templates"),
-            tree.path().join("rules.rhai"),
-        );
+        let config = default_test_config(&tree);
 
         let rules = {
             let wwwroot = tree.path().join("wwwroot");

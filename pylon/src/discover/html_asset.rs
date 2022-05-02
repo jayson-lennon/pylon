@@ -235,16 +235,4 @@ mod test {
             assert_eq!(asset.tag, tagname);
         }
     }
-
-    #[test]
-    fn finds_page_with_name_link() {
-        let path = SysPath::new("test", "file_path/is/index.html").unwrap();
-        let html = tags("/other.html#link");
-        for (tagname, entry) in html {
-            let assets = super::find(&path, &entry).unwrap();
-            let asset = assets.iter().next().unwrap();
-            assert_eq!(asset.target, "/other.html");
-            assert_eq!(asset.tag, tagname);
-        }
-    }
 }

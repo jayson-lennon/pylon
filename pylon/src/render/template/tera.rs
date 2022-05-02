@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::path::{Path, PathBuf};
 use tera::Tera;
 
@@ -11,14 +12,17 @@ pub struct TeraRenderer {
 }
 
 impl TeraRenderer {
-    pub fn new<P: AsRef<Path>>(root: P) -> Self {
+    pub fn new<P: AsRef<Path>>(root: P) -> Result<Self> {
         let mut root = PathBuf::from(root.as_ref());
         root.push("**/*.tera");
 
-        let r = Tera::new(root.to_str().expect("non UTF-8 characters in path"))
-            .expect("error initializing template rendering engine");
+        let r = Tera::new(
+            root.to_str()
+                .with_context(|| "non UTF-8 characters in path")?,
+        )
+        .with_context(|| "error initializing template rendering engine")?;
 
-        Self { renderer: r }
+        Ok(Self { renderer: r })
     }
     pub fn render(&self, template: &TemplateName, context: &tera::Context) -> Result<String> {
         Ok(self.renderer.render(template.as_ref(), context)?)
@@ -48,12 +52,15 @@ mod test {
 
         let template_root = tree.path().join("templates");
 
-        let renderer = TeraRenderer::new(template_root);
+        let template_renderer =
+            TeraRenderer::new(template_root).expect("failed to create renderer");
 
         let mut ctx = tera::Context::new();
         ctx.insert("content", "testing");
 
-        let rendered = renderer.render(&"basic.tera".into(), &ctx).unwrap();
+        let rendered = template_renderer
+            .render(&"basic.tera".into(), &ctx)
+            .unwrap();
 
         assert_eq!(rendered.as_str(), "data: testing");
     }
@@ -68,11 +75,12 @@ mod test {
 
         let template_root = tree.path().join("templates");
 
-        let renderer = TeraRenderer::new(template_root);
+        let template_renderer =
+            TeraRenderer::new(template_root).expect("failed to create renderer");
 
         let ctx = tera::Context::new();
 
-        let rendered = renderer.render(&"basic.tera".into(), &ctx);
+        let rendered = template_renderer.render(&"basic.tera".into(), &ctx);
 
         assert!(rendered.is_err());
     }
