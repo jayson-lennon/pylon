@@ -78,8 +78,12 @@ fn main() -> Result<(), anyhow::Error> {
         rule_script: args.rule_script.clone(),
         src_root: args.src_dir.clone(),
         syntax_theme_root: args.syntax_themes_dir.clone(),
-        target_root: args.output_dir.clone(),
+        output_root: args.output_dir.clone(),
         template_root: args.template_dir.clone(),
+        project_root: args
+            .rule_script
+            .canonicalize()
+            .expect("failed to discover project root"),
     };
     match args.command {
         Command::Serve(opt) => {

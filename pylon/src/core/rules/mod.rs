@@ -249,6 +249,8 @@ pub mod script {
     }
     #[cfg(test)]
     mod test_script {
+        use std::path::PathBuf;
+
         use super::rhai_module::*;
         use crate::core::rules::Rules;
         use tempfile::TempDir;
@@ -257,11 +259,12 @@ pub mod script {
 
         fn default_test_paths(tree: &TempDir) -> EnginePaths {
             EnginePaths {
-                rule_script: tree.path().join("rules.rhai"),
-                src_root: tree.path().join("src"),
-                syntax_theme_root: tree.path().join("syntax_themes"),
-                target_root: tree.path().join("target"),
-                template_root: tree.path().join("templates"),
+                rule_script: PathBuf::from("rules.rhai"),
+                src_root: PathBuf::from("src"),
+                syntax_theme_root: PathBuf::from("syntax_themes"),
+                output_root: PathBuf::from("target"),
+                template_root: PathBuf::from("templates"),
+                project_root: tree.path().to_path_buf(),
             }
         }
 
@@ -349,11 +352,12 @@ mod test {
 
     fn default_test_paths(tree: &TempDir) -> EnginePaths {
         EnginePaths {
-            rule_script: tree.path().join("rules.rhai"),
-            src_root: tree.path().join("src"),
-            syntax_theme_root: tree.path().join("syntax_themes"),
-            target_root: tree.path().join("target"),
-            template_root: tree.path().join("templates"),
+            rule_script: PathBuf::from("rules.rhai"),
+            src_root: PathBuf::from("src"),
+            syntax_theme_root: PathBuf::from("syntax_themes"),
+            output_root: PathBuf::from("target"),
+            template_root: PathBuf::from("templates"),
+            project_root: tree.path().to_path_buf(),
         }
     }
 

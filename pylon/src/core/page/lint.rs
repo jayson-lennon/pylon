@@ -202,6 +202,8 @@ pub fn lint(
 #[cfg(test)]
 mod test {
 
+    use std::path::PathBuf;
+
     use super::*;
     use tempfile::TempDir;
     use temptree::temptree;
@@ -214,11 +216,12 @@ mod test {
 
     fn default_test_config(tree: &TempDir) -> EnginePaths {
         EnginePaths {
-            rule_script: tree.path().join("rules.rhai"),
-            src_root: tree.path().join("content"),
-            syntax_theme_root: tree.path().join("syntax_themes"),
-            target_root: tree.path().join("output"),
-            template_root: tree.path().join("templates"),
+            rule_script: PathBuf::from("rules.rhai"),
+            src_root: PathBuf::from("content"),
+            syntax_theme_root: PathBuf::from("syntax_themes"),
+            output_root: PathBuf::from("output"),
+            template_root: PathBuf::from("templates"),
+            project_root: tree.path().to_path_buf(),
         }
     }
     #[test]
