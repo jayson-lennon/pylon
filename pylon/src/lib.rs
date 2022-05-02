@@ -13,6 +13,7 @@
 pub mod core;
 pub mod devserver;
 pub mod discover;
+pub mod path;
 pub mod pipeline;
 pub mod render;
 pub mod site_context;
