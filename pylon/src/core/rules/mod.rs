@@ -45,11 +45,20 @@ pub struct Rules {
     lints: LintCollection,
     mounts: Vec<Mount>,
     watches: Vec<PathBuf>,
+    project_root: PathBuf,
 }
 
 impl Rules {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new<P: Into<PathBuf>>(project_root: P) -> Self {
+        Self {
+            pipelines: vec![],
+            global_context: None,
+            page_contexts: GlobStore::new(),
+            lints: LintCollection::new(),
+            mounts: vec![],
+            watches: vec![],
+            project_root: project_root.into(),
+        }
     }
     pub fn set_global_context<S: Serialize>(&mut self, ctx: S) -> crate::Result<()> {
         let ctx = serde_json::to_value(ctx)?;
@@ -102,19 +111,6 @@ impl Rules {
     }
 }
 
-impl Default for Rules {
-    fn default() -> Self {
-        Self {
-            pipelines: vec![],
-            global_context: None,
-            page_contexts: GlobStore::new(),
-            lints: LintCollection::new(),
-            mounts: vec![],
-            watches: vec![],
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct RuleProcessor {
     engine: rhai::Engine,
@@ -147,11 +143,6 @@ pub mod script {
         use rhai::FnPtr;
         use tracing::{instrument, trace};
 
-        #[rhai_fn()]
-        pub fn new_rules() -> Rules {
-            Rules::new()
-        }
-
         #[rhai_fn(name = "add_pipeline", return_raw)]
         pub fn add_pipeline(
             rules: &mut Rules,
@@ -168,9 +159,12 @@ pub mod script {
                 let op = Operation::from_str(&op)?;
                 parsed_ops.push(op);
             }
-            let pipeline = Pipeline::with_ops(base_dir, target_glob, &parsed_ops).map_err(|e| {
-                EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
-            })?;
+            let project_root = rules.project_root.as_path();
+
+            let pipeline = Pipeline::with_ops(project_root, base_dir, target_glob, &parsed_ops)
+                .map_err(|e| {
+                    EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
+                })?;
             rules.add_pipeline(pipeline);
 
             dbg!("pipeline added");
@@ -272,13 +266,8 @@ pub mod script {
         }
 
         #[test]
-        fn makes_new_rules() {
-            new_rules();
-        }
-
-        #[test]
         fn adds_pipeline() {
-            let mut rules = Rules::default();
+            let mut rules = Rules::new("");
             let values = vec!["[COPY]".into()];
             add_pipeline(&mut rules, "base", "*", values).expect("failed to add pipeline");
             assert_eq!(rules.pipelines().count(), 1);
@@ -286,21 +275,21 @@ pub mod script {
 
         #[test]
         fn adds_mount() {
-            let mut rules = Rules::default();
+            let mut rules = Rules::new("");
             mount(&mut rules, "src", "target");
             assert_eq!(rules.mounts().count(), 1);
         }
 
         #[test]
         fn adds_watch() {
-            let mut rules = Rules::default();
+            let mut rules = Rules::new("");
             watch(&mut rules, "test");
             assert_eq!(rules.watches().count(), 1);
         }
 
         #[test]
         fn rejects_bad_pipeline_op() {
-            let mut rules = Rules::default();
+            let mut rules = Rules::new("");
             let values = vec![1.into()];
             assert!(add_pipeline(&mut rules, "base", "*", values).is_err());
         }
@@ -343,7 +332,7 @@ pub mod script {
                     .collect::<Vec<_>>();
                 all[0].clone()
             };
-            let mut rules = Rules::default();
+            let mut rules = Rules::new("");
             assert!(add_page_context(&mut rules, "*", ptr).is_ok());
             assert_eq!(rules.page_contexts().iter().count(), 1);
         }
@@ -369,13 +358,8 @@ mod test {
     }
 
     #[test]
-    fn rules_default() {
-        Rules::default();
-    }
-
-    #[test]
     fn sets_global_context() {
-        let mut rules = Rules::new();
+        let mut rules = Rules::new("");
         assert!(rules
             .set_global_context(serde_json::to_value(1).unwrap())
             .is_ok());
@@ -414,7 +398,7 @@ mod test {
 
     #[test]
     fn adds_mount() {
-        let mut rules = Rules::new();
+        let mut rules = Rules::new("");
         rules.add_mount("src", "target");
 
         assert_eq!(rules.mounts().count(), 1);

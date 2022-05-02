@@ -1,3 +1,4 @@
+use anyhow::Context;
 use itertools::Itertools;
 use std::{
     collections::HashSet,
@@ -13,7 +14,7 @@ use crate::{
     core::config::EngineConfig,
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::{script_engine::ScriptEngineConfig, Page, PageStore},
+    core::{script_engine::ScriptEngineConfig, Page, PageStore, SysPath},
     devserver::{broker::RenderBehavior, DevServer, EngineBroker},
     discover::{
         html_asset::{HtmlAsset, HtmlAssets},
@@ -127,9 +128,18 @@ impl Engine {
         let script_engine_config = ScriptEngineConfig::new();
         let script_engine = ScriptEngine::new(&script_engine_config.modules());
 
+        let project_root = rule_script.as_ref().canonicalize()?;
+        let project_root = project_root.parent().with_context(|| {
+            format!(
+                "failed to determine project root directory from rule script at {}",
+                rule_script.as_ref().to_string_lossy()
+            )
+        })?;
+
         let rule_script = std::fs::read_to_string(&rule_script)?;
 
-        let (rule_processor, rules) = script_engine.build_rules(page_store, rule_script)?;
+        let (rule_processor, rules) =
+            script_engine.build_rules(project_root, page_store, rule_script)?;
 
         Ok((script_engine, rule_processor, rules))
     }
@@ -199,15 +209,32 @@ impl Engine {
                     // asset has an associate pipeline, so we won't report an error
                     asset_has_pipeline = true;
 
+                    dbg!(&asset);
                     let asset_uri = &asset.uri();
                     let relative_asset = &asset_uri.as_str()[1..];
                     // Make a new target in order to create directories for the asset.
                     let mut target_dir = PathBuf::from(&engine.config.target_root);
                     target_dir.push(relative_asset);
+
                     let target_dir = target_dir.parent().expect("should have parent directory");
                     util::make_parent_dirs(target_dir)?;
+
                     dbg!(&target_dir);
-                    pipeline.run(&engine.config.target_root, relative_asset)?;
+                    let src_path = {
+                        let src = asset.initiator().to_path_buf();
+                        dbg!(&src);
+                        let src = src.strip_prefix(&engine.config.target_root)?;
+                        dbg!(&src);
+                        let src = SysPath::new("", src)?;
+                        src
+                    };
+                    dbg!(&src_path);
+                    dbg!(&relative_asset);
+                    pipeline.run(
+                        &engine.config.target_root,
+                        relative_asset,
+                        &src_path.to_path_buf(),
+                    )?;
                 }
             }
             if !asset_has_pipeline {
