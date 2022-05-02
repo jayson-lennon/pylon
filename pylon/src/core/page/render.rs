@@ -75,10 +75,11 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
 
             // the actual markdown content (rendered)
             {
-                let rendered_markdown = engine
-                    .renderers()
-                    .markdown
-                    .render(page, engine.page_store())?;
+                let rendered_markdown = engine.renderers().markdown.render(
+                    page,
+                    engine.page_store(),
+                    &engine.renderers().highlight,
+                )?;
                 tera_ctx.insert("content", &rendered_markdown);
             }
 
