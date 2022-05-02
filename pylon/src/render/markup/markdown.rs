@@ -144,7 +144,7 @@ fn render_code_block<S: AsRef<str>>(
 mod test {
     #![allow(clippy::all)]
 
-    use temptree::temptree;
+    
 
     use crate::{
         core::{page::page::test::new_page, Page, PageStore},
