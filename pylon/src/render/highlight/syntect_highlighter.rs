@@ -1,6 +1,6 @@
-use anyhow::Context;
 
-use syntect::highlighting::{Theme, ThemeSet};
+
+use syntect::highlighting::{ThemeSet};
 use syntect::html::ClassStyle;
 use syntect::html::{css_for_theme_with_class_style, line_tokens_to_classed_spans};
 use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
@@ -121,20 +121,17 @@ impl<'s> ClassHighlighter<'s> {
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
+    
 
     use super::*;
 
     #[test]
     fn creates_new_highlighter() {
-        let test_data_dir = PathBuf::from("src/render/highlight/test");
-
         SyntectHighlighter::new().expect("failed to create syntect highlighter");
     }
 
     #[test]
     fn gets_syntaxes() {
-        let test_data_dir = PathBuf::from("src/render/highlight/test");
         let highlighter = SyntectHighlighter::new().expect("failed to create syntect highlighter");
 
         assert!(!highlighter.syntaxes().is_empty());
@@ -142,7 +139,6 @@ mod test {
 
     #[test]
     fn gets_syntax_by_name() {
-        let test_data_dir = PathBuf::from("src/render/highlight/test");
         let highlighter = SyntectHighlighter::new().expect("failed to create syntect highlighter");
 
         assert!(highlighter.get_syntax_by_token("rs").is_some());
@@ -150,7 +146,6 @@ mod test {
 
     #[test]
     fn doesnt_find_nonexistent_syntax() {
-        let test_data_dir = PathBuf::from("src/render/highlight/test");
         let highlighter = SyntectHighlighter::new().expect("failed to create syntect highlighter");
 
         assert!(highlighter.get_syntax_by_token("NOT_A_SYNTAX").is_none());
