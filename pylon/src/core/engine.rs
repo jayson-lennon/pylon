@@ -1,4 +1,5 @@
 use anyhow::Context;
+use arc_swap::ArcSwap;
 use itertools::Itertools;
 use std::{
     collections::HashSet,
@@ -37,7 +38,7 @@ pub enum PipelineBehavior {
 
 #[derive(Debug)]
 pub struct Engine {
-    config: EngineConfig,
+    config: Arc<EngineConfig>,
     renderers: Renderers,
 
     // these are reset when the user script is updated
@@ -70,8 +71,8 @@ impl Engine {
         &self.rule_processor
     }
 
-    pub fn config(&self) -> &EngineConfig {
-        &self.config
+    pub fn config(&self) -> Arc<EngineConfig> {
+        Arc::clone(&self.config)
     }
 
     #[instrument]
@@ -108,6 +109,7 @@ impl Engine {
         let (script_engine, rule_processor, rules) =
             Self::load_rules(&config.rule_script, &page_store)?;
 
+        let config = Arc::new(config);
         Ok(Self {
             config,
             renderers,
@@ -147,7 +149,7 @@ impl Engine {
     #[instrument(skip(self), ret)]
     pub fn reload_rules(&mut self) -> Result<()> {
         let (script_engine, rule_processor, rules) =
-            Self::load_rules(&self.config.rule_script, &self.page_store)?;
+            Self::load_rules(&self.config().rule_script(), &self.page_store)?;
         self.script_engine = script_engine;
         self.rule_processor = rule_processor;
         self.rules = rules;
@@ -213,7 +215,7 @@ impl Engine {
                     let asset_uri = &asset.uri();
                     let relative_asset = &asset_uri.as_str()[1..];
                     // Make a new target in order to create directories for the asset.
-                    let mut target_dir = PathBuf::from(&engine.config.target_root);
+                    let mut target_dir = PathBuf::from(&engine.config().target_root());
                     target_dir.push(relative_asset);
 
                     let target_dir = target_dir.parent().expect("should have parent directory");
@@ -223,7 +225,7 @@ impl Engine {
                     let src_path = {
                         let src = asset.initiator().to_path_buf();
                         dbg!(&src);
-                        let src = src.strip_prefix(&engine.config.target_root)?;
+                        let src = src.strip_prefix(&engine.config().target_root())?;
                         dbg!(&src);
                         let src = SysPath::new("", src)?;
                         src
@@ -231,7 +233,7 @@ impl Engine {
                     dbg!(&src_path);
                     dbg!(&relative_asset);
                     pipeline.run(
-                        &engine.config.target_root,
+                        &engine.config().target_root(),
                         relative_asset,
                         &src_path.to_path_buf(),
                     )?;
@@ -298,8 +300,8 @@ impl Engine {
     pub fn rebuild_page_store(&mut self) -> Result<()> {
         trace!("rebuilding the page store");
         self.page_store = do_build_page_store(
-            &self.config.src_root,
-            &self.config.target_root,
+            &self.config().src_root(),
+            &self.config().target_root(),
             &self.renderers,
         )?;
         Ok(())
@@ -353,7 +355,8 @@ impl Engine {
 
         {
             trace!("locating HTML assets");
-            let mut html_assets = crate::discover::html_asset::find_all(&self.config.target_root)?;
+            let mut html_assets =
+                crate::discover::html_asset::find_all(&self.config().target_root())?;
             html_assets.drop_offsite();
             dbg!(&html_assets);
 
@@ -393,11 +396,13 @@ impl Engine {
 
         // spawn filesystem monitoring thread
         {
+            let config = engine.config();
+
             let watch_dirs = {
                 let mut dirs = vec![
-                    engine.config().template_root(),
-                    engine.config().src_root(),
-                    engine.config().rule_script(),
+                    config.template_root(),
+                    config.src_root(),
+                    config.rule_script(),
                 ];
 
                 #[allow(clippy::redundant_closure_for_method_calls)]
@@ -539,8 +544,7 @@ pub mod test {
         "#;
 
         let tree = temptree! {
-          "old_rules.rhai": old_rules,
-          "new_rules.rhai": new_rules,
+          "rules.rhai": old_rules,
           templates: {},
           target: {},
           src: {},
@@ -553,7 +557,9 @@ pub mod test {
         let mut engine = Engine::new(config).unwrap();
         assert_eq!(engine.rules().lints().len(), 2);
 
-        engine.config.rule_script = tree.path().join("new_rules.rhai");
+        std::fs::write(tree.path().join("rules.rhai"), new_rules)
+            .expect("failed to write new rules");
+
         engine.reload_rules().expect("failed to reload rules");
         assert_eq!(engine.rules().lints().len(), 1);
     }
@@ -810,10 +816,6 @@ doc2"#;
           src: {
               "doc1.md": doc1,
           },
-          src_new: {
-              "doc1.md": doc1,
-              "doc2.md": doc2,
-          },
           syntax_themes: {}
         };
 
@@ -824,7 +826,7 @@ doc2"#;
         let page_store = engine.page_store();
         assert_eq!(page_store.iter().count(), 1);
 
-        engine.config.src_root = tree.path().join("src_new");
+        std::fs::write(tree.path().join("src/doc2.md"), doc2).expect("failed to write new doc");
 
         engine
             .rebuild_page_store()
