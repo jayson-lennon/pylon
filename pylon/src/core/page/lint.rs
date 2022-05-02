@@ -206,10 +206,14 @@ mod test {
     use tempfile::TempDir;
     use temptree::temptree;
 
-    use crate::core::{config::EngineConfig, engine::Engine, page::LintLevel, Uri};
+    use crate::core::{
+        engine::{Engine, EnginePaths},
+        page::LintLevel,
+        Uri,
+    };
 
-    fn default_test_config(tree: &TempDir) -> EngineConfig {
-        EngineConfig {
+    fn default_test_config(tree: &TempDir) -> EnginePaths {
+        EnginePaths {
             rule_script: tree.path().join("rules.rhai"),
             src_root: tree.path().join("content"),
             syntax_theme_root: tree.path().join("syntax_themes"),
@@ -242,8 +246,8 @@ mod test {
           syntax_themes: {},
         };
 
-        let config = default_test_config(&tree);
-        let engine = Engine::new(config).unwrap();
+        let paths = default_test_config(&tree);
+        let engine = Engine::new(paths).unwrap();
 
         let page = engine
             .page_store()
@@ -284,8 +288,8 @@ mod test {
           syntax_themes: {},
         };
 
-        let config = default_test_config(&tree);
-        let engine = Engine::new(config).unwrap();
+        let paths = default_test_config(&tree);
+        let engine = Engine::new(paths).unwrap();
 
         let page = engine
             .page_store()

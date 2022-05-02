@@ -253,10 +253,10 @@ pub mod script {
         use crate::core::rules::Rules;
         use tempfile::TempDir;
 
-        use crate::core::config::EngineConfig;
+        use crate::core::engine::EnginePaths;
 
-        fn default_test_config(tree: &TempDir) -> EngineConfig {
-            EngineConfig {
+        fn default_test_paths(tree: &TempDir) -> EnginePaths {
+            EnginePaths {
                 rule_script: tree.path().join("rules.rhai"),
                 src_root: tree.path().join("src"),
                 syntax_theme_root: tree.path().join("syntax_themes"),
@@ -320,9 +320,9 @@ pub mod script {
                   syntax_themes: {},
                 };
 
-                let config = default_test_config(&tree);
+                let paths = default_test_paths(&tree);
 
-                let engine = crate::core::engine::Engine::new(config).unwrap();
+                let engine = crate::core::engine::Engine::new(paths).unwrap();
 
                 let all = engine
                     .rules()
@@ -341,14 +341,14 @@ pub mod script {
 
 #[cfg(test)]
 mod test {
-    use crate::core::{config::EngineConfig, engine::Engine};
+    use crate::core::engine::{Engine, EnginePaths};
     use tempfile::TempDir;
     use temptree::temptree;
 
     use super::*;
 
-    fn default_test_config(tree: &TempDir) -> EngineConfig {
-        EngineConfig {
+    fn default_test_paths(tree: &TempDir) -> EnginePaths {
+        EnginePaths {
             rule_script: tree.path().join("rules.rhai"),
             src_root: tree.path().join("src"),
             syntax_theme_root: tree.path().join("syntax_themes"),
@@ -389,9 +389,9 @@ mod test {
           syntax_themes: {},
         };
 
-        let config = default_test_config(&tree);
+        let paths = default_test_paths(&tree);
 
-        let engine = Engine::new(config).unwrap();
+        let engine = Engine::new(paths).unwrap();
 
         assert_eq!(engine.rules().page_contexts().iter().count(), 1);
     }
