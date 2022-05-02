@@ -1,14 +1,14 @@
 use anyhow::Context;
-use itertools::Itertools;
+
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::html::{css_for_theme_with_class_style, line_tokens_to_classed_spans};
-use syntect::html::{ClassStyle, ClassedHTMLGenerator};
+use syntect::html::{ClassStyle};
 use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
 use syntect::util::LinesWithEndings;
 
 use crate::Result;
-use std::fs::File;
-use std::io::{BufWriter, Write};
+
+
 use std::path::Path;
 
 pub const THEME_CLASS_PREFIX: &str = "syn-";
@@ -138,7 +138,7 @@ mod test {
     use std::path::PathBuf;
 
     use super::*;
-    use temptree::temptree;
+    
 
     impl SyntectHighlighter {
         pub fn default_test() -> Self {
