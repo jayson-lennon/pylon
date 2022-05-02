@@ -297,8 +297,7 @@ pub mod test {
         };
         let template_root = tree.path().join("templates");
         let syntax_themes = tree.path().join("syntax_themes");
-        let renderers =
-            Renderers::new(template_root, syntax_themes).expect("Failed to create renderers");
+        let renderers = Renderers::new(template_root).expect("Failed to create renderers");
         let mut reader = io::Cursor::new(doc.as_bytes());
         Page::from_reader(src_root, target_root, doc_path, &mut reader, &renderers)
     }
