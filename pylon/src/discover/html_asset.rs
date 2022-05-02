@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use tracing::instrument;
 
@@ -13,14 +13,21 @@ pub struct HtmlAsset {
     target: String,
     tag: String,
     url_type: UrlType,
+    initiator: SysPath,
 }
 
 impl HtmlAsset {
-    pub fn new<S: Into<String>>(target: S, tag: S, url_type: &UrlType) -> Self {
+    pub fn new<S: Into<String>>(
+        target: S,
+        tag: S,
+        url_type: &UrlType,
+        source_file: &SysPath,
+    ) -> Self {
         Self {
             target: target.into(),
             tag: tag.into(),
             url_type: url_type.clone(),
+            initiator: source_file.clone(),
         }
     }
 
@@ -38,6 +45,10 @@ impl HtmlAsset {
 
     pub fn url_type(&self) -> &UrlType {
         &self.url_type
+    }
+
+    pub fn initiator(&self) -> &SysPath {
+        &self.initiator
     }
 }
 
@@ -115,7 +126,10 @@ pub fn find_all<P: AsRef<Path>>(root: P) -> Result<HtmlAssets> {
 
     for path in html_paths {
         let raw_html = std::fs::read_to_string(&path)?;
-        let assets = find(&SysPath::new(root, path.as_path())?, &raw_html)?;
+        let assets = find(
+            &SysPath::new(root, path.as_path().strip_prefix(root).unwrap())?,
+            &raw_html,
+        )?;
         all_assets.extend(assets);
     }
 
@@ -155,11 +169,12 @@ pub fn find<S: AsRef<str>>(page_path: &SysPath, html: S) -> Result<HtmlAssets> {
                 match discover::get_url_type(url) {
                     UrlType::Absolute => {
                         dbg!("absolute");
-                        assets.insert(HtmlAsset::new(url, tag, &UrlType::Absolute));
+                        dbg!(&url);
+                        assets.insert(HtmlAsset::new(url, tag, &UrlType::Absolute, page_path));
                     }
                     UrlType::Offsite => {
                         dbg!("offsiet");
-                        assets.insert(HtmlAsset::new(url, tag, &UrlType::Offsite));
+                        assets.insert(HtmlAsset::new(url, tag, &UrlType::Offsite, page_path));
                     }
                     // relative links need to get converted to absolute links
                     UrlType::Relative(target) => {
@@ -171,6 +186,7 @@ pub fn find<S: AsRef<str>>(page_path: &SysPath, html: S) -> Result<HtmlAssets> {
                             target.clone(),
                             tag.to_string(),
                             &UrlType::Relative(target),
+                            page_path,
                         ));
                     }
                     UrlType::InternalDoc(_) => panic!(
@@ -186,6 +202,7 @@ pub fn find<S: AsRef<str>>(page_path: &SysPath, html: S) -> Result<HtmlAssets> {
 #[cfg(test)]
 mod test {
     use crate::core::SysPath;
+    use std::path::PathBuf;
 
     macro_rules! pair {
         ($tagname:literal, $tagsrc:literal, $target:ident) => {
@@ -221,6 +238,10 @@ mod test {
             let asset = assets.iter().next().unwrap();
             assert_eq!(asset.target, "/file_path/is/test.png");
             assert_eq!(asset.tag, tagname);
+            assert_eq!(
+                asset.initiator,
+                SysPath::new("test", "file_path/is/index.html").unwrap()
+            );
         }
     }
 
@@ -233,6 +254,10 @@ mod test {
             let asset = assets.iter().next().unwrap();
             assert_eq!(asset.target, "/test.png");
             assert_eq!(asset.tag, tagname);
+            assert_eq!(
+                asset.initiator,
+                SysPath::new("test", "file_path/is/index.html").unwrap()
+            );
         }
     }
 }

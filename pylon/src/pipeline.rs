@@ -1,3 +1,4 @@
+use crate::core::SysPath;
 use crate::util::Glob;
 use crate::Result;
 use anyhow::{anyhow, Context};
@@ -38,13 +39,15 @@ pub struct Pipeline {
     pub target_glob: Glob,
     ops: Vec<Operation>,
     base_dir: PathBuf,
+    project_root: PathBuf,
 }
 
 impl Pipeline {
     #[instrument(skip(target_glob))]
-    pub fn new<P, G>(base_dir: P, target_glob: G) -> Result<Self>
+    pub fn new<R, B, G>(project_root: R, base_dir: B, target_glob: G) -> Result<Self>
     where
-        P: Into<PathBuf> + std::fmt::Debug,
+        R: Into<PathBuf> + std::fmt::Debug,
+        B: Into<PathBuf> + std::fmt::Debug,
         G: TryInto<Glob, Error = globset::Error>,
     {
         let target_glob = target_glob.try_into()?;
@@ -55,13 +58,20 @@ impl Pipeline {
             target_glob,
             ops: vec![],
             base_dir: base_dir.into(),
+            project_root: project_root.into(),
         })
     }
 
     #[instrument(skip(target_glob))]
-    pub fn with_ops<P, G>(base_dir: P, target_glob: G, ops: &[Operation]) -> Result<Self>
+    pub fn with_ops<R, B, G>(
+        project_root: R,
+        base_dir: B,
+        target_glob: G,
+        ops: &[Operation],
+    ) -> Result<Self>
     where
-        P: Into<PathBuf> + std::fmt::Debug,
+        R: Into<PathBuf> + std::fmt::Debug,
+        B: Into<PathBuf> + std::fmt::Debug,
         G: TryInto<Glob, Error = globset::Error>,
     {
         let target_glob = target_glob.try_into()?;
@@ -72,6 +82,7 @@ impl Pipeline {
             target_glob,
             ops: ops.into(),
             base_dir: base_dir.into(),
+            project_root: project_root.into(),
         })
     }
 
@@ -84,13 +95,14 @@ impl Pipeline {
     }
 
     #[instrument(skip(self))]
-    pub fn run<O, T>(&self, output_root: O, target_asset: T) -> Result<()>
+    pub fn run<O, T, W>(&self, output_root: O, target_asset: T, working_dir: W) -> Result<()>
     where
         O: AsRef<Path> + std::fmt::Debug,
         T: AsRef<Path> + std::fmt::Debug,
+        W: AsRef<Path> + std::fmt::Debug,
     {
         let mut scratch_files = vec![];
-        let result = self.do_run(&mut scratch_files, output_root, target_asset);
+        let result = self.do_run(&mut scratch_files, output_root, target_asset, working_dir);
 
         clean_temp_files(&scratch_files)
             .with_context(|| "failed to cleanup pipeline scratch files")?;
@@ -98,15 +110,18 @@ impl Pipeline {
         result
     }
 
-    fn do_run<O, T>(
+    #[allow(clippy::too_many_lines)]
+    fn do_run<O, T, W>(
         &self,
         scratch_files: &mut Vec<PathBuf>,
         output_root: O,
         target_asset: T,
+        working_dir: W,
     ) -> Result<()>
     where
         O: AsRef<Path> + std::fmt::Debug,
         T: AsRef<Path> + std::fmt::Debug,
+        W: AsRef<Path> + std::fmt::Debug,
     {
         let output_root = output_root.as_ref();
         let target_asset = target_asset.as_ref();
@@ -142,10 +157,22 @@ impl Pipeline {
                         autocopy = true;
                     }
 
+                    let source = {
+                        if let Ok(relative_to_project_root) = self.base_dir.strip_prefix("/") {
+                            let mut source = self.project_root.clone();
+                            source.push(relative_to_project_root);
+                            source.push(target_asset);
+                            source.to_string_lossy().to_string()
+                        } else {
+                            src_path.to_string_lossy().to_string()
+                        }
+                    };
+                    trace!("source {:?}", source);
+
                     let command = {
                         command
                             .0
-                            .replace("$SOURCE", src_path.to_string_lossy().as_ref())
+                            .replace("$SOURCE", &source)
                             .replace("$SCRATCH", scratch_path.to_string_lossy().as_ref())
                             .replace("$TARGET", target_path.to_string_lossy().as_ref())
                     };
@@ -162,10 +189,27 @@ impl Pipeline {
                     let command =
                         command.replace("$NEW_SCRATCH", scratch_path.to_string_lossy().as_ref());
 
+                    trace!("command= {:?}", command);
                     {
+                        let working_dir = {
+                            if let Ok(relative_to_project_root) = self.base_dir.strip_prefix("/") {
+                                let mut working_dir = self.project_root.clone();
+                                working_dir.push(relative_to_project_root);
+                                working_dir
+                            } else {
+                                let mut new_working_dir = self.project_root.clone();
+                                new_working_dir.push(self.base_dir.clone());
+                                new_working_dir.push(working_dir.as_ref());
+                                new_working_dir
+                            }
+                        };
+                        let cmd = format!("cd {} &&  {}", working_dir.to_string_lossy(), &command);
+                        trace!("cmd= {:?}", cmd);
+                        dbg!(&cmd);
+
                         let output = std::process::Command::new("sh")
                             .arg("-c")
-                            .arg(&command)
+                            .arg(&cmd)
                             .stdout(Stdio::piped())
                             .stderr(Stdio::piped())
                             .output()
@@ -226,7 +270,7 @@ mod test {
     #![allow(clippy::all)]
     #![allow(clippy::pedantic)]
 
-    use crate::util::TMP_ARTIFACT_PREFIX;
+    use crate::{core::SysPath, util::TMP_ARTIFACT_PREFIX};
 
     use super::{Operation, Pipeline, ShellCommand};
     use std::fs;
@@ -255,15 +299,21 @@ mod test {
 
     #[test]
     fn new_with_ops() {
+        let tmp_dir = temptree! {
+            nothing: "",
+        };
         let ops = vec![Operation::Copy];
 
-        let pipeline = Pipeline::with_ops("base", "*.txt", ops.as_slice());
+        let pipeline = Pipeline::with_ops(tmp_dir.path(), "base", "*.txt", ops.as_slice());
         assert!(pipeline.is_ok());
     }
 
     #[test]
     fn is_match() {
-        let mut pipeline = Pipeline::new("base", "*.txt").unwrap();
+        let tmp_dir = temptree! {
+            nothing: "",
+        };
+        let mut pipeline = Pipeline::new(tmp_dir.path(), "base", "*.txt").unwrap();
         pipeline.push_op(Operation::Copy);
 
         assert_eq!(pipeline.is_match("test.txt"), true);
@@ -276,15 +326,20 @@ mod test {
         let tree = temptree! {
           src: {
               "test.txt": "data",
+              "sample.md": "",
           },
           target: {},
         };
 
-        let mut pipeline = Pipeline::new(tree.path().join("src"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(tree.path(), tree.path().join("src"), "*.txt").unwrap();
         pipeline.push_op(Operation::Copy);
 
         pipeline
-            .run(tree.path().join("target"), "test.txt")
+            .run(
+                tree.path().join("target"),
+                "test.txt",
+                tree.path().join("src"),
+            )
             .unwrap();
 
         let target_content = fs::read_to_string(tree.path().join("target/test.txt")).unwrap();
@@ -296,10 +351,11 @@ mod test {
         let tree = temptree! {
           src: {
               "test.txt": "old",
+              "sample.md": "",
           },
           target: {},
         };
-        let mut pipeline = Pipeline::new(tree.path().join("src"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(tree.path(), ".", "**/*.txt").unwrap();
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             r#"sed 's/old/new/g' $SOURCE > $NEW_SCRATCH"#,
         )));
@@ -308,7 +364,11 @@ mod test {
         )));
 
         pipeline
-            .run(tree.path().join("target"), "test.txt")
+            .run(
+                tree.path().join("target"),
+                "test.txt",
+                tree.path().join("src"),
+            )
             .unwrap();
 
         let target_content = fs::read_to_string(tree.path().join("target/test.txt")).unwrap();
@@ -320,10 +380,11 @@ mod test {
         let tree = temptree! {
           src: {
               "test.txt": "old",
+              "sample.md": "",
           },
           target: {},
         };
-        let mut pipeline = Pipeline::new(tree.path().join("src"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(tree.path(), ".", "*.txt").unwrap();
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             r#"sed 's/old/new/g' $SOURCE > $NEW_SCRATCH"#,
         )));
@@ -332,7 +393,11 @@ mod test {
         )));
 
         pipeline
-            .run(tree.path().join("target"), "test.txt")
+            .run(
+                tree.path().join("target"),
+                "test.txt",
+                tree.path().join("src"),
+            )
             .unwrap();
 
         let target_content = fs::read_to_string(tree.path().join("target/test.txt")).unwrap();
@@ -370,11 +435,268 @@ mod test {
           target: {},
         };
 
-        let mut pipeline = Pipeline::new(tree.path().join("src"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(tree.path(), tree.path().join("src"), "*.txt").unwrap();
         pipeline.push_op(Operation::Shell(ShellCommand::new("__COMMAND_NOT_FOUND__")));
 
-        let result = pipeline.run(tree.path().join("target"), "test.txt");
+        let result = pipeline.run(
+            tree.path().join("target"),
+            "test.txt",
+            tree.path().join("src"),
+        );
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn use_relative_base_dir_with_dot_only() {
+        let tree = temptree! {
+          src: {
+              blog: {
+                  post1: {
+                    "sample.md": "",
+                    "asset.txt": "old1",
+                    "asset2.txt": "old2",
+                  }
+              }
+          },
+          target: {},
+          "ignore.txt": "ignore"
+        };
+        let mut pipeline = Pipeline::new(tree.path(), ".", "**/blog/**/*.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/old/new/g' $SOURCE > $TARGET"#,
+        )));
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset2.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset.txt")).unwrap();
+        assert_eq!(&target_content, "new1");
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset2.txt")).unwrap();
+        assert_eq!(&target_content, "new2");
+    }
+
+    #[test]
+    fn use_relative_base_dir_with_dot() {
+        let tree = temptree! {
+          src: {
+              blog: {
+                  post1: {
+                    "sample.md": "",
+                    data: {
+                        "asset.txt": "old1",
+                        "asset2.txt": "old2",
+                    }
+                  }
+              }
+          },
+          target: {},
+          "ignore.txt": "ignore"
+        };
+        let mut pipeline = Pipeline::new(tree.path(), "./data", "**/blog/**/*.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/old/new/g' $SOURCE > $TARGET"#,
+        )));
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset2.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset.txt")).unwrap();
+        assert_eq!(&target_content, "new1");
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset2.txt")).unwrap();
+        assert_eq!(&target_content, "new2");
+    }
+
+    #[test]
+    fn use_relative_base_dir() {
+        let tree = temptree! {
+          src: {
+              blog: {
+                  post1: {
+                    "sample.md": "",
+                    data: {
+                        "asset.txt": "old1",
+                        "asset2.txt": "old2",
+                    }
+                  }
+              }
+          },
+          target: {},
+          "ignore.txt": "ignore"
+        };
+        let mut pipeline = Pipeline::new(tree.path(), "data", "**/blog/**/*.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/old/new/g' $SOURCE > $TARGET"#,
+        )));
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset2.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset.txt")).unwrap();
+        assert_eq!(&target_content, "new1");
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset2.txt")).unwrap();
+        assert_eq!(&target_content, "new2");
+    }
+
+    #[test]
+    fn use_absolute_base_dir() {
+        let tree = temptree! {
+          src: {
+              blog: {
+                  post1: {
+                    "sample.md": "",
+                    data: {
+                        "asset.txt": "old1",
+                        "asset2.txt": "old2",
+                    }
+                  }
+              }
+          },
+          target: {},
+          "ignore.txt": "ignore"
+        };
+        let mut pipeline =
+            Pipeline::new(tree.path(), "/src/blog/post1/data", "**/blog/**/*.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/old/new/g' $SOURCE > $TARGET"#,
+        )));
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset2.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset.txt")).unwrap();
+        assert_eq!(&target_content, "new1");
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset2.txt")).unwrap();
+        assert_eq!(&target_content, "new2");
+    }
+
+    #[test]
+    fn use_root() {
+        let tree = temptree! {
+          src: {
+              blog: {
+                  post1: {
+                    "sample.md": "",
+                  }
+              }
+          },
+          target: {},
+          "ignore.txt": "ignore",
+          "asset.txt": "old1",
+          "asset2.txt": "old2",
+        };
+        let mut pipeline = Pipeline::new(tree.path(), "/", "*.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            r#"sed 's/old/new/g' $SOURCE > $TARGET"#,
+        )));
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        pipeline
+            .run(
+                tree.path().join("target"),
+                "asset2.txt",
+                tree.path().join("src/blog/post1"),
+            )
+            .unwrap();
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset.txt")).unwrap();
+        assert_eq!(&target_content, "new1");
+
+        let target_content = fs::read_to_string(tree.path().join("target/asset2.txt")).unwrap();
+        assert_eq!(&target_content, "new2");
+    }
+
+    #[test]
+    fn bugfix_realworld_pipeline_processing() {
+        let tree = temptree! {
+            content: {
+                blog: {
+                    some_post: {
+                        "index.md": "",
+                        _src: {
+                            "sample1.txt": "sample1",
+                            "sample2.txt": "sample2",
+                        }
+                    }
+                }
+            },
+            public: {}
+        };
+        let mut pipeline = Pipeline::new(tree.path(), ".", "**/blog/**/combined.txt").unwrap();
+        pipeline.push_op(Operation::Shell(ShellCommand::new("cat _src/* > $TARGET")));
+
+        pipeline
+            .run(
+                tree.path().join("public"),
+                "combined.txt",
+                tree.path().join("content/blog/some_post"),
+            )
+            .unwrap();
+
+        let target_content = fs::read_to_string(tree.path().join("public/combined.txt")).unwrap();
+        assert_eq!(&target_content, "sample1sample2");
     }
 }

@@ -1,3 +1,4 @@
+use crate::Result;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -24,5 +25,9 @@ impl EngineConfig {
     }
     pub fn template_root(&self) -> &Path {
         self.template_root.as_path()
+    }
+
+    pub fn project_root(&self) -> Result<PathBuf> {
+        Ok(self.rule_script.canonicalize()?)
     }
 }

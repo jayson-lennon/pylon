@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use rhai::packages::{Package, StandardPackage};
 #[allow(clippy::wildcard_imports)]
 use rhai::plugin::*;
@@ -94,10 +96,10 @@ impl ScriptEngine {
         RuleProcessor::new(engine, script.as_ref())
     }
 
-    fn new_scope(page_store: &PageStore) -> Scope {
+    fn new_scope<P: Into<PathBuf>>(project_dir: P, page_store: &PageStore) -> Scope {
         use crate::core::page::lint::{LINT_LEVEL_DENY, LINT_LEVEL_WARN};
         let mut scope = Scope::new();
-        scope.push("rules", Rules::new());
+        scope.push("rules", Rules::new(project_dir));
         scope.push("PAGES", page_store.clone());
         scope.push("DENY", LINT_LEVEL_DENY);
         scope.push("WARN", LINT_LEVEL_WARN);
@@ -105,15 +107,16 @@ impl ScriptEngine {
         scope
     }
 
-    pub fn build_rules<S: AsRef<str>>(
+    pub fn build_rules<S: AsRef<str>, P: Into<PathBuf>>(
         &self,
+        project_dir: P,
         page_store: &PageStore,
         script: S,
     ) -> Result<(RuleProcessor, Rules)> {
         let script = script.as_ref();
         let ast = self.engine.compile(script)?;
 
-        let mut scope = Self::new_scope(page_store);
+        let mut scope = Self::new_scope(project_dir, page_store);
 
         self.engine.run_ast_with_scope(&mut scope, &ast)?;
 
@@ -139,7 +142,7 @@ mod test {
     #[test]
     fn scope_contains_proper_items() {
         let store = PageStore::default();
-        let scope = ScriptEngine::new_scope(&store);
+        let scope = ScriptEngine::new_scope("", &store);
         let required_items = &["rules", "PAGES", "DENY", "WARN"];
         for item in required_items {
             assert!(scope.contains(item));
