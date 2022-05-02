@@ -39,8 +39,9 @@ pub struct EnginePaths {
     pub rule_script: PathBuf,
     pub src_root: PathBuf,
     pub syntax_theme_root: PathBuf,
-    pub target_root: PathBuf,
+    pub output_root: PathBuf,
     pub template_root: PathBuf,
+    pub project_root: PathBuf,
 }
 
 impl EnginePaths {
@@ -53,15 +54,14 @@ impl EnginePaths {
     pub fn syntax_theme_root(&self) -> &Path {
         self.rule_script.as_path()
     }
-    pub fn target_root(&self) -> &Path {
-        self.target_root.as_path()
+    pub fn output_root(&self) -> &Path {
+        self.output_root.as_path()
     }
     pub fn template_root(&self) -> &Path {
         self.template_root.as_path()
     }
-
-    pub fn project_root(&self) -> Result<PathBuf> {
-        Ok(self.rule_script.canonicalize()?)
+    pub fn project_root(&self) -> &Path {
+        self.project_root.as_path()
     }
 }
 
@@ -133,7 +133,7 @@ impl Engine {
     pub fn new(paths: EnginePaths) -> Result<Engine> {
         let renderers = Renderers::new(&paths.template_root)?;
 
-        let page_store = do_build_page_store(&paths.src_root, &paths.target_root, &renderers)?;
+        let page_store = do_build_page_store(&paths.src_root, &paths.output_root, &renderers)?;
 
         let (script_engine, rule_processor, rules) =
             Self::load_rules(&paths.rule_script, &page_store)?;
@@ -221,7 +221,7 @@ impl Engine {
                             }
                         }
                         _ => {
-                            let mut target_sys_path = PathBuf::from(&self.paths().target_root);
+                            let mut target_sys_path = PathBuf::from(&self.paths().output_root);
                             let relative_uri = PathBuf::from(&asset.uri().as_str()[1..]);
                             target_sys_path.push(relative_uri);
                             if target_sys_path.exists() {
@@ -244,7 +244,7 @@ impl Engine {
                     let asset_uri = &asset.uri();
                     let relative_asset = &asset_uri.as_str()[1..];
                     // Make a new target in order to create directories for the asset.
-                    let mut target_dir = PathBuf::from(&engine.paths().target_root());
+                    let mut target_dir = PathBuf::from(&engine.paths().output_root());
                     target_dir.push(relative_asset);
 
                     let target_dir = target_dir.parent().expect("should have parent directory");
@@ -254,7 +254,7 @@ impl Engine {
                     let src_path = {
                         let src = asset.initiator().to_path_buf();
                         dbg!(&src);
-                        let src = src.strip_prefix(&engine.paths().target_root())?;
+                        let src = src.strip_prefix(&engine.paths().output_root())?;
                         dbg!(&src);
                         let src = SysPath::new("", src)?;
                         src
@@ -262,7 +262,7 @@ impl Engine {
                     dbg!(&src_path);
                     dbg!(&relative_asset);
                     pipeline.run(
-                        &engine.paths().target_root(),
+                        &engine.paths().output_root(),
                         relative_asset,
                         &src_path.to_path_buf(),
                     )?;
@@ -330,7 +330,7 @@ impl Engine {
         trace!("rebuilding the page store");
         self.page_store = do_build_page_store(
             &self.paths().src_root(),
-            &self.paths().target_root(),
+            &self.paths().output_root(),
             &self.renderers,
         )?;
         Ok(())
@@ -385,7 +385,7 @@ impl Engine {
         {
             trace!("locating HTML assets");
             let mut html_assets =
-                crate::discover::html_asset::find_all(&self.paths().target_root())?;
+                crate::discover::html_asset::find_all(&self.paths().output_root())?;
             html_assets.drop_offsite();
             dbg!(&html_assets);
 
@@ -443,7 +443,7 @@ impl Engine {
             )?;
         }
 
-        let devserver = DevServer::run(engine_broker, engine.paths().target_root(), bind);
+        let devserver = DevServer::run(engine_broker, engine.paths().output_root(), bind);
         Ok(devserver)
     }
 }
@@ -485,11 +485,12 @@ pub mod test {
 
     fn default_test_paths(tree: &TempDir) -> EnginePaths {
         EnginePaths {
-            rule_script: tree.path().join("rules.rhai"),
-            src_root: tree.path().join("src"),
-            syntax_theme_root: tree.path().join("syntax_themes"),
-            target_root: tree.path().join("target"),
-            template_root: tree.path().join("templates"),
+            rule_script: PathBuf::from("rules.rhai"),
+            src_root: PathBuf::from("src"),
+            syntax_theme_root: PathBuf::from("syntax_themes"),
+            output_root: PathBuf::from("target"),
+            template_root: PathBuf::from("templates"),
+            project_root: tree.path().to_path_buf(),
         }
     }
 
@@ -808,7 +809,7 @@ doc2"#;
                 .process_mounts(engine.rules().mounts())
                 .expect("failed to process mounts");
 
-            let html_assets = crate::discover::html_asset::find_all(engine.paths.target_root())
+            let html_assets = crate::discover::html_asset::find_all(engine.paths.output_root())
                 .expect("failed to discover html assets");
 
             let unhandled_assets = engine

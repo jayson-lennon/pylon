@@ -280,7 +280,7 @@ mod handle_msg {
 
     pub fn process_pipelines<S: AsRef<str>>(engine: &Engine, page_path: S) -> Result<()> {
         let sys_path = SysPath::new(
-            &engine.paths().target_root,
+            &engine.paths().output_root,
             &PathBuf::from(page_path.as_ref()),
         )?;
         let raw_html = std::fs::read_to_string(sys_path.to_path_buf())?;
@@ -381,7 +381,7 @@ mod handle_msg {
             {
                 let page = Page::from_file(
                     &engine.paths().src_root.as_path(),
-                    &engine.paths().target_root.as_path(),
+                    &engine.paths().output_root.as_path(),
                     &path,
                     engine.renderers(),
                 )?;
