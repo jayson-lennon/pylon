@@ -1,108 +1,89 @@
-use crate::core::SysPath;
-use crate::core::Uri;
+use crate::core::engine::GlobalEnginePaths;
+use crate::core::pagestore::SearchKey;
 use crate::render::template::TemplateName;
+use crate::CheckedFilePath;
+
+use crate::pathmarker;
 use crate::Renderers;
 use crate::Result;
+use crate::SysPath;
+use crate::Uri;
 use anyhow::{anyhow, Context};
 use serde::Serialize;
 
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashSet, path::PathBuf};
 use tracing::{instrument, trace_span};
 
 use super::FrontMatter;
 use super::{PageKey, RawMarkdown};
 
-#[derive(Clone, Debug, Default, Serialize)]
+const DEFAULT_TEMPLATE_NAME: &str = "default.tera";
+
+#[derive(Clone, Debug, Serialize)]
 pub struct Page {
-    pub src_path: SysPath,
-    pub target_path: SysPath,
+    #[serde(skip)]
+    pub engine_paths: GlobalEnginePaths,
+
+    pub path: CheckedFilePath<pathmarker::Md>,
 
     pub raw_doc: String,
     pub page_key: PageKey,
 
     pub frontmatter: FrontMatter,
     pub raw_markdown: RawMarkdown,
-    pub uri: Uri,
 }
 
 impl Page {
     #[instrument(skip(renderers), ret)]
-    pub fn from_file<P>(
-        src_root: P,
-        target_root: P,
-        file_path: P,
+    pub fn from_file(
+        engine_paths: GlobalEnginePaths,
+        file_path: CheckedFilePath<pathmarker::Md>,
         renderers: &Renderers,
-    ) -> Result<Self>
-    where
-        P: AsRef<Path> + std::fmt::Debug,
-    {
-        let src_root = src_root.as_ref();
-        let target_root = target_root.as_ref();
-        let file_path = file_path.as_ref();
-        let file_path = if let Ok(path) = file_path.strip_prefix(src_root) {
-            path
-        } else {
-            file_path
-        };
+    ) -> Result<Self> {
+        let mut file = std::fs::File::open(file_path.as_sys_path().to_absolute_path())
+            .with_context(|| format!("failed opening source file {}", file_path))?;
 
-        let src_path = src_path(src_root, file_path)?;
-
-        let mut file = std::fs::File::open(&PathBuf::from(&src_path))
-            .with_context(|| format!("failed opening source file {}", src_path))?;
-
-        Self::from_reader(src_root, target_root, file_path, &mut file, renderers)
+        Self::from_reader(engine_paths, file_path, &mut file, renderers)
     }
 
     #[instrument(skip(renderers, reader), ret)]
-    pub fn from_reader<P, R>(
-        src_root: P,
-        target_root: P,
-        file_path: P,
+    pub fn from_reader<R>(
+        engine_paths: GlobalEnginePaths,
+        file_path: CheckedFilePath<pathmarker::Md>,
         reader: &mut R,
         renderers: &Renderers,
     ) -> Result<Self>
     where
-        P: AsRef<Path> + std::fmt::Debug,
         R: std::io::Read,
     {
-        let src_root = src_root.as_ref();
-        let target_root = target_root.as_ref();
-        let file_path = file_path.as_ref();
-
-        let src_path = src_path(src_root, file_path)?;
-
         let mut raw_doc = String::new();
-        reader
-            .read_to_string(&mut raw_doc)
-            .with_context(|| format!("error reading document into string for path {}", src_path))?;
+
+        reader.read_to_string(&mut raw_doc).with_context(|| {
+            format!(
+                "error reading document into string for path {}",
+                file_path.display()
+            )
+        })?;
 
         let (mut frontmatter, raw_markdown) = split_raw_doc(&raw_doc)
-            .with_context(|| format!("failed parsing raw document for {}", src_path))?;
-
-        let target_path = target_path(&src_path, target_root);
-
-        let uri = uri(&target_path);
+            .with_context(|| format!("failed parsing raw document for {}", file_path.display()))?;
 
         if frontmatter.template_name.is_none() {
             let all_templates = renderers.tera.get_template_names().collect::<HashSet<_>>();
-            let template = get_template_name(&all_templates, &src_path)?;
+            let template = find_default_template(&all_templates, &file_path)?;
 
             frontmatter.template_name = Some(template);
         }
 
         Ok(Self {
-            src_path,
-            target_path,
+            engine_paths,
+            path: file_path,
 
             raw_doc,
             page_key: PageKey::default(),
 
             frontmatter,
             raw_markdown,
-            uri,
         })
     }
 
@@ -110,17 +91,41 @@ impl Page {
         self.page_key = key;
     }
 
+    pub fn engine_paths(&self) -> GlobalEnginePaths {
+        self.engine_paths.clone()
+    }
+
     #[instrument(ret)]
+    pub fn path(&self) -> &CheckedFilePath<pathmarker::Md> {
+        &self.path
+    }
+
+    #[instrument(ret)]
+    pub fn target(&self) -> SysPath {
+        let target = self.path().as_sys_path().clone();
+        target
+            .with_base(self.engine_paths.output_dir())
+            .with_extension("html");
+        target
+    }
+
     pub fn uri(&self) -> Uri {
-        self.uri.clone()
+        let uri = format!(
+            "/{}",
+            self.target()
+                .with_base(self.engine_paths.output_dir())
+                .with_extension("html")
+                .to_relative_path()
+                .to_string()
+        );
+        // always has a starting slash
+        Uri::new(uri).unwrap()
     }
-    #[instrument(ret)]
-    pub fn src_path(&self) -> SysPath {
-        self.src_path.clone()
-    }
-    #[instrument(ret)]
-    pub fn target_path(&self) -> SysPath {
-        self.target_path.clone()
+
+    pub fn search_key(&self) -> SearchKey {
+        let mut target_path = PathBuf::from("/");
+        target_path.push(self.path().as_sys_path().target());
+        SearchKey::new(target_path.to_string_lossy())
     }
 
     #[instrument(ret)]
@@ -128,10 +133,6 @@ impl Page {
         debug_assert!(self.frontmatter.template_name.is_some());
         self.frontmatter.template_name.as_ref().cloned().unwrap()
     }
-}
-
-fn src_path<P: AsRef<Path>>(src_root: P, file_path: P) -> Result<SysPath> {
-    SysPath::new(src_root.as_ref(), file_path.as_ref())
 }
 
 fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
@@ -146,25 +147,18 @@ fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
     Ok((frontmatter, raw_markdown))
 }
 
-fn target_path<P: AsRef<Path>>(src_path: &SysPath, target_root: P) -> SysPath {
-    let target = src_path.with_base(target_root.as_ref());
-    target.with_extension("html")
-}
-
-fn uri(target_path: &SysPath) -> Uri {
-    let target = target_path.target();
-    Uri::from_path(target)
-}
-
-#[instrument(skip_all, fields(page=%src_path.to_string()))]
-fn get_template_name(template_names: &HashSet<&str>, src_path: &SysPath) -> Result<TemplateName> {
+#[instrument(skip_all, fields(page=?path))]
+fn find_default_template(
+    all_templates: &HashSet<&str>,
+    path: &CheckedFilePath<pathmarker::Md>,
+) -> Result<TemplateName> {
     let _span = trace_span!("no template specified").entered();
-    match get_default_template_name(template_names, src_path.clone()) {
+    match get_default_template_name(all_templates, path) {
         Some(template) => Ok(template),
         None => {
             return Err(anyhow!(
                 "no template provided and unable to find a default template for page {}",
-                src_path
+                path
             ))
         }
     }
@@ -173,25 +167,23 @@ fn get_template_name(template_names: &HashSet<&str>, src_path: &SysPath) -> Resu
 #[instrument(ret)]
 fn get_default_template_name(
     default_template_names: &HashSet<&str>,
-    rel_system_path: SysPath,
+    path: &CheckedFilePath<pathmarker::Md>,
 ) -> Option<TemplateName> {
-    // This function chomps the page path until no more components are remaining.
-    let mut ancestors = rel_system_path.target().ancestors();
+    let mut path = path.as_sys_path().target().to_path_buf();
 
-    for path in ancestors.by_ref() {
+    loop {
         let template_name = {
-            let mut template_name = PathBuf::from(path);
-            template_name.push("default.tera");
-            template_name.to_string_lossy().to_string()
+            let mut candidate = PathBuf::from(&path);
+            candidate.push(DEFAULT_TEMPLATE_NAME);
+            candidate.to_string_lossy().to_string()
         };
-        dbg!("check default template", &template_name);
-        dbg!(default_template_names);
-
-        if default_template_names.contains(&template_name.as_str()) {
+        if default_template_names.contains(template_name.as_str()) {
             return Some(TemplateName::new(template_name));
         }
+        if !path.pop() {
+            return None;
+        }
     }
-    None
 }
 
 fn split_document(raw: &str) -> Result<(&str, &str)> {
@@ -222,12 +214,11 @@ pub mod test {
 
     use std::io;
 
-    use crate::{
-        core::{SysPath, Uri},
-        render::template::TemplateName,
-        Renderers, Result,
-    };
-    use temptree::temptree;
+    use crate::core::pagestore::SearchKey;
+    use crate::test::rel;
+    use crate::{CheckedFilePath, SysPath};
+
+    use crate::{render::template::TemplateName, Renderers, Result};
 
     use super::Page;
 
@@ -288,25 +279,24 @@ pub mod test {
             content"#;
     }
 
-    pub fn new_page(doc: &str, doc_path: &str, src_root: &str, target_root: &str) -> Result<Page> {
-        let tree = temptree! {
-            templates: {
-                "default.tera": "",
-            },
-            syntax_themes: {},
-        };
-        let template_root = tree.path().join("templates");
-        let syntax_themes = tree.path().join("syntax_themes");
-        let renderers = Renderers::new(template_root).expect("Failed to create renderers");
+    pub fn new_page(doc: &str, doc_path: &str) -> Result<Page> {
+        let (paths, tree) = crate::test::simple_init();
+        let renderers =
+            Renderers::new(tree.path().join("templates")).expect("Failed to create renderers");
         let mut reader = io::Cursor::new(doc.as_bytes());
-        Page::from_reader(src_root, target_root, doc_path, &mut reader, &renderers)
+
+        let sys_path = SysPath::new(paths.project_root(), paths.src_dir(), rel!(doc_path));
+        let checked_path =
+            CheckedFilePath::try_from(&sys_path).expect("failed to create checked file path");
+
+        Page::from_reader(paths, checked_path, &mut reader, &renderers)
     }
 
     macro_rules! new_page_ok {
         ($name:ident => $doc:path) => {
             #[test]
             fn $name() {
-                let page = new_page($doc, "test/doc.md", "src", "target");
+                let page = new_page($doc, "src/doc.md");
                 assert!(page.is_ok());
             }
         };
@@ -316,7 +306,7 @@ pub mod test {
         ($name:ident => $doc:path) => {
             #[test]
             fn $name() {
-                let page = new_page($doc, "test/doc.md", "src", "target");
+                let page = new_page($doc, "src/doc.md");
                 assert!(page.is_err());
             }
         };
@@ -340,22 +330,12 @@ pub mod test {
         +++
         +++
         sample content"#,
-            "test/doc.md",
-            "src",
-            "target",
+            "src/doc.md",
         )
         .unwrap();
 
-        assert_eq!(page.src_path(), SysPath::new("src", "test/doc.md").unwrap());
-
-        assert_eq!(
-            page.target_path(),
-            SysPath::new("target", "test/doc.html").unwrap()
-        );
-
-        assert_eq!(page.uri(), Uri::new("/test/doc.html").unwrap());
-
         assert_eq!(page.template_name(), TemplateName::new("default.tera"));
+        assert_eq!(page.search_key(), SearchKey::new("/doc.md"));
     }
 
     #[test]
@@ -369,9 +349,7 @@ pub mod test {
         +++
         +++
         sample content"#,
-            "test/doc.md",
-            "src",
-            "target",
+            "src/doc.md",
         )
         .unwrap();
         map.insert(page.clone());

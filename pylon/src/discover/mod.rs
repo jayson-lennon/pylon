@@ -1,17 +1,22 @@
-pub mod css_asset;
+// pub mod css_asset;
 pub mod html_asset;
 
+use crate::Result;
 use std::fs;
-use std::io;
-use std::path::Path;
-use std::path::PathBuf;
 
+use std::path::Path;
+
+use serde::Serialize;
 use tracing::instrument;
 
-use crate::core::Uri;
+use crate::AbsPath;
 
 #[instrument(skip(condition), ret)]
-pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Result<Vec<PathBuf>> {
+pub fn get_all_paths<P: AsRef<Path> + std::fmt::Debug>(
+    root: P,
+    condition: &dyn Fn(&Path) -> bool,
+) -> Result<Vec<AbsPath>> {
+    let root = root.as_ref();
     let mut paths = vec![];
     if root.is_dir() {
         for entry in fs::read_dir(root)? {
@@ -19,19 +24,19 @@ pub fn get_all_paths(root: &Path, condition: &dyn Fn(&Path) -> bool) -> io::Resu
             if path.is_dir() {
                 paths.append(&mut get_all_paths(&path, condition)?);
             } else if condition(path.as_ref()) {
-                paths.push(path);
+                paths.push(AbsPath::new(path)?);
             }
         }
     }
     Ok(paths)
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize)]
 pub enum UrlType {
     Offsite,
     Absolute,
     Relative(String),
-    InternalDoc(Uri),
+    InternalDoc(String),
 }
 
 pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
@@ -39,7 +44,8 @@ pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
     match link.as_ref().as_bytes() {
         // Internal doc: @/
         [b'@', b'/', target @ ..] => {
-            UrlType::InternalDoc(Uri::from_path(from_utf8(target).unwrap()))
+            // add the slashy back
+            UrlType::InternalDoc(format!("/{}", from_utf8(target).unwrap()))
         }
         // Absolute: /
         [b'/', ..] => UrlType::Absolute,
@@ -59,7 +65,7 @@ mod test {
         let internal_link = "@/some/path/page.md";
         let link = super::get_url_type(internal_link);
         match link {
-            UrlType::InternalDoc(uri) => assert_eq!(uri, Uri::from_path("some/path/page.md")),
+            UrlType::InternalDoc(target) => assert_eq!(target, "/some/path/page.md"),
             #[allow(unreachable_patterns)]
             _ => panic!("wrong variant"),
         }

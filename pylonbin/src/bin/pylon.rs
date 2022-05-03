@@ -2,8 +2,10 @@ use clap::Parser;
 use pylon::core::engine::{Engine, EnginePaths};
 use pylon::devserver::broker::RenderBehavior;
 use pylon::render::highlight::SyntectHighlighter;
+use pylon::{AbsPath, RelPath};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -75,24 +77,29 @@ fn main() -> Result<(), anyhow::Error> {
     tracing::subscriber::set_global_default(subscriber)?;
 
     let paths = EnginePaths {
-        rule_script: args.rule_script.clone(),
-        src_root: args.src_dir.clone(),
-        syntax_theme_root: args.syntax_themes_dir.clone(),
-        output_root: args.output_dir.clone(),
-        template_root: args.template_dir.clone(),
-        project_root: args
-            .rule_script
-            .canonicalize()
-            .expect("failed to discover project root"),
+        rule_script: RelPath::new(&args.rule_script)?,
+        src_dir: RelPath::new(&args.src_dir)?,
+        syntax_theme_dir: RelPath::new(&args.syntax_themes_dir)?,
+        output_dir: RelPath::new(&args.output_dir)?,
+        template_dir: RelPath::new(&args.template_dir)?,
+        project_root: AbsPath::new(
+            args.rule_script
+                .canonicalize()
+                .expect("failed to discover project root"),
+        )?,
     };
     match args.command {
         Command::Serve(opt) => {
-            let (handle, _broker) =
-                Engine::with_broker(paths, opt.bind, opt.debounce_ms, opt.render_behavior)?;
+            let (handle, _broker) = Engine::with_broker(
+                Arc::new(paths),
+                opt.bind,
+                opt.debounce_ms,
+                opt.render_behavior,
+            )?;
             println!("{:?}", handle.join());
         }
         Command::Build => {
-            let engine = Engine::new(paths)?;
+            let engine = Engine::new(Arc::new(paths))?;
             engine.build_site()?;
         }
         Command::BuildSyntaxTheme { path } => {

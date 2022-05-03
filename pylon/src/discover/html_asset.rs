@@ -1,33 +1,32 @@
+use derivative::Derivative;
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
 
+use std::sync::Arc;
+
+use serde::Serialize;
 use tracing::instrument;
 
-use crate::core::{uri::Uri, SysPath};
+use crate::core::engine::EnginePaths;
 use crate::discover::UrlType;
-use crate::{discover, util, Result};
+use crate::{
+    discover, pathmarker, AssetPath, CheckedFilePath, CheckedUri, RelPath, Result, SysPath,
+};
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Derivative, Serialize)]
+#[derivative(Debug, Clone, Hash, PartialEq)]
 pub struct HtmlAsset {
-    target: String,
+    target: AssetPath,
     tag: String,
     url_type: UrlType,
-    initiator: SysPath,
 }
 
 impl HtmlAsset {
-    pub fn new<S: Into<String>>(
-        target: S,
-        tag: S,
-        url_type: &UrlType,
-        source_file: &SysPath,
-    ) -> Self {
+    pub fn new<S: Into<String>>(target: &AssetPath, tag: S, url_type: &UrlType) -> Self {
         Self {
-            target: target.into(),
+            target: target.clone(),
             tag: tag.into(),
             url_type: url_type.clone(),
-            initiator: source_file.clone(),
         }
     }
 
@@ -39,18 +38,20 @@ impl HtmlAsset {
         self.tag == tag.as_ref()
     }
 
-    pub fn uri(&self) -> Uri {
-        Uri::from_path(&self.target)
+    pub fn uri(&self) -> &CheckedUri {
+        self.target.uri()
+    }
+
+    pub fn html_path(&self) -> &CheckedFilePath<pathmarker::Html> {
+        &self.target.html_src()
     }
 
     pub fn url_type(&self) -> &UrlType {
         &self.url_type
     }
-
-    pub fn initiator(&self) -> &SysPath {
-        &self.initiator
-    }
 }
+
+impl Eq for HtmlAsset {}
 
 #[derive(Debug)]
 pub struct HtmlAssets {
@@ -71,7 +72,7 @@ impl HtmlAssets {
         self.into_iter()
     }
 
-    pub fn count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.inner.len()
     }
 
@@ -118,18 +119,22 @@ impl<'a> IntoIterator for &'a HtmlAssets {
 }
 
 #[instrument(skip_all)]
-pub fn find_all<P: AsRef<Path>>(root: P) -> Result<HtmlAssets> {
-    let root = root.as_ref();
+pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<HtmlAssets> {
     let html_paths =
-        discover::get_all_paths(root, &|path| path.extension() == Some(OsStr::new("html")))?;
+        discover::get_all_paths(&engine_paths.project_root().join(search_dir), &|path| {
+            path.extension() == Some(OsStr::new("html"))
+        })?;
     let mut all_assets = HtmlAssets::new();
 
-    for path in html_paths {
-        let raw_html = std::fs::read_to_string(&path)?;
-        let assets = find(
-            &SysPath::new(root, path.as_path().strip_prefix(root).unwrap())?,
-            &raw_html,
+    for abs_path in html_paths {
+        let raw_html = std::fs::read_to_string(&abs_path)?;
+        let sys_path = SysPath::from_abs_path(
+            &abs_path,
+            engine_paths.project_root(),
+            engine_paths.output_dir(),
         )?;
+        let html_path = CheckedFilePath::new(&sys_path)?;
+        let assets = find(engine_paths.clone(), &html_path, &raw_html)?;
         all_assets.extend(assets);
     }
 
@@ -138,7 +143,14 @@ pub fn find_all<P: AsRef<Path>>(root: P) -> Result<HtmlAssets> {
 
 #[instrument(skip(html))]
 /// This function rewrites the asset location if applicable
-pub fn find<S: AsRef<str>>(page_path: &SysPath, html: S) -> Result<HtmlAssets> {
+pub fn find<S>(
+    engine_paths: Arc<EnginePaths>,
+    html_path: &CheckedFilePath<pathmarker::Html>,
+    html: S,
+) -> Result<HtmlAssets>
+where
+    S: AsRef<str> + std::fmt::Debug,
+{
     use scraper::{Html, Selector};
 
     let selectors = [
@@ -168,26 +180,22 @@ pub fn find<S: AsRef<str>>(page_path: &SysPath, html: S) -> Result<HtmlAssets> {
                 dbg!(&url);
                 match discover::get_url_type(url) {
                     UrlType::Absolute => {
-                        dbg!("absolute");
-                        dbg!(&url);
-                        assets.insert(HtmlAsset::new(url, tag, &UrlType::Absolute, page_path));
+                        let uri = CheckedUri::new(html_path, url);
+                        let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
+                        let html_asset = HtmlAsset::new(&asset_path, tag, &UrlType::Absolute);
+                        assets.insert(html_asset);
                     }
                     UrlType::Offsite => {
-                        dbg!("offsiet");
-                        assets.insert(HtmlAsset::new(url, tag, &UrlType::Offsite, page_path));
+                        dbg!("offsite");
+                        // assets.insert(HtmlAsset::new(url, tag, &UrlType::Offsite, page_path));
                     }
                     // relative links need to get converted to absolute links
                     UrlType::Relative(target) => {
-                        dbg!("relative");
-                        dbg!(&target);
-                        dbg!(&page_path);
-                        let target = util::rel_to_abs(&target, page_path);
-                        assets.insert(HtmlAsset::new(
-                            target.clone(),
-                            tag.to_string(),
-                            &UrlType::Relative(target),
-                            page_path,
-                        ));
+                        let uri = CheckedUri::new(html_path, &target);
+                        let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
+                        let html_asset =
+                            HtmlAsset::new(&asset_path, tag, &UrlType::Relative(target));
+                        assets.insert(html_asset);
                     }
                     UrlType::InternalDoc(_) => panic!(
                         "encountered internal doc link while discovering assets. this is a bug"
@@ -201,8 +209,6 @@ pub fn find<S: AsRef<str>>(page_path: &SysPath, html: S) -> Result<HtmlAssets> {
 
 #[cfg(test)]
 mod test {
-    use crate::core::SysPath;
-    use std::path::PathBuf;
 
     macro_rules! pair {
         ($tagname:literal, $tagsrc:literal, $target:ident) => {
@@ -228,36 +234,59 @@ mod test {
         ]
     }
 
-    #[test]
-    fn finds_assets_with_relative_path() {
-        let path = SysPath::new("test", "file_path/is/index.html").unwrap();
-        let html = tags("test.png");
-        for (tagname, entry) in html {
-            let assets = super::find(&path, &entry).unwrap();
-            dbg!(&assets);
-            let asset = assets.iter().next().unwrap();
-            assert_eq!(asset.target, "/file_path/is/test.png");
-            assert_eq!(asset.tag, tagname);
-            assert_eq!(
-                asset.initiator,
-                SysPath::new("test", "file_path/is/index.html").unwrap()
-            );
-        }
-    }
+    // #[test]
+    // fn finds_assets_in_single_file() {
+    //     let tree = temptree! {
+    //       "rules.rhai": "",
+    //       templates: {},
+    //       target: {
+    //           file_path: {
+    //               is: {
+    //                   "index.html": "",
+    //               },
+    //           },
+    //       },
+    //       src: {},
+    //       syntax_themes: {}
+    //     };
+    //     let paths = crate::test::default_test_paths(&tree);
 
-    #[test]
-    fn finds_assets_with_absolute_path() {
-        let path = SysPath::new("test", "file_path/is/index.html").unwrap();
-        let html = tags("/test.png");
-        for (tagname, entry) in html {
-            let assets = super::find(&path, &entry).unwrap();
-            let asset = assets.iter().next().unwrap();
-            assert_eq!(asset.target, "/test.png");
-            assert_eq!(asset.tag, tagname);
-            assert_eq!(
-                asset.initiator,
-                SysPath::new("test", "file_path/is/index.html").unwrap()
-            );
-        }
-    }
+    //     let html_path =
+    //         HtmlFilePath::new(paths.clone(), rel!("target/file_path/is/index.html")).unwrap();
+    //     let html = tags("test.png");
+    //     for (tagname, entry) in html {
+    //         let assets = super::find(paths.clone(), &html_path, entry).unwrap();
+    //         let asset = assets.iter().next().unwrap();
+    //         assert_eq!(asset.uri().as_str(), "/file_path/is/test.png");
+    //         assert_eq!(asset.tag(), tagname);
+    //         assert_eq!(asset.html_path(), &html_path);
+    //     }
+    // }
+
+    // #[test]
+    // fn finds_assets_in_multiple_files() {
+    //     let tree = temptree! {
+    //       "rules.rhai": "",
+    //       templates: {},
+    //       target: {
+    //           "1.html": r#"<img src="test1.png">"#,
+    //           "2.html": r#"<img src="inner/test2.png">"#,
+    //       },
+    //       src: {},
+    //       syntax_themes: {}
+    //     };
+    //     let paths = crate::test::default_test_paths(&tree);
+
+    //     let assets = super::find_all(paths, rel!("target")).expect("failed to find assets");
+
+    //     assert_eq!(assets.len(), 2);
+
+    //     for asset in &assets {
+    //         if !(asset.uri().as_str() == "/test1.png" || asset.uri().as_str() == "/inner/test2.png")
+    //         {
+    //             dbg!(&assets);
+    //             panic!("wrong assets in collection");
+    //         }
+    //     }
+    // }
 }

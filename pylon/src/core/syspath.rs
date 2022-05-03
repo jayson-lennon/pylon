@@ -108,12 +108,15 @@ impl SysPath {
         }
     }
 
-    pub fn pop(&self) -> Self {
+    pub fn pop(&self) -> Option<Self> {
         let mut target = self.target.clone();
-        target.pop();
-        Self {
-            target,
-            base: self.base.clone(),
+        if target.pop() {
+            Self {
+                target,
+                base: self.base.clone(),
+            }
+        } else {
+            None
         }
     }
 

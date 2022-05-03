@@ -1,5 +1,4 @@
 use crate::core::page::RenderedPage;
-use crate::core::Uri;
 use crate::{AsStdError, Result};
 use poem::http::StatusCode;
 use poem::{
@@ -127,13 +126,14 @@ pub async fn try_rendered_file<S: AsRef<str>>(
     broker: &EngineBroker,
     path: S,
 ) -> Result<Option<RenderedPage>> {
+    use crate::core::pagestore::SearchKey;
     use crate::devserver::broker::EngineMsg;
     use crate::devserver::broker::EngineRequest;
 
     trace!("try to serve rendered file");
 
-    let uri = Uri::from_path(path.as_ref());
-    let (send, recv) = EngineRequest::new(uri);
+    dbg!(path.as_ref());
+    let (send, recv) = EngineRequest::new(SearchKey::from(path.as_ref()));
 
     broker.send_engine_msg(EngineMsg::RenderPage(send)).await?;
     recv.recv().await?
@@ -145,13 +145,13 @@ pub fn serve_rendered_file<S: AsRef<str>>(html: S) -> Response {
         .body(html_with_live_reload_script(html.as_ref()))
 }
 
-pub async fn run_pipelines<S: Into<String>>(broker: &EngineBroker, path: S) -> Result<()> {
-    use crate::devserver::broker::EngineMsg;
-    use crate::devserver::broker::EngineRequest;
-    let (send, _recv) = EngineRequest::new(path.into());
-    broker
-        .send_engine_msg(EngineMsg::ProcessPipelines(send))
-        .await?;
+pub async fn run_pipelines<S: Into<String>>(_broker: &EngineBroker, path: S) -> Result<()> {
+    // let (send, _recv) = EngineRequest::new(path.into());
+    dbg!(&path.into());
+    todo!();
+    // broker
+    //     .send_engine_msg(EngineMsg::ProcessPipelines(send))
+    //     .await?;
     Ok(())
 }
 
@@ -165,7 +165,7 @@ pub async fn handle(
     let path = path_to_file(path.to_string());
 
     match try_rendered_file(*broker, &path).await {
-        Ok(Some(page)) => return Ok(serve_rendered_file(&page.html)),
+        Ok(Some(page)) => return Ok(serve_rendered_file(&page.html())),
         Err(e) => return Err(poem::error::InternalServerError(AsStdError(e))),
         _ => (),
     }

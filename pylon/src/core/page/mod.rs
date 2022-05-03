@@ -92,24 +92,21 @@ pub mod script {
 
             #[test]
             fn uri_fn() {
-                let mut page =
-                    new_page(MINIMAL, "test/test.md", "src_root", "target_root").unwrap();
+                let mut page = new_page(MINIMAL, "src/test.md").unwrap();
                 let uri = rhai_module::uri(&mut page);
-                assert_eq!(uri, String::from("/test/test.html"));
+                assert_eq!(uri, String::from("/test.html"));
             }
 
             #[test]
             fn get_frontmatter() {
-                let mut page =
-                    new_page(MINIMAL, "test/test.md", "src_root", "target_root").unwrap();
+                let mut page = new_page(MINIMAL, "src/test.md").unwrap();
                 let frontmatter = rhai_module::frontmatter(&mut page);
                 assert_eq!(frontmatter.template_name, Some("empty.tera".into()));
             }
 
             #[test]
             fn get_all_meta() {
-                let mut page =
-                    new_page(MINIMAL, "test/test.md", "src_root", "target_root").unwrap();
+                let mut page = new_page(MINIMAL, "src/test.md").unwrap();
 
                 let dynamic = rhai_module::all_meta(&mut page);
                 assert!(dynamic.is_ok());
@@ -126,9 +123,7 @@ pub mod script {
                 [meta]
                 test = "sample"
                 +++"#,
-                    "test/test.md",
-                    "src_root",
-                    "target_root",
+                    "src/test.md",
                 )
                 .unwrap();
 
@@ -145,9 +140,7 @@ pub mod script {
                 [meta]
                 test = "sample"
                 +++"#,
-                    "test/test.md",
-                    "src_root",
-                    "target_root",
+                    "src/test.md",
                 )
                 .unwrap();
 
