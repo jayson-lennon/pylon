@@ -1,15 +1,16 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::{collections::HashSet, path::PathBuf};
 
 use crate::core::engine::{Engine, EnginePaths};
 use crate::core::page::RenderedPage;
-use crate::core::Uri;
+use crate::core::pagestore::SearchKey;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
-use crate::Result;
+use crate::{RelPath, Result};
 use tokio::runtime::Handle;
 use tracing::{error, trace, warn};
+
+use super::fswatcher::FilesystemUpdateEvents;
 
 type EngineSender = async_channel::Sender<EngineMsg>;
 type EngineReceiver = async_channel::Receiver<EngineMsg>;
@@ -40,52 +41,9 @@ where
     pub fn respond_sync(&self, handle: &Handle, data: FromEngine) -> Result<()> {
         handle.block_on(async { Ok(self.tx.send(data).await?) })
     }
-}
 
-#[derive(Debug)]
-pub struct FilesystemUpdateEvents {
-    changed: HashSet<PathBuf>,
-    deleted: HashSet<PathBuf>,
-    created: HashSet<PathBuf>,
-}
-
-impl FilesystemUpdateEvents {
-    pub fn new() -> Self {
-        Self {
-            changed: HashSet::new(),
-            deleted: HashSet::new(),
-            created: HashSet::new(),
-        }
-    }
-
-    pub fn change<P: Into<PathBuf>>(&mut self, path: P) {
-        self.changed.insert(path.into());
-    }
-
-    pub fn delete<P: Into<PathBuf>>(&mut self, path: P) {
-        self.deleted.insert(path.into());
-    }
-
-    pub fn create<P: Into<PathBuf>>(&mut self, path: P) {
-        self.created.insert(path.into());
-    }
-
-    pub fn changed(&self) -> impl Iterator<Item = &PathBuf> {
-        self.changed.iter()
-    }
-
-    pub fn deleted(&self) -> impl Iterator<Item = &PathBuf> {
-        self.deleted.iter()
-    }
-
-    pub fn created(&self) -> impl Iterator<Item = &PathBuf> {
-        self.created.iter()
-    }
-}
-
-impl Default for FilesystemUpdateEvents {
-    fn default() -> Self {
-        Self::new()
+    pub fn inner(&self) -> &ToEngine {
+        &self.inner
     }
 }
 
@@ -98,9 +56,9 @@ pub enum EngineMsg {
     FilesystemUpdate(FilesystemUpdateEvents),
     /// Renders a page and then returns it on the channel supplied in
     /// the request.
-    RenderPage(EngineRequest<Uri, Result<Option<RenderedPage>>>),
+    RenderPage(EngineRequest<SearchKey, Result<Option<RenderedPage>>>),
     ProcessMounts(EngineRequest<(), Result<()>>),
-    ProcessPipelines(EngineRequest<String, Result<()>>),
+    ProcessPipelines(EngineRequest<RelPath, Result<()>>),
     /// Quits the application
     Quit,
 }
@@ -127,15 +85,21 @@ impl std::str::FromStr for RenderBehavior {
 #[derive(Debug, Clone)]
 pub struct EngineBroker {
     rt: Arc<tokio::runtime::Runtime>,
+    engine_paths: Arc<EnginePaths>,
     devserver: (DevServerSender, DevServerReceiver),
     engine: (EngineSender, EngineReceiver),
     render_behavior: RenderBehavior,
 }
 
 impl EngineBroker {
-    pub fn new(rt: Arc<tokio::runtime::Runtime>, behavior: RenderBehavior) -> Self {
+    pub fn new(
+        rt: Arc<tokio::runtime::Runtime>,
+        behavior: RenderBehavior,
+        engine_paths: Arc<EnginePaths>,
+    ) -> Self {
         Self {
             rt,
+            engine_paths,
             devserver: async_channel::unbounded(),
             engine: async_channel::unbounded(),
             render_behavior: behavior,
@@ -144,6 +108,10 @@ impl EngineBroker {
 
     pub fn handle(&self) -> Handle {
         self.rt.handle().clone()
+    }
+
+    pub fn engine_paths(&self) -> Arc<EnginePaths> {
+        self.engine_paths.clone()
     }
 
     pub async fn send_devserver_msg(&self, msg: DevServerMsg) -> Result<()> {
@@ -188,7 +156,7 @@ impl EngineBroker {
 
     pub fn spawn_engine_thread<S: Into<SocketAddr> + std::fmt::Debug>(
         &self,
-        paths: EnginePaths,
+        paths: Arc<EnginePaths>,
         bind: S,
         debounce_ms: u64,
     ) -> Result<JoinHandle<Result<()>>> {
@@ -228,7 +196,7 @@ impl EngineBroker {
                         }
                         EngineMsg::RenderPage(chan) => {
                             respond_sync!(chan, &broker.handle(), {
-                                handle_msg::render(&engine, &chan.inner, broker.render_behavior)
+                                handle_msg::render(&engine, chan.inner(), broker.render_behavior)
                             });
                         }
 
@@ -261,7 +229,7 @@ impl EngineBroker {
 }
 
 mod handle_msg {
-    use std::path::PathBuf;
+    use std::ffi::OsStr;
 
     use anyhow::Context;
     use tracing::{error, instrument, trace};
@@ -270,21 +238,27 @@ mod handle_msg {
         core::{
             engine::{Engine, PipelineBehavior},
             page::RenderedPage,
-            Page, SysPath, Uri,
+            Page,
         },
         devserver::broker::RenderBehavior,
-        Result,
+        AbsPath, CheckedFilePath, RelPath, Result, SysPath,
     };
 
     use super::FilesystemUpdateEvents;
 
-    pub fn process_pipelines<S: AsRef<str>>(engine: &Engine, page_path: S) -> Result<()> {
-        let sys_path = SysPath::new(
-            &engine.paths().output_root,
-            &PathBuf::from(page_path.as_ref()),
+    pub fn process_pipelines(engine: &Engine, page_path: &RelPath) -> Result<()> {
+        let abs_path = AbsPath::new(engine.paths().output_dir())?.join(page_path);
+
+        let raw_html = std::fs::read_to_string(&abs_path)?;
+
+        let sys_path = SysPath::from_abs_path(
+            &abs_path,
+            engine.paths().project_root(),
+            engine.paths().output_dir(),
         )?;
-        let raw_html = std::fs::read_to_string(sys_path.to_path_buf())?;
-        let html_assets = crate::discover::html_asset::find(&sys_path, &raw_html)?;
+
+        let html_path = CheckedFilePath::new(&sys_path)?;
+        let html_assets = crate::discover::html_asset::find(engine.paths(), &html_path, &raw_html)?;
 
         // check that each required asset was processed
         {
@@ -305,14 +279,14 @@ mod handle_msg {
     }
 
     #[instrument(skip_all)]
-    pub fn render(
+    pub fn render<S: AsRef<str> + std::fmt::Debug>(
         engine: &Engine,
-        uri: &Uri,
+        search_key: S,
         render_behavior: RenderBehavior,
     ) -> Result<Option<RenderedPage>> {
-        trace!(uri = ?uri, "receive render page message");
+        trace!(search_key = ?search_key, "receive render page message");
 
-        if let Some(page) = engine.page_store().get(uri) {
+        if let Some(page) = engine.page_store().get(&search_key.as_ref().into()) {
             let lints = engine
                 .lint(std::iter::once(page))
                 .with_context(|| "failed to lint page")?;
@@ -327,20 +301,20 @@ mod handle_msg {
                     .unwrap();
 
                 if render_behavior == RenderBehavior::Write {
-                    let target = rendered.target.to_path_buf();
-                    crate::util::make_parent_dirs(
-                        &target
-                            .parent()
-                            .expect("missing parent dir for rendered page. this is a bug"),
-                    )?;
-                    std::fs::write(rendered.target.to_path_buf(), &rendered.html)?;
+                    let parent_dir = rendered.target().without_file_name().to_absolute_path();
+                    crate::util::make_parent_dirs(&parent_dir)?;
+                    std::fs::write(rendered.target().to_absolute_path(), &rendered.html())?;
                 }
 
                 // asset discovery & pipeline processing
                 {
-                    let mut html_assets =
-                        crate::discover::html_asset::find(&rendered.target, &rendered.html)
-                            .with_context(|| "failed to discover HTML assets")?;
+                    let html_path = CheckedFilePath::new(&page.target())?;
+                    let mut html_assets = crate::discover::html_asset::find(
+                        engine.paths(),
+                        &html_path,
+                        &rendered.html(),
+                    )
+                    .with_context(|| "failed to discover HTML assets")?;
                     html_assets.drop_offsite();
 
                     let unhandled_assets = engine
@@ -368,42 +342,48 @@ mod handle_msg {
         trace!(events = ?events, "receive file system update message");
         let mut reload_templates = false;
         let mut reload_rules = false;
-        for changed in events.changed() {
-            // These paths come in as absolute paths. Use strip_prefix
-            // to transform them into relative paths which can then
-            // be used with the engine config.
-            let path = {
-                let cwd = std::env::current_dir()?;
-                changed.strip_prefix(cwd)?
+        for path in events.changed() {
+            let relative_path = {
+                let engine_paths = engine.paths();
+                let project_base = engine_paths.project_root();
+                path.to_relative(&project_base)?
             };
-            if path.starts_with(&engine.paths().src_root)
-                && path.extension().unwrap_or_default().to_string_lossy() == "md"
+
+            // reload any updated pages
+            if relative_path.starts_with(engine.paths().src_dir())
+                && relative_path.extension() == Some(OsStr::new("md"))
             {
-                let page = Page::from_file(
-                    &engine.paths().src_root.as_path(),
-                    &engine.paths().output_root.as_path(),
-                    &path,
-                    engine.renderers(),
-                )?;
+                let checked_path = {
+                    let rel = relative_path.strip_prefix(engine.paths().src_dir())?;
+                    let sys_path = SysPath::new(
+                        engine.paths().project_root(),
+                        engine.paths().src_dir(),
+                        &rel,
+                    );
+                    CheckedFilePath::new(&sys_path)?
+                };
+                let page = Page::from_file(engine.paths(), checked_path, engine.renderers())?;
                 // update will automatically insert the page if it doesn't exist
                 let _ = engine.page_store_mut().update(page);
             }
 
-            if path.starts_with(&engine.paths().template_root) {
+            // reload templates
+            if relative_path.starts_with(&engine.paths().template_dir()) {
                 reload_templates = true;
             }
 
-            if path == engine.paths().rule_script {
+            // reload rules
+            if path == &engine.paths().absolute_rule_script() {
                 reload_rules = true;
             }
         }
 
-        if reload_templates {
-            engine.reload_template_engines()?;
-        }
-
         if reload_rules {
             engine.reload_rules()?;
+        }
+
+        if reload_templates {
+            engine.reload_template_engines()?;
         }
 
         Ok(())

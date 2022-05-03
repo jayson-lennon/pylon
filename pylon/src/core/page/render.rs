@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use itertools::Itertools;
-use std::{collections::HashSet, path::PathBuf};
+use std::collections::HashSet;
 
 use tracing::{error, instrument, trace};
 
@@ -9,10 +9,10 @@ use crate::{
         engine::Engine,
         page::{ContextItem, PageKey},
         rules::{ContextKey, GlobStore, RuleProcessor},
-        Page, SysPath,
+        Page,
     },
     site_context::SiteContext,
-    Result,
+    Result, SysPath,
 };
 
 #[instrument(skip(engine), fields(page=%page.uri()))]
@@ -87,7 +87,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             let renderer = &engine.renderers().tera;
             renderer
                 .render(template, &tera_ctx)
-                .map(|html| RenderedPage::new(page.page_key, html, page.target_path()))
+                .map(|html| RenderedPage::new(page.page_key, html, &page.target()))
                 .map_err(|e| anyhow!("{}", e))
         }
         None => Err(anyhow!("no template declared for page '{}'", page.uri())),
@@ -102,7 +102,7 @@ pub fn build_context(
 ) -> Result<Vec<ContextItem>> {
     trace!("building page-specific context");
     let contexts: Vec<Vec<ContextItem>> = page_ctxs
-        .find_keys(&for_page.uri())
+        .find_keys(&for_page.search_key().as_str())
         .iter()
         .filter_map(|key| page_ctxs.get(*key))
         .map(|ptr| script_fn_runner.run(&ptr, (for_page.clone(),)))
@@ -124,22 +124,30 @@ pub fn build_context(
 
 #[derive(Debug)]
 pub struct RenderedPage {
-    pub page_key: PageKey,
-    pub html: String,
-    pub target: SysPath,
+    page_key: PageKey,
+    html: String,
+    target: SysPath,
 }
 
 impl RenderedPage {
     pub fn new<S: Into<String> + std::fmt::Debug>(
         page_key: PageKey,
         html: S,
-        target: SysPath,
+        target: &SysPath,
     ) -> Self {
         Self {
             page_key,
             html: html.into(),
-            target,
+            target: target.clone(),
         }
+    }
+
+    pub fn target(&self) -> &SysPath {
+        &self.target
+    }
+
+    pub fn html(&self) -> &str {
+        self.html.as_str()
     }
 }
 
@@ -172,13 +180,9 @@ impl RenderedPageCollection {
     pub fn write_to_disk(&self) -> Result<()> {
         use std::fs;
         for page in &self.pages {
-            let target = PathBuf::from(&page.target);
-            crate::util::make_parent_dirs(
-                target
-                    .as_path()
-                    .parent()
-                    .expect("should have a parent path"),
-            )?;
+            let parent_dir = page.target().without_file_name().to_absolute_path();
+            crate::util::make_parent_dirs(&parent_dir)?;
+            let target = page.target().to_absolute_path();
             fs::write(&target, &page.html)?;
         }
 

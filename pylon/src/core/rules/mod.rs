@@ -1,12 +1,10 @@
 pub mod fn_pointers;
 pub mod matcher;
 
-use std::path::{Path, PathBuf};
-
 pub use fn_pointers::GlobStore;
 pub use matcher::Matcher;
 
-use crate::pipeline::Pipeline;
+use crate::{pipeline::Pipeline, AbsPath, RelPath};
 use serde::Serialize;
 
 use super::page::lint::{Lint, LintCollection};
@@ -17,22 +15,22 @@ slotmap::new_key_type! {
 
 #[derive(Debug, Clone)]
 pub struct Mount {
-    src: PathBuf,
-    target: PathBuf,
+    src: AbsPath,
+    target: AbsPath,
 }
 
 impl Mount {
-    pub fn new<P: Into<PathBuf>>(src: P, target: P) -> Self {
+    pub fn new(project_root: &AbsPath, src: &RelPath, target: &RelPath) -> Self {
         Self {
-            src: src.into(),
-            target: target.into(),
+            src: project_root.join(src),
+            target: project_root.join(target),
         }
     }
-    pub fn src(&self) -> &Path {
+    pub fn src(&self) -> &AbsPath {
         &self.src
     }
 
-    pub fn target(&self) -> &Path {
+    pub fn target(&self) -> &AbsPath {
         &self.target
     }
 }
@@ -44,12 +42,12 @@ pub struct Rules {
     page_contexts: GlobStore<ContextKey, rhai::FnPtr>,
     lints: LintCollection,
     mounts: Vec<Mount>,
-    watches: Vec<PathBuf>,
-    project_root: PathBuf,
+    watches: Vec<AbsPath>,
+    project_root: AbsPath,
 }
 
 impl Rules {
-    pub fn new<P: Into<PathBuf>>(project_root: P) -> Self {
+    pub fn new(project_root: &AbsPath) -> Self {
         Self {
             pipelines: vec![],
             global_context: None,
@@ -57,7 +55,7 @@ impl Rules {
             lints: LintCollection::new(),
             mounts: vec![],
             watches: vec![],
-            project_root: project_root.into(),
+            project_root: project_root.clone(),
         }
     }
     pub fn set_global_context<S: Serialize>(&mut self, ctx: S) -> crate::Result<()> {
@@ -94,20 +92,21 @@ impl Rules {
         self.pipelines.iter()
     }
 
-    pub fn add_mount<P: Into<PathBuf>>(&mut self, src: P, target: P) {
-        self.mounts.push(Mount::new(src, target));
+    pub fn add_mount(&mut self, src: &RelPath, target: &RelPath) {
+        self.mounts
+            .push(Mount::new(&self.project_root, src, target));
     }
 
     pub fn mounts(&self) -> impl Iterator<Item = &Mount> {
         self.mounts.iter()
     }
 
-    pub fn add_watch<P: Into<PathBuf>>(&mut self, path: P) {
-        self.watches.push(path.into());
+    pub fn add_watch(&mut self, path: &AbsPath) {
+        self.watches.push(path.clone());
     }
 
-    pub fn watches(&self) -> impl Iterator<Item = &Path> {
-        self.watches.iter().map(PathBuf::as_path)
+    pub fn watches(&self) -> impl Iterator<Item = &AbsPath> {
+        self.watches.iter()
     }
 }
 
@@ -234,43 +233,51 @@ pub mod script {
         }
 
         #[instrument(skip(rules))]
-        pub fn mount(rules: &mut Rules, src: &str, target: &str) {
+        #[rhai_fn(return_raw)]
+        pub fn mount(rules: &mut Rules, src: &str, target: &str) -> Result<(), Box<EvalAltResult>> {
             trace!("add mount");
 
-            rules.add_mount(src, target);
+            let src = &crate::RelPath::new(src).map_err(|e| {
+                EvalAltResult::ErrorSystem("src dir must be relative: {}".into(), e.into())
+            })?;
+
+            let target = &crate::RelPath::new(target).map_err(|e| {
+                EvalAltResult::ErrorSystem("target dir must be relative: {}".into(), e.into())
+            })?;
+
+            rules.add_mount(&src, &target);
+            Ok(())
         }
 
         #[instrument(skip(rules))]
-        pub fn watch(rules: &mut Rules, path: &str) {
+        #[rhai_fn(return_raw)]
+        pub fn watch(rules: &mut Rules, path: &str) -> Result<(), Box<EvalAltResult>> {
             trace!("add watch");
 
-            rules.add_watch(path);
+            let path = rules
+                .project_root
+                .join(&crate::RelPath::new(path).map_err(|e| {
+                    EvalAltResult::ErrorSystem(
+                        "watch dir must be relative to project root: {}".into(),
+                        e.into(),
+                    )
+                })?);
+
+            rules.add_watch(&path);
+
+            Ok(())
         }
     }
     #[cfg(test)]
     mod test_script {
-        use std::path::PathBuf;
 
         use super::rhai_module::*;
         use crate::core::rules::Rules;
-        use tempfile::TempDir;
-
-        use crate::core::engine::EnginePaths;
-
-        fn default_test_paths(tree: &TempDir) -> EnginePaths {
-            EnginePaths {
-                rule_script: PathBuf::from("rules.rhai"),
-                src_root: PathBuf::from("src"),
-                syntax_theme_root: PathBuf::from("syntax_themes"),
-                output_root: PathBuf::from("target"),
-                template_root: PathBuf::from("templates"),
-                project_root: tree.path().to_path_buf(),
-            }
-        }
+        use crate::test::abs;
 
         #[test]
         fn adds_pipeline() {
-            let mut rules = Rules::new("");
+            let mut rules = Rules::new(abs!("/"));
             let values = vec!["[COPY]".into()];
             add_pipeline(&mut rules, "base", "*", values).expect("failed to add pipeline");
             assert_eq!(rules.pipelines().count(), 1);
@@ -278,21 +285,21 @@ pub mod script {
 
         #[test]
         fn adds_mount() {
-            let mut rules = Rules::new("");
+            let mut rules = Rules::new(abs!("/"));
             mount(&mut rules, "src", "target");
             assert_eq!(rules.mounts().count(), 1);
         }
 
         #[test]
         fn adds_watch() {
-            let mut rules = Rules::new("");
+            let mut rules = Rules::new(abs!("/"));
             watch(&mut rules, "test");
             assert_eq!(rules.watches().count(), 1);
         }
 
         #[test]
         fn rejects_bad_pipeline_op() {
-            let mut rules = Rules::new("");
+            let mut rules = Rules::new(abs!("/"));
             let values = vec![1.into()];
             assert!(add_pipeline(&mut rules, "base", "*", values).is_err());
         }
@@ -323,7 +330,7 @@ pub mod script {
                   syntax_themes: {},
                 };
 
-                let paths = default_test_paths(&tree);
+                let paths = crate::test::default_test_paths(&tree);
 
                 let engine = crate::core::engine::Engine::new(paths).unwrap();
 
@@ -335,7 +342,7 @@ pub mod script {
                     .collect::<Vec<_>>();
                 all[0].clone()
             };
-            let mut rules = Rules::new("");
+            let mut rules = Rules::new(abs!("/"));
             assert!(add_page_context(&mut rules, "*", ptr).is_ok());
             assert_eq!(rules.page_contexts().iter().count(), 1);
         }
@@ -344,26 +351,17 @@ pub mod script {
 
 #[cfg(test)]
 mod test {
-    use crate::core::engine::{Engine, EnginePaths};
-    use tempfile::TempDir;
+    use crate::core::engine::Engine;
+    use crate::test::abs;
+    use crate::test::rel;
+
     use temptree::temptree;
 
     use super::*;
 
-    fn default_test_paths(tree: &TempDir) -> EnginePaths {
-        EnginePaths {
-            rule_script: PathBuf::from("rules.rhai"),
-            src_root: PathBuf::from("src"),
-            syntax_theme_root: PathBuf::from("syntax_themes"),
-            output_root: PathBuf::from("target"),
-            template_root: PathBuf::from("templates"),
-            project_root: tree.path().to_path_buf(),
-        }
-    }
-
     #[test]
     fn sets_global_context() {
-        let mut rules = Rules::new("");
+        let mut rules = Rules::new(abs!("/"));
         assert!(rules
             .set_global_context(serde_json::to_value(1).unwrap())
             .is_ok());
@@ -393,7 +391,7 @@ mod test {
           syntax_themes: {},
         };
 
-        let paths = default_test_paths(&tree);
+        let paths = crate::test::default_test_paths(&tree);
 
         let engine = Engine::new(paths).unwrap();
 
@@ -402,8 +400,8 @@ mod test {
 
     #[test]
     fn adds_mount() {
-        let mut rules = Rules::new("");
-        rules.add_mount("src", "target");
+        let mut rules = Rules::new(abs!("/"));
+        rules.add_mount(rel!("src"), rel!("target"));
 
         assert_eq!(rules.mounts().count(), 1);
     }

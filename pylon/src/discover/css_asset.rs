@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::Path};
 
-use crate::{core::Uri, Result};
+use crate::Result;
 use anyhow::anyhow;
 use parcel_css::stylesheet::{ParserOptions, StyleSheet};
 

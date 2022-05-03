@@ -1,15 +1,49 @@
-use crate::{
-    core::page::{Page, PageKey},
-    core::Uri,
-};
+use crate::core::page::{Page, PageKey};
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use tracing::{instrument, trace};
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SearchKey(String);
+
+impl SearchKey {
+    pub fn new<S: Into<String>>(key: S) -> Self {
+        Self(key.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl AsRef<str> for SearchKey {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl From<&str> for SearchKey {
+    fn from(key: &str) -> Self {
+        Self::new(key)
+    }
+}
+
+impl From<&String> for SearchKey {
+    fn from(key: &String) -> Self {
+        Self::new(key)
+    }
+}
+
+impl From<String> for SearchKey {
+    fn from(key: String) -> Self {
+        Self::new(key)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PageStore {
     pages: SlotMap<PageKey, Page>,
-    key_map: HashMap<Uri, PageKey>,
+    key_map: HashMap<SearchKey, PageKey>,
 }
 
 impl PageStore {
@@ -26,14 +60,14 @@ impl PageStore {
     }
 
     #[instrument(ret)]
-    pub fn get(&self, uri: &Uri) -> Option<&Page> {
-        let page_key = self.key_map.get(uri)?;
+    pub fn get(&self, search_key: &SearchKey) -> Option<&Page> {
+        let page_key = self.key_map.get(search_key)?;
         self.pages.get(*page_key)
     }
 
     #[instrument]
-    pub fn get_mut(&mut self, uri: &Uri) -> Option<&mut Page> {
-        let page_key = self.key_map.get(uri)?;
+    pub fn get_mut(&mut self, search_key: &SearchKey) -> Option<&mut Page> {
+        let page_key = self.key_map.get(search_key)?;
         self.pages.get_mut(*page_key)
     }
 
@@ -41,7 +75,7 @@ impl PageStore {
     pub fn update(&mut self, page: Page) -> PageKey {
         trace!("updating existing page");
 
-        let page_key = match self.get_mut(&page.uri()) {
+        let page_key = match self.get_mut(&page.search_key()) {
             Some(old) => {
                 let mut page = page;
                 page.page_key = old.page_key;
@@ -59,7 +93,7 @@ impl PageStore {
     pub fn insert(&mut self, page: Page) -> PageKey {
         trace!("inserting page into page store");
 
-        let search_keys = build_search_keys(&page);
+        let search_keys = [page.search_key()];
 
         let page_key = self.pages.insert_with_key(|key| {
             let mut page = page;
@@ -116,43 +150,26 @@ impl<'a> IntoIterator for &'a PageStore {
     }
 }
 
-fn build_search_keys(page: &Page) -> Vec<Uri> {
-    let search_keys = vec![
-        page.uri(),
-        Uri::from_path(&page.uri().as_str().replace(".html", ".md")),
-    ];
-
-    dbg!(&search_keys);
-
-    search_keys
-}
-
 pub mod script {
 
-    use crate::core::Uri;
-
-    use super::PageStore;
+    use super::{PageStore, SearchKey};
 
     #[allow(clippy::wildcard_imports)]
     use rhai::plugin::*;
 
     impl PageStore {
         /// Returns the page at the given `path`. Returns `()` if the page was not found.
-        fn _script_get(&mut self, uri: &str) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
-            let uri = Uri::new(uri)
-                .map_err(|e| EvalAltResult::ErrorSystem("failed parsing uri".into(), e.into()))?;
-            let k = self
-                .get(&uri)
+        fn _script_get(&mut self, search_key: &str) -> rhai::Dynamic {
+            self.get(&SearchKey::from(search_key))
                 .cloned()
-                .map_or_else(|| ().into(), Dynamic::from);
-            Ok(k)
+                .map_or_else(|| ().into(), Dynamic::from)
         }
     }
 
     pub fn register_type(engine: &mut rhai::Engine) {
         engine
             .register_type::<PageStore>()
-            .register_result_fn("get", PageStore::_script_get)
+            .register_fn("get", PageStore::_script_get)
             .register_iterator::<PageStore>();
     }
 }
@@ -161,15 +178,12 @@ pub mod script {
 mod test {
 
     use super::PageStore;
-    use crate::core::{
-        page::page::test::{doc::MINIMAL, new_page},
-        Uri,
-    };
+    use crate::core::page::page::test::{doc::MINIMAL, new_page};
 
     #[test]
     fn inserts_and_queries_pages() {
-        let page1 = new_page(MINIMAL, "path/1/page.md", "src", "target").unwrap();
-        let page2 = new_page(MINIMAL, "path/2/page.md", "src", "target").unwrap();
+        let page1 = new_page(MINIMAL, "src/1/page.md").unwrap();
+        let page2 = new_page(MINIMAL, "src/2/page.md").unwrap();
 
         let mut store = PageStore::new();
         let key1 = store.insert(page1);
@@ -177,26 +191,23 @@ mod test {
 
         assert!(store.get_with_key(key1).is_some());
 
-        let page1 = store.get(&Uri::new("/path/1/page.html").unwrap()).unwrap();
+        let page1 = store.get(&"/1/page.md".into()).unwrap();
         assert_eq!(page1.page_key, key1);
 
-        let page2 = store.get(&Uri::new("/path/2/page.html").unwrap()).unwrap();
+        let page2 = store.get(&"/2/page.md".into()).unwrap();
         assert_eq!(page2.page_key, key2);
     }
 
     #[test]
     fn builds_search_key() {
-        let page = new_page(MINIMAL, "path/1/page.md", "src", "target").unwrap();
+        let page = new_page(MINIMAL, "src/1/page.md").unwrap();
 
         let mut store = PageStore::new();
         let key = store.insert(page);
 
         assert!(store.get_with_key(key).is_some());
 
-        let page = store.get(&Uri::from_path("/path/1/page.md")).unwrap();
-        assert_eq!(page.page_key, key);
-
-        let page = store.get(&Uri::from_path("/path/1/page.html")).unwrap();
+        let page = store.get(&"/1/page.md".into()).unwrap();
         assert_eq!(page.page_key, key);
     }
 }

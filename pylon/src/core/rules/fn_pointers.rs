@@ -1,8 +1,6 @@
 use slotmap::SlotMap;
 use tracing::{instrument, trace};
 
-use crate::core::Uri;
-
 use super::Matcher;
 
 #[derive(Debug, Clone)]
@@ -35,10 +33,10 @@ where
     }
 
     #[instrument(skip_all)]
-    pub fn find_keys(&self, uri: &Uri) -> Vec<K> {
+    pub fn find_keys<S: AsRef<str>>(&self, search: S) -> Vec<K> {
         self.matchers
             .iter()
-            .filter_map(|(matcher, key)| match matcher.is_match(&uri) {
+            .filter_map(|(matcher, key)| match matcher.is_match(&search) {
                 true => Some(*key),
                 false => None,
             })
@@ -83,10 +81,10 @@ mod test {
         collection.add(matcher1, 1);
         collection.add(matcher2, 2);
 
-        let key1 = collection.find_keys(&Uri::from_path("/test.txt"));
+        let key1 = collection.find_keys("/test.txt");
         assert_eq!(key1.len(), 1);
 
-        let key2 = collection.find_keys(&Uri::from_path("/test.md"));
+        let key2 = collection.find_keys("/test.md");
         assert_eq!(key2.len(), 1);
 
         assert!(key1[0] != key2[0]);
@@ -106,15 +104,15 @@ mod test {
         collection.add(matcher1, 1);
         collection.add(matcher2, 2);
 
-        let key1 = collection.find_keys(&Uri::from_path("/test.txt"))[0];
+        let key1 = collection.find_keys("/test.txt")[0];
         let ptr1 = collection.get(key1);
         assert!(ptr1.is_some());
 
-        let _key2 = collection.find_keys(&Uri::from_path("/test.md"))[0];
+        let _key2 = collection.find_keys("/test.md")[0];
         let ptr2 = collection.get(key1);
         assert!(ptr2.is_some());
 
-        let key3 = collection.find_keys(&Uri::from_path("nope"));
+        let key3 = collection.find_keys("nope");
         assert!(key3.is_empty());
     }
 }

@@ -2,7 +2,7 @@ use crate::{
     core::{Page, PageStore},
     discover,
     render::highlight::SyntectHighlighter,
-    util, Result,
+    CheckedUri, Result,
 };
 use anyhow::anyhow;
 
@@ -51,17 +51,20 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
                     use discover::UrlType;
                     match discover::get_url_type(&href) {
                         // internal doc links get converted into target Uri
-                        UrlType::InternalDoc(ref uri) => {
-                            let page = page_store.get(uri).ok_or_else(|| {
+                        UrlType::InternalDoc(ref target) => {
+                            dbg!(&target);
+                            let page = page_store.get(&target.into()).ok_or_else(|| {
                                 anyhow!(
                                     "unable to find internal link '{}' on page '{}'",
-                                    &uri,
+                                    &target,
                                     page.uri()
                                 )
                             })?;
+                            dbg!(&page);
+                            dbg!(&page.uri());
                             events.push(Event::Start(Tag::Link(
                                 LinkType::Inline,
-                                CowStr::Boxed(page.uri.into_boxed_str()),
+                                CowStr::Boxed(page.uri().into_boxed_str()),
                                 title,
                             )));
                         }
@@ -70,11 +73,18 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
                             events.push(Event::Start(Tag::Link(LinkType::Inline, href, title)));
                         }
                         // relative links need to get converted to absolute links
-                        UrlType::Relative(target) => {
-                            let target = util::rel_to_abs(&target, &page.src_path);
+                        UrlType::Relative(uri) => {
+                            dbg!(&uri);
+                            let uri = CheckedUri::from_sys_path(
+                                page.engine_paths(),
+                                &page.target(),
+                                uri,
+                            )?;
+                            dbg!(&uri);
+                            dbg!(&uri.into_boxed_str());
                             events.push(Event::Start(Tag::Link(
                                 LinkType::Inline,
-                                CowStr::Boxed(target.into_boxed_str()),
+                                CowStr::Boxed(uri.into_boxed_str()),
                                 title,
                             )));
                         }
@@ -144,8 +154,6 @@ fn render_code_block<S: AsRef<str>>(
 mod test {
     #![allow(clippy::all)]
 
-    
-
     use crate::{
         core::{page::page::test::new_page, Page, PageStore},
         render::highlight::{syntect_highlighter::THEME_CLASS_PREFIX, SyntectHighlighter},
@@ -158,6 +166,7 @@ mod test {
         let mut store = PageStore::new();
         let key = store.insert(test_page);
         store.insert(linked_page);
+        dbg!(&store);
 
         let md_renderer = MarkdownRenderer::new();
         let highlighter = SyntectHighlighter::new().unwrap();
@@ -181,14 +190,12 @@ mod test {
     }
 
     #[test]
-    fn internal_doc_link() {
+    fn internal_doc_link_nested() {
         let test_page = new_page(
             r#"+++
             +++
-            [internal link](@/test/doc.md)"#,
-            "test/test.md",
-            "src",
-            "target",
+            [internal link](@/level_1/doc.md)"#,
+            "src/test.md",
         )
         .unwrap();
 
@@ -196,16 +203,14 @@ mod test {
             r#"+++
             template_name = "empty.tera"
             +++"#,
-            "test/doc.md",
-            "src",
-            "target",
+            "src/level_1/doc.md",
         )
         .unwrap();
 
         let rendered = internal_doc_link_render(test_page, linked_page);
         let href = get_href_attr(&rendered);
 
-        assert_eq!(href, "/test/doc.html");
+        assert_eq!(href, "/level_1/doc.html");
     }
 
     #[test]
@@ -214,18 +219,14 @@ mod test {
             r#"+++
             +++
             [internal link](@/doc.md)"#,
-            "test/test.md",
-            "src",
-            "target",
+            "src/test.md",
         )
         .unwrap();
 
         let linked_page = new_page(
             r#"+++
             +++"#,
-            "doc.md",
-            "src",
-            "target",
+            "src/doc.md",
         )
         .unwrap();
 
@@ -244,9 +245,7 @@ mod test {
 code sample here
 ```
             "#,
-            "test/test.md",
-            "src",
-            "target",
+            "src/test.md",
         )
         .unwrap();
 
@@ -271,9 +270,7 @@ code sample here
             +++
             inline `let x = 1;` code
             "#,
-            "test/test.md",
-            "src",
-            "target",
+            "src/test.md",
         )
         .unwrap();
 
@@ -304,9 +301,7 @@ code sample here
 let x = 1;
 ```
             "#,
-            "test/test.md",
-            "src",
-            "target",
+            "src/test.md",
         )
         .unwrap();
 

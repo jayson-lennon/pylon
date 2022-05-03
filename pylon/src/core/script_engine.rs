@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use rhai::packages::{Package, StandardPackage};
 #[allow(clippy::wildcard_imports)]
 use rhai::plugin::*;
@@ -7,7 +5,7 @@ use rhai::{def_package, Scope};
 
 use crate::core::rules::{RuleProcessor, Rules};
 use crate::core::PageStore;
-use crate::Result;
+use crate::{AbsPath, Result};
 
 // Define the custom package 'MyCustomPackage'.
 def_package! {
@@ -96,7 +94,7 @@ impl ScriptEngine {
         RuleProcessor::new(engine, script.as_ref())
     }
 
-    fn new_scope<P: Into<PathBuf>>(project_dir: P, page_store: &PageStore) -> Scope {
+    fn new_scope(project_dir: &AbsPath, page_store: &PageStore) -> Scope<'static> {
         use crate::core::page::lint::{LINT_LEVEL_DENY, LINT_LEVEL_WARN};
         let mut scope = Scope::new();
         scope.push("rules", Rules::new(project_dir));
@@ -107,9 +105,9 @@ impl ScriptEngine {
         scope
     }
 
-    pub fn build_rules<S: AsRef<str>, P: Into<PathBuf>>(
+    pub fn build_rules<S: AsRef<str>>(
         &self,
-        project_dir: P,
+        project_dir: &AbsPath,
         page_store: &PageStore,
         script: S,
     ) -> Result<(RuleProcessor, Rules)> {
@@ -133,6 +131,7 @@ impl ScriptEngine {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::test::abs;
 
     #[test]
     fn default_script_engine_config() {
@@ -142,7 +141,7 @@ mod test {
     #[test]
     fn scope_contains_proper_items() {
         let store = PageStore::default();
-        let scope = ScriptEngine::new_scope("", &store);
+        let scope = ScriptEngine::new_scope(abs!("/"), &store);
         let required_items = &["rules", "PAGES", "DENY", "WARN"];
         for item in required_items {
             assert!(scope.contains(item));

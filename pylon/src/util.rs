@@ -1,7 +1,7 @@
 use anyhow::Context;
 
-use crate::{core::SysPath, Result};
-use std::path::{Path, PathBuf};
+use crate::{AbsPath, Result};
+use std::path::Path;
 use tempfile::NamedTempFile;
 use tracing::{instrument, trace};
 
@@ -28,7 +28,7 @@ pub fn gen_temp_file() -> Result<NamedTempFile> {
 }
 
 #[instrument]
-pub fn make_parent_dirs<P: AsRef<Path> + std::fmt::Debug>(dir: P) -> Result<()> {
+pub fn make_parent_dirs(dir: &AbsPath) -> Result<()> {
     trace!("create parent directories");
     Ok(std::fs::create_dir_all(dir)?)
 }
@@ -83,41 +83,10 @@ impl TryFrom<&str> for Glob {
     }
 }
 
-pub fn rel_to_abs<S: AsRef<str>>(relative_target: S, from_page_path: &SysPath) -> String {
-    let mut abs_path = PathBuf::from("/");
-    abs_path.push(from_page_path.with_base("").to_path_buf().parent().unwrap());
-    abs_path.push(&relative_target.as_ref());
-    abs_path.to_string_lossy().to_string()
-}
-
 #[cfg(test)]
 mod test {
 
     use super::*;
-
-    #[test]
-    fn rel_to_abs_deep() {
-        let rel_target = "some/resource.txt";
-        let page_path = SysPath::new("src", "1/2/3.md").unwrap();
-        let abs_target = super::rel_to_abs(rel_target, &page_path);
-        assert_eq!(&*abs_target, "/1/2/some/resource.txt");
-    }
-
-    #[test]
-    fn rel_to_abs_root() {
-        let rel_target = "resource.txt";
-        let page_path = SysPath::new("src", "page.md").unwrap();
-        let abs_target = super::rel_to_abs(rel_target, &page_path);
-        assert_eq!(&*abs_target, "/resource.txt");
-    }
-
-    #[test]
-    fn rel_to_abs_same_dir() {
-        let rel_target = "resource.txt";
-        let page_path = SysPath::new("src", "1/2/3/page.md").unwrap();
-        let abs_target = super::rel_to_abs(rel_target, &page_path);
-        assert_eq!(&*abs_target, "/1/2/3/resource.txt");
-    }
 
     #[test]
     fn glob_try_into_str() {

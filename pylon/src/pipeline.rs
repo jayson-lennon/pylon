@@ -1,4 +1,3 @@
-use crate::core::SysPath;
 use crate::util::Glob;
 use crate::Result;
 use anyhow::{anyhow, Context};
@@ -270,7 +269,7 @@ mod test {
     #![allow(clippy::all)]
     #![allow(clippy::pedantic)]
 
-    use crate::{core::SysPath, util::TMP_ARTIFACT_PREFIX};
+    use crate::util::TMP_ARTIFACT_PREFIX;
 
     use super::{Operation, Pipeline, ShellCommand};
     use std::fs;

@@ -1,9 +1,6 @@
 use tracing::trace;
 
-use crate::{
-    core::Uri,
-    util::{Glob, GlobCandidate},
-};
+use crate::util::{Glob, GlobCandidate};
 
 #[derive(Debug, Clone)]
 pub enum Matcher {
@@ -11,11 +8,11 @@ pub enum Matcher {
 }
 
 impl Matcher {
-    pub fn is_match(&self, uri: &Uri) -> bool {
+    pub fn is_match<S: AsRef<str>>(&self, search: S) -> bool {
         match self {
             Matcher::Glob(globs) => {
                 trace!("using glob match");
-                let candidate = GlobCandidate::new(uri.as_str());
+                let candidate = GlobCandidate::new(search.as_ref());
 
                 let mut is_match = false;
                 for g in globs {
@@ -47,8 +44,6 @@ pub mod test {
     fn finds_match() {
         let matcher = make_matcher(&["/*_?.md", "/test*.md"]);
 
-        let uri = Uri::from_path("/test_3.md");
-
-        assert!(matcher.is_match(&uri))
+        assert!(matcher.is_match("/test_3.md"))
     }
 }

@@ -1,6 +1,8 @@
 use super::Page;
-use crate::core::rules::{Matcher, RuleProcessor};
-use crate::core::Uri;
+use crate::core::{
+    pagestore::SearchKey,
+    rules::{Matcher, RuleProcessor},
+};
 use anyhow::anyhow;
 
 use slotmap::SlotMap;
@@ -70,10 +72,10 @@ impl LintCollection {
     }
 
     #[instrument(skip_all)]
-    pub fn find_keys(&self, uri: &Uri) -> Vec<LintKey> {
+    pub fn find_keys<S: AsRef<str>>(&self, search: S) -> Vec<LintKey> {
         self.matchers
             .iter()
-            .filter_map(|(matcher, key)| match matcher.is_match(&uri) {
+            .filter_map(|(matcher, key)| match matcher.is_match(&search) {
                 true => Some(*key),
                 false => None,
             })
@@ -99,15 +101,15 @@ impl Default for LintCollection {
 pub struct LintResult {
     pub level: LintLevel,
     pub msg: String,
-    pub page_uri: Uri,
+    pub page_search_key: SearchKey,
 }
 
 impl LintResult {
-    pub fn new<S: Into<String>>(level: LintLevel, msg: S, page_uri: Uri) -> Self {
+    pub fn new<S: Into<String>>(level: LintLevel, msg: S, page_search_key: &SearchKey) -> Self {
         Self {
             level,
             msg: msg.into(),
-            page_uri,
+            page_search_key: page_search_key.clone(),
         }
     }
 }
@@ -184,7 +186,7 @@ pub fn lint(
     page: &Page,
 ) -> crate::Result<Vec<LintResult>> {
     let lints: Vec<Lint> = lints
-        .find_keys(&page.uri())
+        .find_keys(page.uri().as_str())
         .iter()
         .filter_map(|key| lints.get(*key))
         .collect();
@@ -192,7 +194,7 @@ pub fn lint(
     for lint in lints {
         let check: bool = rule_processor.run(&lint.lint_fn, (page.clone(),))?;
         if check {
-            let lint_result = LintResult::new(lint.level, lint.msg, page.uri());
+            let lint_result = LintResult::new(lint.level, lint.msg, &page.search_key());
             lint_results.push(lint_result);
         }
     }
@@ -202,28 +204,12 @@ pub fn lint(
 #[cfg(test)]
 mod test {
 
-    use std::path::PathBuf;
-
     use super::*;
-    use tempfile::TempDir;
+
     use temptree::temptree;
 
-    use crate::core::{
-        engine::{Engine, EnginePaths},
-        page::LintLevel,
-        Uri,
-    };
+    use crate::core::{engine::Engine, page::LintLevel};
 
-    fn default_test_config(tree: &TempDir) -> EnginePaths {
-        EnginePaths {
-            rule_script: PathBuf::from("rules.rhai"),
-            src_root: PathBuf::from("content"),
-            syntax_theme_root: PathBuf::from("syntax_themes"),
-            output_root: PathBuf::from("output"),
-            template_root: PathBuf::from("templates"),
-            project_root: tree.path().to_path_buf(),
-        }
-    }
     #[test]
     fn single_lint() {
         let test_page = r#"+++
@@ -249,18 +235,18 @@ mod test {
           syntax_themes: {},
         };
 
-        let paths = default_test_config(&tree);
+        let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
 
-        let page = engine
-            .page_store()
-            .get(&Uri::from_path("/test.md"))
-            .unwrap();
+        dbg!(&engine);
+        panic!();
+
+        let page = engine.page_store().get(&"/test.md".into()).unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
         assert_eq!(lints[0].msg, "Missing author");
-        assert_eq!(lints[0].page_uri, Uri::from_path("/test.html"));
+        assert_eq!(lints[0].page_search_key, "/test.html".into());
     }
 
     #[test]
@@ -291,22 +277,19 @@ mod test {
           syntax_themes: {},
         };
 
-        let paths = default_test_config(&tree);
+        let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
 
-        let page = engine
-            .page_store()
-            .get(&Uri::from_path("/test.md"))
-            .unwrap();
+        let page = engine.page_store().get(&"/test.md".into()).unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
         assert_eq!(lints[0].msg, "Missing author");
-        assert_eq!(lints[0].page_uri, Uri::from_path("/test.html"));
+        assert_eq!(lints[0].page_search_key, "/test.html".into());
 
         assert_eq!(lints[1].level, LintLevel::Warn);
         assert_eq!(lints[1].msg, "Missing publish date");
-        assert_eq!(lints[1].page_uri, Uri::from_path("/test.html"));
+        assert_eq!(lints[1].page_search_key, "/test.html".into());
     }
 
     #[test]
@@ -348,8 +331,8 @@ mod test {
     #[test]
     fn lintmessages_from_iter() {
         let lints = vec![
-            LintResult::new(LintLevel::Warn, "", Uri::from_path("/")),
-            LintResult::new(LintLevel::Deny, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Warn, "", &"/".into()),
+            LintResult::new(LintLevel::Deny, "", &"/".into()),
         ];
         let messages = LintResults::from_iter(lints.into_iter());
         assert_eq!(messages.inner.len(), 2);
@@ -358,8 +341,8 @@ mod test {
     #[test]
     fn lintmessages_into_iter() {
         let lints = vec![
-            LintResult::new(LintLevel::Warn, "", Uri::from_path("/")),
-            LintResult::new(LintLevel::Deny, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Warn, "", &"/".into()),
+            LintResult::new(LintLevel::Deny, "", &"/".into()),
         ];
         let messages = LintResults::from_iter(lints.into_iter());
         let mut messages_iter = messages.into_iter();
@@ -370,8 +353,8 @@ mod test {
     #[test]
     fn lintmessages_into_iter_ref() {
         let lints = vec![
-            LintResult::new(LintLevel::Warn, "", Uri::from_path("/")),
-            LintResult::new(LintLevel::Deny, "", Uri::from_path("/")),
+            LintResult::new(LintLevel::Warn, "", &"/".into()),
+            LintResult::new(LintLevel::Deny, "", &"/".into()),
         ];
         let messages = LintResults::from_iter(lints.into_iter());
         let messages_iter = &mut messages.into_iter();
@@ -381,11 +364,11 @@ mod test {
 
     #[test]
     fn lint_messages_denies_properly() {
-        let mut lints = vec![LintResult::new(LintLevel::Warn, "", Uri::from_path("/"))];
+        let mut lints = vec![LintResult::new(LintLevel::Warn, "", &"/".into())];
         let messages = LintResults::from_slice(lints.as_slice());
         assert_eq!(messages.has_deny(), false);
 
-        lints.push(LintResult::new(LintLevel::Deny, "", Uri::from_path("/")));
+        lints.push(LintResult::new(LintLevel::Deny, "", &"/".into()));
         let messages = LintResults::from_slice(lints.as_slice());
         assert!(messages.has_deny());
     }
@@ -393,8 +376,8 @@ mod test {
     #[test]
     fn lintmessages_display_impl() {
         let lints = vec![
-            LintResult::new(LintLevel::Warn, "abc", Uri::from_path("/")),
-            LintResult::new(LintLevel::Deny, "123", Uri::from_path("/")),
+            LintResult::new(LintLevel::Warn, "abc", &"/".into()),
+            LintResult::new(LintLevel::Deny, "123", &"/".into()),
         ];
         let messages = LintResults::from_iter(lints.into_iter());
         assert_eq!(messages.to_string(), String::from("abc\n123"));
