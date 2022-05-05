@@ -1,0 +1,16 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "3.1", features = ["derive", "env"] }
+pyloncore = { path = "../pyloncore" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["ansi", "env-filter"] }
+anyhow = "1.0"
+
+rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
+parking_lot = "0.12"
