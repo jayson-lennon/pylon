@@ -1,7 +1,7 @@
 use clap::Parser;
-use pylon::core::{config::EngineConfig, engine::Engine};
-use pylon::devserver::broker::RenderBehavior;
-use pylon::render::highlight::SyntectHighlighter;
+use pylonlib::core::{config::EngineConfig, engine::Engine};
+use pylonlib::devserver::broker::RenderBehavior;
+use pylonlib::render::highlight::SyntectHighlighter;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 

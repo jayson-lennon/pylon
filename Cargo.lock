@@ -1748,6 +1748,19 @@ name = "pylon"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
+ "parking_lot",
+ "pylonlib",
+ "rhai",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "pylonlib"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
  "async-channel",
  "async-lock",
  "async-trait",
@@ -1779,19 +1792,6 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
-]
-
-[[package]]
-name = "pylonbin"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "parking_lot",
- "pylon",
- "rhai",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
