@@ -241,7 +241,7 @@ mod handle_msg {
             Page,
         },
         devserver::broker::RenderBehavior,
-        AbsPath, CheckedFilePath, RelPath, Result, SysPath,
+        AbsPath, CheckedFile, RelPath, Result, SysPath,
     };
 
     use super::FilesystemUpdateEvents;
@@ -251,13 +251,13 @@ mod handle_msg {
 
         let raw_html = std::fs::read_to_string(&abs_path)?;
 
-        let sys_path = SysPath::from_abs_path(
+        let html_path = SysPath::from_abs_path(
             &abs_path,
             engine.paths().project_root(),
             engine.paths().output_dir(),
-        )?;
+        )?
+        .to_checked_file()?;
 
-        let html_path = CheckedFilePath::new(&sys_path)?;
         let html_assets = crate::discover::html_asset::find(engine.paths(), &html_path, &raw_html)?;
 
         // check that each required asset was processed
@@ -308,7 +308,7 @@ mod handle_msg {
 
                 // asset discovery & pipeline processing
                 {
-                    let html_path = CheckedFilePath::new(&page.target())?;
+                    let html_path = page.target().to_checked_file()?;
                     let mut html_assets = crate::discover::html_asset::find(
                         engine.paths(),
                         &html_path,
@@ -355,12 +355,12 @@ mod handle_msg {
             {
                 let checked_path = {
                     let rel = relative_path.strip_prefix(engine.paths().src_dir())?;
-                    let sys_path = SysPath::new(
+                    SysPath::new(
                         engine.paths().project_root(),
                         engine.paths().src_dir(),
                         &rel,
-                    );
-                    CheckedFilePath::new(&sys_path)?
+                    )
+                    .to_checked_file()?
                 };
                 let page = Page::from_file(engine.paths(), checked_path, engine.renderers())?;
                 // update will automatically insert the page if it doesn't exist

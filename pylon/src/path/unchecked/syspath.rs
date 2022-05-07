@@ -3,8 +3,8 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use crate::{pathmarker, AbsPath, CheckedDirPath, CheckedFilePath, RelPath};
-use crate::{CheckedPath, Result};
+use crate::Result;
+use crate::{AbsPath, CheckedDirPath, CheckedFilePath, RelPath};
 
 use serde::Serialize;
 
@@ -129,14 +129,12 @@ impl SysPath {
         let target = abs_path.strip_prefix(root)?.strip_prefix(base)?;
         Ok(Self::new(root, base, &target))
     }
-}
 
-impl CheckedPath for SysPath {
-    type Marker = pathmarker::Html;
-    fn to_checked_file(&self) -> Result<CheckedFilePath<Self::Marker>> {
-        self.try_into()
-    }
-    fn to_checked_dir(&self) -> Result<CheckedDirPath<Self::Marker>> {
+    // pub fn to_checked_file<T>(&self) -> Result<CheckedFilePath<T>> {
+    //     dbg!("non generic");
+    //     self.try_into()
+    // }
+    pub fn to_checked_dir<T>(&self) -> Result<CheckedDirPath<T>> {
         self.try_into()
     }
 }
@@ -152,6 +150,7 @@ mod test {
     #![allow(unused_variables)]
 
     use super::*;
+    use crate::pathmarker;
     use crate::test::{abs, rel};
     use temptree::temptree;
 
@@ -224,7 +223,7 @@ mod test {
         };
         let root = AbsPath::new(tree.path()).unwrap();
         let sys_path = SysPath::new(&root, rel!("test"), rel!(""));
-        let dir = sys_path
+        let dir: CheckedDirPath<pathmarker::Any> = sys_path
             .to_checked_dir()
             .expect("should be able to convert to checked directory when dir exists");
         assert_eq!(
@@ -240,7 +239,7 @@ mod test {
         };
         let root = AbsPath::new(tree.path()).unwrap();
         let sys_path = SysPath::new(&root, rel!("missing"), rel!(""));
-        let dir = sys_path.to_checked_dir();
+        let dir: Result<CheckedDirPath<pathmarker::Any>> = sys_path.to_checked_dir();
         assert!(dir.is_err());
     }
 
@@ -251,46 +250,8 @@ mod test {
         };
         let root = AbsPath::new(tree.path()).unwrap();
         let sys_path = SysPath::new(&root, rel!("test"), rel!(""));
-        let dir = sys_path.to_checked_dir();
+        let dir: Result<CheckedDirPath<pathmarker::Any>> = sys_path.to_checked_dir();
         assert!(dir.is_err());
-    }
-
-    #[test]
-    fn to_file() {
-        let tree = temptree! {
-            "test": "",
-        };
-        let root = AbsPath::new(tree.path()).unwrap();
-        let sys_path = SysPath::new(&root, rel!(""), rel!("test"));
-        let file = sys_path
-            .to_checked_file()
-            .expect("should be able to convert to checked file when file exists");
-        assert_eq!(
-            file.to_string(),
-            tree.path().join("test").display().to_string()
-        );
-    }
-
-    #[test]
-    fn to_file_fails_when_no_file_present() {
-        let tree = temptree! {
-            "test": {},
-        };
-        let root = AbsPath::new(tree.path()).unwrap();
-        let sys_path = SysPath::new(&root, rel!("missing"), rel!(""));
-        let file = sys_path.to_checked_file();
-        assert!(file.is_err());
-    }
-
-    #[test]
-    fn to_file_fails_when_target_is_dir() {
-        let tree = temptree! {
-            "test": {},
-        };
-        let root = AbsPath::new(tree.path()).unwrap();
-        let sys_path = SysPath::new(&root, rel!("test"), rel!(""));
-        let file = sys_path.to_checked_file();
-        assert!(file.is_err());
     }
 
     #[test]
