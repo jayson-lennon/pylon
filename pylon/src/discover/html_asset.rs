@@ -10,7 +10,8 @@ use tracing::instrument;
 use crate::core::engine::EnginePaths;
 use crate::discover::UrlType;
 use crate::{
-    discover, pathmarker, AssetPath, CheckedFilePath, CheckedUri, RelPath, Result, SysPath,
+    discover, pathmarker, AssetPath, CheckedFile, CheckedFilePath, CheckedUri, RelPath, Result,
+    SysPath,
 };
 
 #[derive(Derivative, Serialize)]
@@ -128,12 +129,12 @@ pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<
 
     for abs_path in html_paths {
         let raw_html = std::fs::read_to_string(&abs_path)?;
-        let sys_path = SysPath::from_abs_path(
+        let html_path = SysPath::from_abs_path(
             &abs_path,
             engine_paths.project_root(),
             engine_paths.output_dir(),
-        )?;
-        let html_path = CheckedFilePath::new(&sys_path)?;
+        )?
+        .to_checked_file()?;
         let assets = find(engine_paths.clone(), &html_path, &raw_html)?;
         all_assets.extend(assets);
     }

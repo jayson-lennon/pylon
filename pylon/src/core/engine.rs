@@ -13,7 +13,7 @@ use crate::{
     devserver::{broker::RenderBehavior, DevServer, EngineBroker},
     discover::html_asset::{HtmlAsset, HtmlAssets},
     render::Renderers,
-    AbsPath, CheckedFilePath, RelPath, Result, SysPath,
+    AbsPath, CheckedFile, RelPath, Result, SysPath,
 };
 
 use super::{
@@ -494,8 +494,7 @@ fn do_build_page_store(engine_paths: Arc<EnginePaths>, renderers: &Renderers) ->
             let root = engine_paths.project_root();
             let base = engine_paths.src_dir();
             let target = abs_path.strip_prefix(root.join(base))?;
-            let sys_path = SysPath::new(root, base, &target);
-            let checked_file_path = CheckedFilePath::new(&sys_path)?;
+            let checked_file_path = SysPath::new(root, base, &target).to_checked_file()?;
             Page::from_file(engine_paths.clone(), checked_file_path, renderers)
         })
         .try_collect()?;

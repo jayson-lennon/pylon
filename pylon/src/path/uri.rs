@@ -3,9 +3,8 @@ use derivative::Derivative;
 use std::fmt;
 use std::path::PathBuf;
 
-
 use crate::core::engine::GlobalEnginePaths;
-use crate::{Result};
+use crate::Result;
 use crate::{pathmarker, CheckedFilePath, SysPath};
 use anyhow::anyhow;
 use serde::Serialize;
