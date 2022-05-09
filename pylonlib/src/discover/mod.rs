@@ -1,5 +1,8 @@
 // pub mod css_asset;
+pub mod asset;
 pub mod html_asset;
+
+pub use asset::AssetPath;
 
 use crate::Result;
 use std::fs;

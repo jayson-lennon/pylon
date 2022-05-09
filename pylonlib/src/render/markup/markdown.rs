@@ -2,8 +2,10 @@ use crate::{
     core::{Page, PageStore},
     discover,
     render::highlight::SyntectHighlighter,
-    CheckedUri, Result,
+    Result,
 };
+use typed_uri::CheckedUri;
+
 use anyhow::anyhow;
 
 #[derive(Debug)]
@@ -75,11 +77,7 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
                         // relative links need to get converted to absolute links
                         UrlType::Relative(uri) => {
                             dbg!(&uri);
-                            let uri = CheckedUri::from_sys_path(
-                                page.engine_paths(),
-                                &page.target(),
-                                uri,
-                            )?;
+                            let uri = crate::util::checked_uri_from_sys_path(&page.target(), uri)?;
                             dbg!(&uri);
                             dbg!(&uri.into_boxed_str());
                             events.push(Event::Start(Tag::Link(

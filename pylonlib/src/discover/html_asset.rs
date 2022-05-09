@@ -1,6 +1,7 @@
 use derivative::Derivative;
 use std::collections::HashSet;
 use std::ffi::OsStr;
+use typed_uri::CheckedUri;
 
 use std::sync::Arc;
 
@@ -9,10 +10,9 @@ use tracing::instrument;
 
 use crate::core::engine::EnginePaths;
 use crate::discover::UrlType;
-use crate::{
-    discover, pathmarker, AssetPath, CheckedFile, CheckedFilePath, CheckedUri, RelPath, Result,
-    SysPath,
-};
+use crate::{discover, pathmarker, CheckedFile, CheckedFilePath, RelPath, Result, SysPath};
+
+use crate::discover::AssetPath;
 
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone, Hash, PartialEq)]

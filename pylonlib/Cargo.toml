@@ -1,15 +1,13 @@
 [package]
-name = "pylon"
+name = "pylonlib"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-name = "pylon"
-path = "src/lib.rs"
-
 [dependencies]
+typed_path = { path = "../crates/typed_path" }
+typed_uri = { path = "../crates/typed_uri" }
 tempfile = "3.3"
 regex = "1.5"
 pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"] }

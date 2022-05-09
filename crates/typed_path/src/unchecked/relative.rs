@@ -9,7 +9,7 @@ use serde::Serialize;
 
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone, Hash, PartialEq)]
-pub struct RelPath(pub(in crate::path) PathBuf);
+pub struct RelPath(pub(in crate) PathBuf);
 
 impl RelPath {
     pub fn new<P: Into<PathBuf>>(path: P) -> Result<Self> {
@@ -89,12 +89,12 @@ impl AsRef<Path> for RelPath {
     }
 }
 
-crate::path::helper::impl_try_from!(&str => RelPath);
-crate::path::helper::impl_try_from!(String => RelPath);
-crate::path::helper::impl_try_from!(&String => RelPath);
-crate::path::helper::impl_try_from!(&Path => RelPath);
-crate::path::helper::impl_try_from!(PathBuf => RelPath);
-crate::path::helper::impl_try_from!(&PathBuf => RelPath);
+crate::helper::impl_try_from!(&str => RelPath);
+crate::helper::impl_try_from!(String => RelPath);
+crate::helper::impl_try_from!(&String => RelPath);
+crate::helper::impl_try_from!(&Path => RelPath);
+crate::helper::impl_try_from!(PathBuf => RelPath);
+crate::helper::impl_try_from!(&PathBuf => RelPath);
 
 impl fmt::Display for RelPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

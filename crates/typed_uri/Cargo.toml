@@ -1,0 +1,18 @@
+[package]
+name = "typed_uri"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "typed_uri"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { version = "1.0", features = ["std"] }
+derivative = "2.2"
+serde = { version = "1.0", features = ["derive"] }
+typed_path = { path = "../typed_path" }
+
+[dev-dependencies]
+temptree = "0.2.0"
+tempfile = "3.3"

@@ -3,11 +3,10 @@ use derivative::Derivative;
 use std::fmt;
 use std::path::PathBuf;
 
-use crate::core::engine::GlobalEnginePaths;
 use crate::Result;
-use crate::{pathmarker, CheckedFilePath, SysPath};
 use anyhow::anyhow;
 use serde::Serialize;
+use typed_path::{pathmarker, CheckedFilePath, SysPath};
 
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone, Hash, PartialEq)]
@@ -86,15 +85,6 @@ impl CheckedUri {
 
     pub fn html_src(&self) -> &CheckedFilePath<pathmarker::Html> {
         &self.html_src
-    }
-
-    pub fn from_sys_path<S: Into<String>>(
-        _engine_paths: GlobalEnginePaths,
-        path: &SysPath,
-        uri: S,
-    ) -> Result<Self> {
-        let checked_html = CheckedFilePath::new(path)?;
-        Ok(Self::new(&checked_html, uri))
     }
 }
 

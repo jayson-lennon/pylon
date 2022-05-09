@@ -4,7 +4,6 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use crate::core::engine::GlobalEnginePaths;
 use crate::Result;
 use crate::{RelPath, SysPath};
 use anyhow::anyhow;
@@ -12,7 +11,7 @@ use serde::Serialize;
 
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone, Hash, PartialEq)]
-pub struct AbsPath(pub(in crate::path) PathBuf);
+pub struct AbsPath(pub(in crate) PathBuf);
 
 impl AbsPath {
     pub fn new<P: Into<PathBuf>>(path: P) -> Result<Self> {
@@ -80,11 +79,11 @@ impl AbsPath {
         self.0.starts_with(base)
     }
 
-    pub fn to_sys_path(&self, engine_paths: GlobalEnginePaths, base: &RelPath) -> Result<SysPath> {
-        let rel_path = self.strip_prefix(engine_paths.project_root())?;
-        let target = rel_path.strip_prefix(base)?;
-        Ok(SysPath::new(engine_paths.project_root(), base, &target))
-    }
+    // pub fn to_sys_path(&self, engine_paths: GlobalEnginePaths, base: &RelPath) -> Result<SysPath> {
+    //     let rel_path = self.strip_prefix(engine_paths.project_root())?;
+    //     let target = rel_path.strip_prefix(base)?;
+    //     Ok(SysPath::new(engine_paths.project_root(), base, &target))
+    // }
 }
 
 impl Eq for AbsPath {}
@@ -119,12 +118,12 @@ impl fmt::Display for AbsPath {
     }
 }
 
-crate::path::helper::impl_try_from!(&str => AbsPath);
-crate::path::helper::impl_try_from!(String => AbsPath);
-crate::path::helper::impl_try_from!(&String => AbsPath);
-crate::path::helper::impl_try_from!(&Path => AbsPath);
-crate::path::helper::impl_try_from!(PathBuf => AbsPath);
-crate::path::helper::impl_try_from!(&PathBuf => AbsPath);
+crate::helper::impl_try_from!(&str => AbsPath);
+crate::helper::impl_try_from!(String => AbsPath);
+crate::helper::impl_try_from!(&String => AbsPath);
+crate::helper::impl_try_from!(&Path => AbsPath);
+crate::helper::impl_try_from!(PathBuf => AbsPath);
+crate::helper::impl_try_from!(&PathBuf => AbsPath);
 
 #[cfg(test)]
 mod test {
@@ -295,17 +294,17 @@ mod test {
         assert!(!abs.starts_with("dir1"));
     }
 
-    #[test]
-    fn to_sys_path() {
-        let (engine_paths, tree) = crate::test::simple_init();
-        let root = tree.path();
-        let abs = AbsPath::new(tree.path().join("src/some_file.ext")).unwrap();
-        let sys_path = abs
-            .to_sys_path(engine_paths, rel!("src"))
-            .expect("should be able to make sys path");
-        assert_eq!(
-            sys_path.to_string(),
-            tree.path().join("src/some_file.ext").display().to_string()
-        );
-    }
+    // #[test]
+    // fn to_sys_path() {
+    //     let (engine_paths, tree) = crate::test::simple_init();
+    //     let root = tree.path();
+    //     let abs = AbsPath::new(tree.path().join("src/some_file.ext")).unwrap();
+    //     let sys_path = abs
+    //         .to_sys_path(engine_paths, rel!("src"))
+    //         .expect("should be able to make sys path");
+    //     assert_eq!(
+    //         sys_path.to_string(),
+    //         tree.path().join("src/some_file.ext").display().to_string()
+    //     );
+    // }
 }

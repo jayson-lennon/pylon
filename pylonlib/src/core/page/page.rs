@@ -7,9 +7,9 @@ use crate::pathmarker;
 use crate::Renderers;
 use crate::Result;
 use crate::SysPath;
-use crate::Uri;
 use anyhow::{anyhow, Context};
 use serde::Serialize;
+use typed_uri::Uri;
 
 use std::{collections::HashSet, path::PathBuf};
 use tracing::{instrument, trace_span};
@@ -206,7 +206,6 @@ fn split_document(raw: &str) -> Result<(&str, &str)> {
         None => Err(anyhow!("improperly formed document")),
     }
 }
-
 #[cfg(test)]
 pub mod test {
     #![allow(clippy::all)]

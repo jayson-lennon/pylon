@@ -1,8 +1,9 @@
 use derivative::Derivative;
+use typed_uri::CheckedUri;
 
 use crate::core::engine::GlobalEnginePaths;
 use crate::{pathmarker, Result};
-use crate::{AbsPath, CheckedFilePath, CheckedUri, RelPath};
+use crate::{AbsPath, CheckedFilePath, RelPath};
 
 use serde::Serialize;
 
