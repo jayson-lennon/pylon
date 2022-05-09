@@ -13,14 +13,13 @@
 pub mod core;
 pub mod devserver;
 pub mod discover;
-pub mod path;
 pub mod pipeline;
 pub mod render;
 pub mod site_context;
 pub mod util;
 
-pub use path::*;
 pub use render::Renderers;
+pub use typed_path::*;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
@@ -32,14 +31,11 @@ pub struct AsStdError(#[from] anyhow::Error);
 
 #[cfg(test)]
 pub(crate) mod test {
-    macro_rules! rel {
-        ($path:literal) => {{
-            &crate::RelPath::new($path).unwrap()
-        }};
-        ($path:expr) => {{
-            &crate::RelPath::new($path).unwrap()
-        }};
-    }
+    use std::sync::Arc;
+    use tempfile::TempDir;
+    use temptree::temptree;
+
+    use crate::{core::engine::EnginePaths, AbsPath, RelPath};
 
     macro_rules! abs {
         ($path:literal) => {{
@@ -49,14 +45,18 @@ pub(crate) mod test {
             &crate::AbsPath::new($path).unwrap()
         }};
     }
+
+    macro_rules! rel {
+        ($path:literal) => {{
+            &crate::RelPath::new($path).unwrap()
+        }};
+        ($path:expr) => {{
+            &crate::RelPath::new($path).unwrap()
+        }};
+    }
+
     pub(crate) use abs;
     pub(crate) use rel;
-
-    use std::sync::Arc;
-    use tempfile::TempDir;
-    use temptree::temptree;
-
-    use crate::{core::engine::EnginePaths, AbsPath, RelPath};
 
     pub fn default_test_paths(tree: &TempDir) -> Arc<EnginePaths> {
         Arc::new(EnginePaths {

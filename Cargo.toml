@@ -1,6 +1,26 @@
-[workspace]
+[package]
+name = "pylon"
+version = "0.1.0"
+edition = "2021"
 
+[[bin]]
+name = "pylon"
+
+[dependencies]
+clap = { version = "3.1", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["ansi", "env-filter"] }
+anyhow = "1.0"
+
+rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
+parking_lot = "0.12"
+
+pylonlib = { path = "pylonlib" }
+
+
+[workspace]
 members = [
-    "pylon",
-    "pylonbin"
+    "crates/typed_path",
+    "crates/typed_uri",
+    "pylonlib",
 ]

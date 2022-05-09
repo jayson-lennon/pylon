@@ -2,7 +2,6 @@ use derivative::Derivative;
 
 use std::fmt;
 
-
 use crate::Result;
 use crate::SysPath;
 use anyhow::anyhow;
@@ -16,7 +15,7 @@ pub struct CheckedFilePath<T> {
 }
 
 impl<T> CheckedFilePath<T> {
-    pub(in crate::path) fn new(sys_path: &SysPath) -> Result<Self> {
+    pub(in crate) fn new(sys_path: &SysPath) -> Result<Self> {
         if sys_path.is_file() {
             Ok(Self {
                 inner: sys_path.clone(),
