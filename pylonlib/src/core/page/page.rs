@@ -9,6 +9,7 @@ use crate::Result;
 use crate::SysPath;
 use anyhow::{anyhow, Context};
 use serde::Serialize;
+use typed_path::RelPath;
 use typed_uri::Uri;
 
 use std::{collections::HashSet, path::PathBuf};
@@ -102,18 +103,18 @@ impl Page {
 
     #[instrument(ret)]
     pub fn target(&self) -> SysPath {
-        let target = self.path().as_sys_path().clone();
-        target
+        self.path()
+            .as_sys_path()
+            .clone()
             .with_base(self.engine_paths.output_dir())
-            .with_extension("html");
-        target
+            .with_extension("html")
     }
 
     pub fn uri(&self) -> Uri {
         let uri = format!(
             "/{}",
             self.target()
-                .with_base(self.engine_paths.output_dir())
+                .with_base(&RelPath::from_relative(""))
                 .with_extension("html")
                 .to_relative_path()
                 .to_string()
@@ -212,10 +213,13 @@ pub mod test {
     #![allow(unused_variables)]
 
     use std::io;
+    use std::path::Path;
 
     use crate::core::pagestore::SearchKey;
-    use crate::test::rel;
+    use crate::test::{default_test_paths, rel};
     use crate::{CheckedFilePath, SysPath};
+    use tempfile::TempDir;
+    use temptree::temptree;
 
     use crate::{render::template::TemplateName, Renderers, Result};
 
@@ -278,24 +282,53 @@ pub mod test {
             content"#;
     }
 
-    pub fn new_page(doc: &str, doc_path: &str) -> Result<Page> {
-        let (paths, tree) = crate::test::simple_init();
+    pub fn new_page_with_tree(tree: &TempDir, file_path: &Path, content: &str) -> Result<Page> {
+        let paths = crate::test::default_test_paths(&tree);
+
         let renderers =
             Renderers::new(tree.path().join("templates")).expect("Failed to create renderers");
-        let mut reader = io::Cursor::new(doc.as_bytes());
 
-        let sys_path = SysPath::new(paths.project_root(), paths.src_dir(), rel!(doc_path));
+        std::fs::write(&file_path, content).expect("failed to write doc");
+
+        // relative to src directory in project folder
+        let relative_target_path = file_path
+            .strip_prefix(tree.path())
+            .unwrap()
+            .strip_prefix(paths.src_dir())
+            .unwrap();
+
+        let sys_path = SysPath::new(
+            paths.project_root(),
+            paths.src_dir(),
+            rel!(relative_target_path),
+        );
+
         let checked_path =
             CheckedFilePath::try_from(&sys_path).expect("failed to create checked file path");
 
-        Page::from_reader(paths, checked_path, &mut reader, &renderers)
+        Page::from_file(paths, checked_path, &renderers)
+    }
+
+    pub fn new_page(doc: &str, file_name: &str) -> Result<Page> {
+        let (paths, tree) = crate::test::simple_init();
+        let renderers =
+            Renderers::new(tree.path().join("templates")).expect("Failed to create renderers");
+
+        let doc_path = tree.path().join("src").join(file_name);
+        std::fs::write(&doc_path, doc).expect("failed to write doc");
+
+        let sys_path = SysPath::new(paths.project_root(), paths.src_dir(), rel!(file_name));
+        let checked_path =
+            CheckedFilePath::try_from(&sys_path).expect("failed to create checked file path");
+
+        Page::from_file(paths, checked_path, &renderers)
     }
 
     macro_rules! new_page_ok {
         ($name:ident => $doc:path) => {
             #[test]
             fn $name() {
-                let page = new_page($doc, "src/doc.md");
+                let page = new_page($doc, "doc.md");
                 assert!(page.is_ok());
             }
         };
@@ -305,7 +338,7 @@ pub mod test {
         ($name:ident => $doc:path) => {
             #[test]
             fn $name() {
-                let page = new_page($doc, "src/doc.md");
+                let page = new_page($doc, "doc.md");
                 assert!(page.is_err());
             }
         };
@@ -329,7 +362,7 @@ pub mod test {
         +++
         +++
         sample content"#,
-            "src/doc.md",
+            "doc.md",
         )
         .unwrap();
 
@@ -348,7 +381,7 @@ pub mod test {
         +++
         +++
         sample content"#,
-            "src/doc.md",
+            "doc.md",
         )
         .unwrap();
         map.insert(page.clone());

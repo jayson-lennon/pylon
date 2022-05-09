@@ -88,25 +88,67 @@ pub mod script {
         #[cfg(test)]
         mod test {
             use super::rhai_module;
+            use crate::core::page::page::test::new_page_with_tree;
             use crate::core::page::page::test::{doc::MINIMAL, new_page};
+
+            use temptree::temptree;
 
             #[test]
             fn uri_fn() {
-                let mut page = new_page(MINIMAL, "src/test.md").unwrap();
+                let tree = temptree! {
+                    "rules.rhai": "",
+                    templates: {
+                        "default.tera": "",
+                        "empty.tera": "",
+                    },
+                    target: {},
+                    src: {
+                        "test.md": "",
+                    },
+                    syntax_themes: {},
+                };
+                let mut page =
+                    new_page_with_tree(&tree, &tree.path().join("src/test.md"), MINIMAL).unwrap();
                 let uri = rhai_module::uri(&mut page);
                 assert_eq!(uri, String::from("/test.html"));
             }
 
             #[test]
             fn get_frontmatter() {
-                let mut page = new_page(MINIMAL, "src/test.md").unwrap();
+                let tree = temptree! {
+                    "rules.rhai": "",
+                    templates: {
+                        "default.tera": "",
+                        "empty.tera": "",
+                    },
+                    target: {},
+                    src: {
+                        "test.md": "",
+                    },
+                    syntax_themes: {},
+                };
+                let mut page =
+                    new_page_with_tree(&tree, &tree.path().join("src/test.md"), MINIMAL).unwrap();
                 let frontmatter = rhai_module::frontmatter(&mut page);
                 assert_eq!(frontmatter.template_name, Some("empty.tera".into()));
             }
 
             #[test]
             fn get_all_meta() {
-                let mut page = new_page(MINIMAL, "src/test.md").unwrap();
+                let tree = temptree! {
+                    "rules.rhai": "",
+                    templates: {
+                        "default.tera": "",
+                        "empty.tera": "",
+                    },
+                    target: {},
+                    src: {
+                        "test.md": "",
+                    },
+                    syntax_themes: {},
+                };
+                let mut page =
+                    new_page_with_tree(&tree, &tree.path().join("src/test.md"), MINIMAL).unwrap();
 
                 let dynamic = rhai_module::all_meta(&mut page);
                 assert!(dynamic.is_ok());
@@ -116,14 +158,27 @@ pub mod script {
 
             #[test]
             fn get_existing_meta_item() {
-                let mut page = new_page(
+                let tree = temptree! {
+                    "rules.rhai": "",
+                    templates: {
+                        "default.tera": "",
+                        "empty.tera": "",
+                    },
+                    target: {},
+                    src: {
+                        "test.md": "",
+                    },
+                    syntax_themes: {},
+                };
+                let mut page = new_page_with_tree(
+                    &tree,
+                    &tree.path().join("src/test.md"),
                     r#"+++
-                template_name = "empty.tera"
+                            template_name = "empty.tera"
 
-                [meta]
-                test = "sample"
-                +++"#,
-                    "src/test.md",
+                            [meta]
+                            test = "sample"
+                            +++"#,
                 )
                 .unwrap();
 
@@ -133,14 +188,27 @@ pub mod script {
 
             #[test]
             fn get_nonexistent_meta_item() {
-                let mut page = new_page(
+                let tree = temptree! {
+                    "rules.rhai": "",
+                    templates: {
+                        "default.tera": "",
+                        "empty.tera": "",
+                    },
+                    target: {},
+                    src: {
+                        "test.md": "",
+                    },
+                    syntax_themes: {},
+                };
+                let mut page = new_page_with_tree(
+                    &tree,
+                    &tree.path().join("src/test.md"),
                     r#"+++
                 template_name = "empty.tera"
 
                 [meta]
                 test = "sample"
                 +++"#,
-                    "src/test.md",
                 )
                 .unwrap();
 

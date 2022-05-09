@@ -25,7 +25,7 @@ impl AssetPath {
         })
     }
 
-    pub fn html_src(&self) -> &CheckedFilePath<pathmarker::Html> {
+    pub fn html_src_file(&self) -> &CheckedFilePath<pathmarker::Html> {
         self.uri.html_src()
     }
 

@@ -76,6 +76,16 @@ impl SysPath {
         }
     }
 
+    pub fn push(&self, path: &RelPath) -> Self {
+        let mut target = self.target.clone();
+        target.push(path);
+        Self {
+            base: self.base.clone(),
+            root: self.root.clone(),
+            target,
+        }
+    }
+
     pub fn to_relative_path(&self) -> RelPath {
         let mut buf = PathBuf::from(&self.base);
         buf.push(&self.target);

@@ -1,5 +1,5 @@
 use derivative::Derivative;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -21,6 +21,12 @@ impl RelPath {
             ));
         }
         Ok(Self(path))
+    }
+
+    pub fn from_relative<P: Into<PathBuf>>(path: P) -> Self {
+        let path = path.into();
+        assert!(!path.has_root());
+        Self(path)
     }
 
     pub fn as_path(&self) -> &Path {
@@ -89,6 +95,8 @@ impl AsRef<Path> for RelPath {
     }
 }
 
+crate::helper::impl_try_from!(OsString => RelPath);
+crate::helper::impl_try_from!(&OsStr => RelPath);
 crate::helper::impl_try_from!(&str => RelPath);
 crate::helper::impl_try_from!(String => RelPath);
 crate::helper::impl_try_from!(&String => RelPath);

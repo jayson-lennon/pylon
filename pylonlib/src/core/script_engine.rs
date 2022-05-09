@@ -7,6 +7,8 @@ use crate::core::rules::{RuleProcessor, Rules};
 use crate::core::PageStore;
 use crate::{AbsPath, Result};
 
+use super::engine::GlobalEnginePaths;
+
 // Define the custom package 'MyCustomPackage'.
 def_package! {
     /// My own personal super-duper custom package
@@ -94,10 +96,10 @@ impl ScriptEngine {
         RuleProcessor::new(engine, script.as_ref())
     }
 
-    fn new_scope(project_dir: &AbsPath, page_store: &PageStore) -> Scope<'static> {
+    fn new_scope(engine_paths: GlobalEnginePaths, page_store: &PageStore) -> Scope<'static> {
         use crate::core::page::lint::{LINT_LEVEL_DENY, LINT_LEVEL_WARN};
         let mut scope = Scope::new();
-        scope.push("rules", Rules::new(project_dir));
+        scope.push("rules", Rules::new(engine_paths));
         scope.push("PAGES", page_store.clone());
         scope.push("DENY", LINT_LEVEL_DENY);
         scope.push("WARN", LINT_LEVEL_WARN);
@@ -107,14 +109,14 @@ impl ScriptEngine {
 
     pub fn build_rules<S: AsRef<str>>(
         &self,
-        project_dir: &AbsPath,
+        engine_paths: GlobalEnginePaths,
         page_store: &PageStore,
         script: S,
     ) -> Result<(RuleProcessor, Rules)> {
         let script = script.as_ref();
         let ast = self.engine.compile(script)?;
 
-        let mut scope = Self::new_scope(project_dir, page_store);
+        let mut scope = Self::new_scope(engine_paths, page_store);
 
         self.engine.run_ast_with_scope(&mut scope, &ast)?;
 
@@ -141,7 +143,8 @@ mod test {
     #[test]
     fn scope_contains_proper_items() {
         let store = PageStore::default();
-        let scope = ScriptEngine::new_scope(abs!("/"), &store);
+        let (paths, tree) = crate::test::simple_init();
+        let scope = ScriptEngine::new_scope(paths, &store);
         let required_items = &["rules", "PAGES", "DENY", "WARN"];
         for item in required_items {
             assert!(scope.contains(item));

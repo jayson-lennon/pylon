@@ -1,7 +1,8 @@
 use derivative::Derivative;
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use typed_uri::CheckedUri;
+use std::path::PathBuf;
+use typed_uri::{CheckedUri, Uri};
 
 use std::sync::Arc;
 
@@ -21,14 +22,21 @@ pub struct HtmlAsset {
     target: AssetPath,
     tag: String,
     url_type: UrlType,
+    html_src_file: CheckedFilePath<pathmarker::Html>,
 }
 
 impl HtmlAsset {
-    pub fn new<S: Into<String>>(target: &AssetPath, tag: S, url_type: &UrlType) -> Self {
+    pub fn new<S: Into<String>>(
+        target: &AssetPath,
+        tag: S,
+        url_type: &UrlType,
+        html_src_file: &CheckedFilePath<pathmarker::Html>,
+    ) -> Self {
         Self {
             target: target.clone(),
             tag: tag.into(),
             url_type: url_type.clone(),
+            html_src_file: html_src_file.clone(),
         }
     }
 
@@ -44,12 +52,16 @@ impl HtmlAsset {
         self.target.uri()
     }
 
-    pub fn html_path(&self) -> &CheckedFilePath<pathmarker::Html> {
-        &self.target.html_src()
+    pub fn html_src_file(&self) -> &CheckedFilePath<pathmarker::Html> {
+        &self.target.html_src_file()
     }
 
     pub fn url_type(&self) -> &UrlType {
         &self.url_type
+    }
+
+    pub fn path(&self) -> &AssetPath {
+        &self.target
     }
 }
 
@@ -182,9 +194,11 @@ where
                 dbg!(&url);
                 match discover::get_url_type(url) {
                     UrlType::Absolute => {
-                        let uri = CheckedUri::new(html_path, url);
+                        let uri = Uri::new(url)?;
+                        let uri = CheckedUri::new(html_path, &uri);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
-                        let html_asset = HtmlAsset::new(&asset_path, tag, &UrlType::Absolute);
+                        let html_asset =
+                            HtmlAsset::new(&asset_path, tag, &UrlType::Absolute, html_path);
                         assets.insert(html_asset);
                     }
                     UrlType::Offsite => {
@@ -193,10 +207,10 @@ where
                     }
                     // relative links need to get converted to absolute links
                     UrlType::Relative(target) => {
-                        let uri = CheckedUri::new(html_path, &target);
+                        let uri = relative_uri_to_absolute_uri(html_path, &target);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
                         let html_asset =
-                            HtmlAsset::new(&asset_path, tag, &UrlType::Relative(target));
+                            HtmlAsset::new(&asset_path, tag, &UrlType::Relative(target), html_path);
                         assets.insert(html_asset);
                     }
                     UrlType::InternalDoc(_) => panic!(
@@ -207,6 +221,26 @@ where
         }
     }
     Ok(assets)
+}
+
+pub fn relative_uri_to_absolute_uri<S: AsRef<str>>(
+    html_path: &CheckedFilePath<pathmarker::Html>,
+    relative_uri: S,
+) -> CheckedUri {
+    let relative_uri = relative_uri.as_ref();
+
+    let mut abs_uri = PathBuf::new();
+
+    if relative_uri.starts_with('/') {
+        abs_uri.push(&relative_uri);
+    } else {
+        abs_uri.push("/");
+        abs_uri.push(html_path.as_sys_path().pop().target());
+        abs_uri.push(&relative_uri);
+    }
+
+    let uri = Uri::new(abs_uri.to_string_lossy().to_string()).unwrap();
+    CheckedUri::new(html_path, &uri)
 }
 
 #[cfg(test)]

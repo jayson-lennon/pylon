@@ -152,8 +152,13 @@ fn render_code_block<S: AsRef<str>>(
 mod test {
     #![allow(clippy::all)]
 
+    use temptree::temptree;
+
     use crate::{
-        core::{page::page::test::new_page, Page, PageStore},
+        core::{
+            page::page::test::{new_page, new_page_with_tree},
+            Page, PageStore,
+        },
         render::highlight::{syntect_highlighter::THEME_CLASS_PREFIX, SyntectHighlighter},
     };
     use regex::Regex;
@@ -164,7 +169,6 @@ mod test {
         let mut store = PageStore::new();
         let key = store.insert(test_page);
         store.insert(linked_page);
-        dbg!(&store);
 
         let md_renderer = MarkdownRenderer::new();
         let highlighter = SyntectHighlighter::new().unwrap();
@@ -189,19 +193,37 @@ mod test {
 
     #[test]
     fn internal_doc_link_nested() {
-        let test_page = new_page(
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {
+                "default.tera": "",
+                "empty.tera": "",
+            },
+            target: {},
+            src: {
+                "test.md": "",
+                level_1: {
+                    "doc.md": ""
+                }
+            },
+            syntax_themes: {},
+        };
+
+        let test_page = new_page_with_tree(
+            &tree,
+            &tree.path().join("src/test.md"),
             r#"+++
             +++
             [internal link](@/level_1/doc.md)"#,
-            "src/test.md",
         )
         .unwrap();
 
-        let linked_page = new_page(
+        let linked_page = new_page_with_tree(
+            &tree,
+            &tree.path().join("src/level_1/doc.md"),
             r#"+++
             template_name = "empty.tera"
             +++"#,
-            "src/level_1/doc.md",
         )
         .unwrap();
 
@@ -217,19 +239,23 @@ mod test {
             r#"+++
             +++
             [internal link](@/doc.md)"#,
-            "src/test.md",
+            "test.md",
         )
         .unwrap();
+        dbg!(&test_page);
 
         let linked_page = new_page(
             r#"+++
             +++"#,
-            "src/doc.md",
+            "doc.md",
         )
         .unwrap();
+        dbg!(&linked_page);
 
         let rendered = internal_doc_link_render(test_page, linked_page);
+        dbg!(&rendered);
         let href = get_href_attr(&rendered);
+        dbg!(&href);
 
         assert_eq!(href, "/doc.html");
     }
@@ -243,7 +269,7 @@ mod test {
 code sample here
 ```
             "#,
-            "src/test.md",
+            "test.md",
         )
         .unwrap();
 
@@ -268,7 +294,7 @@ code sample here
             +++
             inline `let x = 1;` code
             "#,
-            "src/test.md",
+            "test.md",
         )
         .unwrap();
 
@@ -299,7 +325,7 @@ code sample here
 let x = 1;
 ```
             "#,
-            "src/test.md",
+            "test.md",
         )
         .unwrap();
 

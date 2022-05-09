@@ -178,12 +178,31 @@ pub mod script {
 mod test {
 
     use super::PageStore;
-    use crate::core::page::page::test::{doc::MINIMAL, new_page};
+    use crate::core::page::page::test::{doc::MINIMAL, new_page, new_page_with_tree};
+    use temptree::temptree;
 
     #[test]
     fn inserts_and_queries_pages() {
-        let page1 = new_page(MINIMAL, "src/1/page.md").unwrap();
-        let page2 = new_page(MINIMAL, "src/2/page.md").unwrap();
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {
+                "default.tera": "",
+                "empty.tera": "",
+            },
+            target: {},
+            src: {
+                "1": {
+                    "page.md": "",
+                },
+                "2": {
+                    "page.md": "",
+                },
+            },
+            syntax_themes: {},
+        };
+
+        let page1 = new_page_with_tree(&tree, &tree.path().join("src/1/page.md"), MINIMAL).unwrap();
+        let page2 = new_page_with_tree(&tree, &tree.path().join("src/2/page.md"), MINIMAL).unwrap();
 
         let mut store = PageStore::new();
         let key1 = store.insert(page1);
@@ -200,7 +219,25 @@ mod test {
 
     #[test]
     fn builds_search_key() {
-        let page = new_page(MINIMAL, "src/1/page.md").unwrap();
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {
+                "default.tera": "",
+                "empty.tera": "",
+            },
+            target: {},
+            src: {
+                "1": {
+                    "page.md": "",
+                },
+                "2": {
+                    "page.md": "",
+                },
+            },
+            syntax_themes: {},
+        };
+
+        let page = new_page_with_tree(&tree, &tree.path().join("src/1/page.md"), MINIMAL).unwrap();
 
         let mut store = PageStore::new();
         let key = store.insert(page);

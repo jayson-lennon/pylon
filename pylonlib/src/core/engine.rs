@@ -2,7 +2,12 @@ use anyhow::Context;
 use itertools::Itertools;
 use serde::Serialize;
 use std::{
-    collections::HashSet, ffi::OsStr, net::SocketAddr, path::Path, sync::Arc, thread::JoinHandle,
+    collections::HashSet,
+    ffi::OsStr,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+    thread::JoinHandle,
 };
 use tracing::{error, instrument, trace, warn};
 
@@ -41,7 +46,7 @@ pub struct EnginePaths {
 
 impl EnginePaths {
     pub fn rule_script(&self) -> &RelPath {
-        &self.syntax_theme_dir
+        &self.rule_script
     }
     pub fn absolute_rule_script(&self) -> AbsPath {
         self.project_root.join(self.rule_script())
@@ -202,7 +207,7 @@ impl Engine {
             })?;
 
         let (rule_processor, rules) = script_engine
-            .build_rules(project_root, page_store, rule_script)
+            .build_rules(engine_paths, page_store, rule_script)
             .with_context(|| "failed to build Rules structure")?;
 
         Ok((script_engine, rule_processor, rules))
@@ -233,9 +238,7 @@ impl Engine {
     ) -> Result<HashSet<&'a HtmlAsset>> {
         trace!("running pipelines");
 
-        let _engine: &Engine = self;
-
-        let unhandled_assets = HashSet::new();
+        let mut unhandled_assets = HashSet::new();
 
         for asset in html_assets {
             // Ignore anchor links for now. Issue https://github.com/jayson-lennon/pylon/issues/75
@@ -245,66 +248,41 @@ impl Engine {
             }
 
             // Ignore any assets that already exist in the target directory.
-            // {
-            //     if behavior == PipelineBehavior::NoOverwrite {
-            //         match asset.url_type() {
-            //             UrlType::Relative(abs) => {
-            //                 let target = PathBuf::from(&abs[1..]);
-            //                 if target.exists() {
-            //                     continue;
-            //                 }
-            //             }
-            //             _ => {
-            //                 let mut target_sys_path = PathBuf::from(&self.paths().output_dir);
-            //                 let relative_uri = PathBuf::from(&asset.uri().as_str()[1..]);
-            //                 target_sys_path.push(relative_uri);
-            //                 if target_sys_path.exists() {
-            //                     continue;
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
+            {
+                if behavior == PipelineBehavior::NoOverwrite && asset.path().target().exists() {
+                    continue;
+                }
+            }
 
-            // // tracks which assets have no processing logic
-            // let mut asset_has_pipeline = false;
+            // tracks which assets have no processing logic
+            let mut asset_has_pipeline = false;
 
-            // for pipeline in engine.rules.pipelines() {
-            //     if pipeline.is_match(asset.uri().as_str()) {
-            //         // asset has an associate pipeline, so we won't report an error
-            //         asset_has_pipeline = true;
+            for pipeline in self.rules().pipelines() {
+                if pipeline.is_match(asset.uri().as_str()) {
+                    // asset has an associate pipeline, so we won't report an error
+                    asset_has_pipeline = true;
 
-            //         dbg!(&asset);
-            //         let asset_uri = &asset.uri();
-            //         let relative_asset = &asset_uri.as_str()[1..];
-            //         // Make a new target in order to create directories for the asset.
-            //         let mut target_dir = PathBuf::from(&engine.paths().output_root());
-            //         target_dir.push(relative_asset);
+                    dbg!(&asset);
+                    let asset_uri = asset.uri();
+                    let relative_asset = &asset_uri.as_str()[1..];
+                    // Make a new target in order to create directories for the asset.
+                    let mut target_dir = PathBuf::from(self.paths().output_dir());
+                    target_dir.push(relative_asset);
 
-            //         let target_dir = target_dir.parent().expect("should have parent directory");
-            //         util::make_parent_dirs(target_dir)?;
+                    let target_dir = target_dir.parent().expect("should have parent directory");
+                    let target_dir = AbsPath::new(
+                        self.paths()
+                            .absolute_output_dir()
+                            .join(&RelPath::new(target_dir)?),
+                    )?;
+                    crate::util::make_parent_dirs(&target_dir)?;
 
-            //         dbg!(&target_dir);
-            //         let src_path = {
-            //             let src = asset.initiator().to_path_buf();
-            //             dbg!(&src);
-            //             let src = src.strip_prefix(&engine.paths().output_root())?;
-            //             dbg!(&src);
-            //             let src = SysPath::new("", src)?;
-            //             src
-            //         };
-            //         dbg!(&src_path);
-            //         dbg!(&relative_asset);
-            //         pipeline.run(
-            //             &engine.paths().output_root(),
-            //             relative_asset,
-            //             &src_path.to_path_buf(),
-            //         )?;
-            //     }
-            // }
-            // if !asset_has_pipeline {
-            //     unhandled_assets.insert(asset);
-            // }
+                    pipeline.run(asset.uri())?;
+                }
+            }
+            if !asset_has_pipeline {
+                unhandled_assets.insert(asset);
+            }
         }
         Ok(unhandled_assets)
     }
@@ -405,6 +383,7 @@ impl Engine {
 
         trace!("rendering pages");
         let rendered = self.render(pages)?;
+        dbg!(&rendered);
 
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
@@ -745,14 +724,7 @@ doc2"#;
           syntax_themes: {}
         };
 
-        let rules = {
-            let pipeline_base = tree.path().join("src");
-            let pipeline_base = pipeline_base.to_string_lossy();
-            r#"
-                rules.add_pipeline("BASE", "**/*.png", ["[COPY]"]);
-            "#
-            .replace("BASE", &pipeline_base)
-        };
+        let rules = r#"rules.add_pipeline(".", "**/*.png", ["[COPY]"]);"#;
 
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, rules).unwrap();
@@ -785,18 +757,9 @@ doc2"#;
           syntax_themes: {}
         };
 
-        let rules = {
-            let wwwroot = tree.path().join("wwwroot");
-            let wwwroot = wwwroot.to_string_lossy();
-            let target = tree.path().join("target");
-            let target = target.to_string_lossy();
-            r#"
+        let rules = r#"
                 rules.mount("wwwroot", "target");
-                rules.add_pipeline("base", "**/*.png", ["[COPY]"]);
-            "#
-            .replace("wwwroot", &wwwroot)
-            .replace("target", &target)
-        };
+                rules.add_pipeline(".", "**/*.png", ["[COPY]"]);"#;
 
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, rules).unwrap();
@@ -897,28 +860,24 @@ doc2"#;
           "rules.rhai": "",
           templates: {
               "test.tera": r#"<img src="blank.png">"#,
-              "empty.tera": ""
+              "empty.tera": "",
+              "default.tera": "",
           },
           target: {},
           src: {
               "doc1.md": doc1,
               "doc2.md": doc2,
-              "blank.png": "",
+              "blank.png": "test",
           },
           syntax_themes: {}
         };
 
-        let rules = {
-            let pipeline_base = tree.path().join("src");
-            let pipeline_base = pipeline_base.to_string_lossy();
-            r#"
+        let rules = r#"
             rules.add_lint(WARN, "Missing author", "**", |page| {
                 page.meta("author") == "" || type_of(page.meta("author")) == "()"
             });
-            rules.add_pipeline("BASE", "**/*.png", ["[COPY]"]);
-            "#
-            .replace("BASE", &pipeline_base)
-        };
+            rules.add_pipeline(".", "**/*.png", ["[COPY]"]);
+            "#;
 
         let rule_script = tree.path().join("rules.rhai");
         std::fs::write(&rule_script, &rules).unwrap();
@@ -928,14 +887,11 @@ doc2"#;
         let engine = Engine::new(paths).unwrap();
         engine.build_site().expect("failed to build site");
 
-        let mut target_doc1 = tree.path().join("target");
-        target_doc1.push("doc1.html");
+        let target_doc1 = tree.path().join("target").join("doc1.html");
 
-        let mut target_doc2 = tree.path().join("target");
-        target_doc2.push("doc2.html");
+        let target_doc2 = tree.path().join("target").join("doc2.html");
 
-        let mut target_img = tree.path().join("target");
-        target_img.push("blank.png");
+        let target_img = tree.path().join("target").join("blank.png");
 
         assert!(target_doc1.exists());
         assert!(target_doc2.exists());
@@ -1001,22 +957,16 @@ doc2"#;
         };
 
         let paths = crate::test::default_test_paths(&tree);
+        dbg!(&paths);
 
-        let rules = {
-            let wwwroot = tree.path().join("wwwroot");
-            let wwwroot = wwwroot.to_string_lossy();
-            let target = tree.path().join("target");
-            let target = target.to_string_lossy();
-            r#"
+        let rules = r#"
                 rules.mount("wwwroot", "target");
-            "#
-            .replace("wwwroot", &wwwroot)
-            .replace("target", &target)
-        };
+            "#;
 
         dbg!(&rules);
 
         let rule_script = tree.path().join("rules.rhai");
+        dbg!(&rule_script);
         std::fs::write(&rule_script, rules).unwrap();
 
         let engine = Engine::new(paths).unwrap();
