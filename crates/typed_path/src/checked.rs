@@ -6,7 +6,7 @@ pub use filepath::CheckedFilePath;
 
 pub mod pathmarker;
 
-use crate::{Result};
+use crate::Result;
 
 pub trait CheckedFile<T> {
     fn to_checked_file(&self) -> Result<CheckedFilePath<T>>;

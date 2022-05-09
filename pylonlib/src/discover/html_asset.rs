@@ -9,10 +9,11 @@ use serde::Serialize;
 use tracing::instrument;
 
 use crate::core::engine::EnginePaths;
-use crate::discover::UrlType;
 use crate::{discover, pathmarker, CheckedFile, CheckedFilePath, RelPath, Result, SysPath};
 
 use crate::discover::AssetPath;
+
+use super::UrlType;
 
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone, Hash, PartialEq)]
