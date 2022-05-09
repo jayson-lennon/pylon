@@ -1,6 +1,6 @@
 use anyhow::Context;
 use typed_path::{CheckedFilePath, SysPath};
-use typed_uri::CheckedUri;
+use typed_uri::{CheckedUri, Uri};
 
 use crate::{AbsPath, Result};
 use std::path::Path;
@@ -37,7 +37,8 @@ pub fn make_parent_dirs(dir: &AbsPath) -> Result<()> {
 
 pub fn checked_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Result<CheckedUri> {
     let checked_html = CheckedFilePath::try_from(path)?;
-    Ok(CheckedUri::new(&checked_html, uri))
+    let uri = Uri::new(uri)?;
+    Ok(CheckedUri::new(&checked_html, &uri))
 }
 
 #[derive(Debug)]

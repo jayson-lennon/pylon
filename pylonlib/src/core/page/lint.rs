@@ -228,8 +228,8 @@ mod test {
           templates: {
             "empty.tera": "",
           },
-          output: {},
-          content: {
+          target: {},
+          src: {
               "test.md": test_page
           },
           syntax_themes: {},
@@ -237,16 +237,14 @@ mod test {
 
         let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
-
-        dbg!(&engine);
-        panic!();
+        dbg!(engine.page_store());
 
         let page = engine.page_store().get(&"/test.md".into()).unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
         assert_eq!(lints[0].msg, "Missing author");
-        assert_eq!(lints[0].page_search_key, "/test.html".into());
+        assert_eq!(lints[0].page_search_key, "/test.md".into());
     }
 
     #[test]
@@ -270,8 +268,8 @@ mod test {
           templates: {
             "empty.tera": "",
           },
-          output: {},
-          content: {
+          target: {},
+          src: {
               "test.md": test_page
           },
           syntax_themes: {},
@@ -285,11 +283,11 @@ mod test {
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
         assert_eq!(lints[0].msg, "Missing author");
-        assert_eq!(lints[0].page_search_key, "/test.html".into());
+        assert_eq!(lints[0].page_search_key, "/test.md".into());
 
         assert_eq!(lints[1].level, LintLevel::Warn);
         assert_eq!(lints[1].msg, "Missing publish date");
-        assert_eq!(lints[1].page_search_key, "/test.html".into());
+        assert_eq!(lints[1].page_search_key, "/test.md".into());
     }
 
     #[test]

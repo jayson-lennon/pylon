@@ -25,6 +25,12 @@ impl AbsPath {
         Ok(Self(path))
     }
 
+    pub fn from_absolute<P: Into<PathBuf>>(path: P) -> Self {
+        let path = path.into();
+        assert!(path.has_root());
+        Self(path)
+    }
+
     pub fn to_relative(&self, base: &AbsPath) -> Result<RelPath> {
         let relative = self.0.strip_prefix(base.as_path())?;
         RelPath::new(relative.to_path_buf())

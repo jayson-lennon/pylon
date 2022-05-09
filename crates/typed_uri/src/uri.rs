@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use crate::Result;
 use anyhow::anyhow;
 use serde::Serialize;
-use typed_path::{pathmarker, CheckedFilePath, SysPath};
+use typed_path::{pathmarker, AbsPath, CheckedFilePath, RelPath, SysPath};
 
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone, Hash, PartialEq)]
@@ -29,8 +29,17 @@ impl Uri {
         }
     }
 
+    pub fn to_sys_path(&self, root: &AbsPath, base: &RelPath) -> Result<SysPath> {
+        let uri_without_root_slash = &self.uri[1..];
+        Ok(SysPath::new(
+            root,
+            base,
+            &uri_without_root_slash.try_into()?,
+        ))
+    }
+
     pub fn to_checked_uri(&self, initiator: &CheckedFilePath<pathmarker::Html>) -> CheckedUri {
-        CheckedUri::new(initiator, self.uri.clone())
+        CheckedUri::new(initiator, self)
     }
 
     pub fn as_str(&self) -> &str {
@@ -51,26 +60,14 @@ impl fmt::Display for Uri {
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone, Hash, PartialEq)]
 pub struct CheckedUri {
-    uri: String,
+    uri: Uri,
     html_src: CheckedFilePath<pathmarker::Html>,
 }
 
 impl CheckedUri {
-    pub fn new<S: Into<String>>(initiator: &CheckedFilePath<pathmarker::Html>, uri: S) -> Self {
-        let uri = uri.into();
-
-        let mut abs_uri = PathBuf::new();
-
-        if uri.starts_with('/') {
-            abs_uri.push(&uri);
-        } else {
-            abs_uri.push("/");
-            abs_uri.push(initiator.as_sys_path().pop().target());
-            abs_uri.push(&uri);
-        }
-
+    pub fn new(initiator: &CheckedFilePath<pathmarker::Html>, uri: &Uri) -> Self {
         Self {
-            uri: abs_uri.to_string_lossy().to_string(),
+            uri: uri.clone(),
             html_src: initiator.clone(),
         }
     }
@@ -86,12 +83,22 @@ impl CheckedUri {
     pub fn html_src(&self) -> &CheckedFilePath<pathmarker::Html> {
         &self.html_src
     }
+
+    pub fn to_sys_path(&self, root: &AbsPath, base: &RelPath) -> Result<SysPath> {
+        self.uri.to_sys_path(root, base)
+    }
 }
 
 impl From<CheckedFilePath<pathmarker::Html>> for CheckedUri {
     fn from(html_path: CheckedFilePath<pathmarker::Html>) -> Self {
+        // slash is prepended to the URI. creationwill always succeed
+        let uri = Uri::new(format!(
+            "/{}",
+            html_path.as_sys_path().target().to_string_lossy()
+        ))
+        .unwrap();
         Self {
-            uri: format!("/{}", html_path.as_sys_path().target().to_string_lossy()),
+            uri,
             html_src: html_path,
         }
     }
