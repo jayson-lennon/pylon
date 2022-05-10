@@ -94,7 +94,6 @@ impl<'s> ClassHighlighter<'s> {
     /// *Note:* This function requires `line` to include a newline at the end and
     /// also use of the `load_defaults_newlines` version of the syntaxes.
     pub fn highlight_line(&mut self, line: &str) -> String {
-        dbg!(line);
         debug_assert!(line.ends_with('\n'));
         let parsed_line = self.parse_state.parse_line(line, self.syntax_set);
         let (formatted_line, delta) = line_tokens_to_classed_spans(
@@ -119,7 +118,7 @@ impl<'s> ClassHighlighter<'s> {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     use super::*;

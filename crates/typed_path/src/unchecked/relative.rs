@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::Result;
-use anyhow::anyhow;
+use eyre::{eyre, WrapErr};
 use serde::Serialize;
 
 #[derive(Derivative, Serialize)]
@@ -15,7 +15,7 @@ impl RelPath {
     pub fn new<P: Into<PathBuf>>(path: P) -> Result<Self> {
         let path = path.into();
         if path.has_root() {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "relative path must not have a root component: '{}'",
                 path.display()
             ));
@@ -34,10 +34,11 @@ impl RelPath {
     }
 
     pub fn strip_prefix<P: AsRef<Path>>(&self, base: P) -> Result<Self> {
-        Ok(self
+        let base = base.as_ref();
+        self
             .0
-            .strip_prefix(base.as_ref())
-            .map(|path| Self(path.to_path_buf()))?)
+            .strip_prefix(base)
+            .map(|path| Self(path.to_path_buf())).wrap_err_with(||format!("Failed stripping prefix from rel path. Base '{}' doesn't exist on rel path '{}'", base.display(), self.0.display()))
     }
 
     pub fn display(&self) -> std::path::Display {
@@ -112,7 +113,7 @@ impl fmt::Display for RelPath {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     use super::*;

@@ -7,6 +7,7 @@ use crate::core::page::RenderedPage;
 use crate::core::pagestore::SearchKey;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
 use crate::{RelPath, Result};
+
 use tokio::runtime::Handle;
 use tracing::{error, trace, warn};
 
@@ -231,7 +232,7 @@ impl EngineBroker {
 mod handle_msg {
     use std::ffi::OsStr;
 
-    use anyhow::Context;
+    use eyre::{eyre, WrapErr};
     use tracing::{error, instrument, trace};
 
     use crate::{
@@ -268,7 +269,7 @@ mod handle_msg {
                 error!(asset = ?asset, "missing asset");
             }
             if !unhandled_assets.is_empty() {
-                return Err(anyhow::anyhow!("one or more assets are missing"));
+                return Err(eyre!("one or more assets are missing"));
             }
         }
         Ok(())
@@ -289,13 +290,13 @@ mod handle_msg {
         if let Some(page) = engine.page_store().get(&search_key.as_ref().into()) {
             let lints = engine
                 .lint(std::iter::once(page))
-                .with_context(|| "failed to lint page")?;
+                .wrap_err("failed to lint page")?;
             if lints.has_deny() {
-                Err(anyhow::anyhow!(lints.to_string()))
+                Err(eyre!(lints.to_string()))
             } else {
                 let rendered = engine
                     .render(std::iter::once(page))
-                    .with_context(|| "failed to render page")?
+                    .wrap_err("failed to render page")?
                     .into_iter()
                     .next()
                     .unwrap();
@@ -314,19 +315,19 @@ mod handle_msg {
                         &html_path,
                         &rendered.html(),
                     )
-                    .with_context(|| "failed to discover HTML assets")?;
+                    .wrap_err("failed to discover HTML assets")?;
                     html_assets.drop_offsite();
 
                     let unhandled_assets = engine
                         .run_pipelines(&html_assets, PipelineBehavior::Overwrite)
-                        .with_context(|| "failed to run pipelines")?;
+                        .wrap_err("failed to run pipelines")?;
                     // check for missing assets in pages
                     {
                         for asset in &unhandled_assets {
                             error!(asset = ?asset, "missing asset");
                         }
                         if !unhandled_assets.is_empty() {
-                            return Err(anyhow::anyhow!("one or more assets are missing"));
+                            return Err(eyre!("one or more assets are missing"));
                         }
                     }
                 }
@@ -360,9 +361,21 @@ mod handle_msg {
                         engine.paths().src_dir(),
                         &rel,
                     )
-                    .to_checked_file()?
+                    .to_checked_file()
+                    .wrap_err_with(|| {
+                        format!(
+                            "Failed to create checked file on fsevent for path '{}'",
+                            path
+                        )
+                    })?
                 };
-                let page = Page::from_file(engine.paths(), checked_path, engine.renderers())?;
+                let page = Page::from_file(engine.paths(), checked_path, engine.renderers())
+                    .wrap_err_with(|| {
+                        format!(
+                            "Failed to create new page from filesystem event at '{}'",
+                            path
+                        )
+                    })?;
                 // update will automatically insert the page if it doesn't exist
                 let _ = engine.page_store_mut().update(page);
             }
@@ -379,11 +392,15 @@ mod handle_msg {
         }
 
         if reload_rules {
-            engine.reload_rules()?;
+            engine
+                .reload_rules()
+                .wrap_err("Failed to reload rules during fs event")?;
         }
 
         if reload_templates {
-            engine.reload_template_engines()?;
+            engine
+                .reload_template_engines()
+                .wrap_err("Failed to reload template engines during fs event")?;
         }
 
         Ok(())

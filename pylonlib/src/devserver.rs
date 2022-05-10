@@ -4,6 +4,7 @@ mod livereload;
 mod responders;
 
 pub use broker::EngineBroker;
+use eyre::WrapErr;
 pub use livereload::DevServerMsg;
 
 use poem::EndpointExt;
@@ -61,7 +62,6 @@ impl DevServer {
     }
 }
 
-#[instrument(skip(broker))]
 async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + std::fmt::Debug>(
     broker: EngineBroker,
     output_root: R,
@@ -88,7 +88,8 @@ async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + 
         .with(AddData::new(broker))
         .with(AddData::new(connected_clients));
 
-    Ok(Server::new(TcpListener::bind(bind.to_string()))
+    Server::new(TcpListener::bind(bind.to_string()))
         .run(app)
-        .await?)
+        .await
+        .wrap_err("Failed to run dev server")
 }

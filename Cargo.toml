@@ -10,11 +10,11 @@ name = "pylon"
 clap = { version = "3.1", features = ["derive", "env"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["ansi", "env-filter"] }
-anyhow = "1.0"
-
+tracing-error = "0.2"
+eyre = "0.6"
+color-eyre = "0.6"
 rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
 parking_lot = "0.12"
-
 pylonlib = { path = "pylonlib" }
 
 

@@ -3,7 +3,7 @@ use crate::core::{
     pagestore::SearchKey,
     rules::{Matcher, RuleProcessor},
 };
-use anyhow::anyhow;
+use eyre::{eyre, WrapErr};
 
 use slotmap::SlotMap;
 use std::str::FromStr;
@@ -36,12 +36,12 @@ pub enum LintLevel {
 }
 
 impl FromStr for LintLevel {
-    type Err = anyhow::Error;
+    type Err = eyre::Report;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             LINT_LEVEL_DENY => Ok(Self::Deny),
             LINT_LEVEL_WARN => Ok(Self::Warn),
-            other => Err(anyhow!("invalid lint level {}", other)),
+            other => Err(eyre!("invalid lint level {}", other)),
         }
     }
 }
@@ -192,7 +192,9 @@ pub fn lint(
         .collect();
     let mut lint_results = vec![];
     for lint in lints {
-        let check: bool = rule_processor.run(&lint.lint_fn, (page.clone(),))?;
+        let check: bool = rule_processor
+            .run(&lint.lint_fn, (page.clone(),))
+            .wrap_err("Failed to run lint")?;
         if check {
             let lint_result = LintResult::new(lint.level, lint.msg, &page.search_key());
             lint_results.push(lint_result);
@@ -239,7 +241,6 @@ mod test {
 
         let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
-        dbg!(engine.page_store());
 
         let page = engine.page_store().get(&"/test.md".into()).unwrap();
 
