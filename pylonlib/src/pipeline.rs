@@ -154,9 +154,7 @@ impl Pipeline {
                         BaseDir::RelativeToRoot(base) => {
                             let base = base.strip_prefix("/")?;
                             // Change the "base" directory to whatever is supplied by the user.
-                            dbg!(&base);
                             let k = target_path.with_base(&base);
-                            dbg!(&k);
                             k
                         }
                         // Base           URI in HTML page                   filesystem location
@@ -176,16 +174,11 @@ impl Pipeline {
                                 .push(&target_path.file_name().try_into()?)
                         }
                     };
-                    dbg!(&src_path.to_absolute_path());
-                    dbg!(&target_path.to_absolute_path());
                     trace!("copy: {:?} -> {:?}", src_path, target_path);
-                    dbg!(&src_path);
-                    dbg!(&target_path);
                     std::fs::copy(&src_path.to_absolute_path(), &target_path.to_absolute_path()).with_context(||format!("Failed performing copy operation in pipeline. '{src_path}' -> '{target_path}'"))?;
                 }
                 Operation::Shell(command) => {
                     trace!("shell command: {:?}", command);
-                    dbg!(&command);
                     if command.0.contains("$TARGET") {
                         autocopy = false;
                     } else {
@@ -248,7 +241,6 @@ impl Pipeline {
                                     .as_str(),
                             )
                     };
-                    dbg!(&command);
 
                     if command.contains("$NEW_SCRATCH") {
                         eprintln!("make new scratch file");
@@ -258,22 +250,18 @@ impl Pipeline {
                                     "failed to create new scratch file for shell operation"
                                 })?;
                     }
-                    dbg!(&command);
 
                     let command =
                         command.replace("$NEW_SCRATCH", scratch_path.to_string_lossy().as_ref());
-                    dbg!(&command);
 
                     trace!("command= {:?}", command);
                     {
-                        dbg!(&working_dir);
                         let cmd = format!(
                             "cd {} && {}",
                             working_dir.as_path().to_string_lossy(),
                             &command
                         );
                         trace!("cmd= {:?}", cmd);
-                        dbg!(&cmd);
 
                         let output = std::process::Command::new("sh")
                             .arg("-c")
@@ -287,8 +275,6 @@ impl Pipeline {
                         if !output.status.success() {
                             let stdout = String::from_utf8_lossy(&output.stdout);
                             let stderr = String::from_utf8_lossy(&output.stderr);
-                            dbg!(&stdout);
-                            dbg!(&stderr);
                             error!(
                                 command = %command,
                                 stderr = %stderr,

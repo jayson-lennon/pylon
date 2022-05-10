@@ -132,7 +132,6 @@ pub async fn try_rendered_file<S: AsRef<str>>(
 
     trace!("try to serve rendered file");
 
-    dbg!(path.as_ref());
     let (send, recv) = EngineRequest::new(SearchKey::from(path.as_ref()));
 
     broker.send_engine_msg(EngineMsg::RenderPage(send)).await?;
@@ -147,7 +146,6 @@ pub fn serve_rendered_file<S: AsRef<str>>(html: S) -> Response {
 
 pub async fn run_pipelines<S: Into<String>>(_broker: &EngineBroker, path: S) -> Result<()> {
     // let (send, _recv) = EngineRequest::new(path.into());
-    dbg!(&path.into());
     todo!();
     // broker
     //     .send_engine_msg(EngineMsg::ProcessPipelines(send))

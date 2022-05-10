@@ -239,7 +239,6 @@ mod test {
 
         let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
-        dbg!(engine.page_store());
 
         let page = engine.page_store().get(&"/test.md".into()).unwrap();
 

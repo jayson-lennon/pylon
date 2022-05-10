@@ -182,8 +182,6 @@ pub mod script {
 
             rules.add_pipeline(pipeline);
 
-            dbg!("pipeline added");
-
             Ok(())
         }
 
