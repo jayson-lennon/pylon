@@ -191,7 +191,6 @@ where
         ));
         for el in doc.select(&selector) {
             if let Some(url) = el.value().attr(attr) {
-                dbg!(&url);
                 match discover::get_url_type(url) {
                     UrlType::Absolute => {
                         let uri = Uri::new(url)?;
@@ -202,7 +201,6 @@ where
                         assets.insert(html_asset);
                     }
                     UrlType::Offsite => {
-                        dbg!("offsite");
                         // assets.insert(HtmlAsset::new(url, tag, &UrlType::Offsite, page_path));
                     }
                     // relative links need to get converted to absolute links
@@ -245,7 +243,7 @@ pub fn relative_uri_to_absolute_uri<S: AsRef<str>>(
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     macro_rules! pair {
@@ -322,7 +320,6 @@ mod test {
     //     for asset in &assets {
     //         if !(asset.uri().as_str() == "/test1.png" || asset.uri().as_str() == "/inner/test2.png")
     //         {
-    //             dbg!(&assets);
     //             panic!("wrong assets in collection");
     //         }
     //     }

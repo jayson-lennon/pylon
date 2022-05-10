@@ -262,7 +262,6 @@ impl Engine {
                     // asset has an associate pipeline, so we won't report an error
                     asset_has_pipeline = true;
 
-                    dbg!(&asset);
                     let asset_uri = asset.uri();
                     let relative_asset = &asset_uri.as_str()[1..];
                     // Make a new target in order to create directories for the asset.
@@ -323,7 +322,6 @@ impl Engine {
     pub fn process_mounts<'a, M: Iterator<Item = &'a Mount>>(&self, mounts: M) -> Result<()> {
         use fs_extra::dir::CopyOptions;
         for mount in mounts {
-            dbg!(&mount);
             trace!(mount=?mount, "processing mount");
             std::fs::create_dir_all(mount.target())?;
             let options = CopyOptions {
@@ -381,7 +379,6 @@ impl Engine {
 
         trace!("rendering pages");
         let rendered = self.render(pages)?;
-        dbg!(&rendered);
 
         trace!("writing rendered pages to disk");
         rendered.write_to_disk()?;
@@ -394,7 +391,6 @@ impl Engine {
             let mut html_assets =
                 crate::discover::html_asset::find_all(self.paths(), self.paths().output_dir())?;
             html_assets.drop_offsite();
-            dbg!(&html_assets);
 
             trace!("running pipelines");
             let unhandled_assets =
@@ -461,7 +457,6 @@ impl Engine {
 
 #[instrument(skip(renderers), ret)]
 fn do_build_page_store(engine_paths: Arc<EnginePaths>, renderers: &Renderers) -> Result<PageStore> {
-    dbg!(&engine_paths);
     let pages: Vec<_> =
         crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {
             path.extension() == Some(OsStr::new("md"))
@@ -476,10 +471,8 @@ fn do_build_page_store(engine_paths: Arc<EnginePaths>, renderers: &Renderers) ->
         })
         .try_collect()?;
 
-    dbg!(&pages);
     let mut page_store = PageStore::new();
     page_store.insert_batch(pages);
-    dbg!(&page_store);
 
     Ok(page_store)
 }
@@ -956,16 +949,12 @@ doc2"#;
         };
 
         let paths = crate::test::default_test_paths(&tree);
-        dbg!(&paths);
 
         let rules = r#"
                 rules.mount("wwwroot", "target");
             "#;
 
-        dbg!(&rules);
-
         let rule_script = tree.path().join("rules.rhai");
-        dbg!(&rule_script);
         std::fs::write(&rule_script, rules).unwrap();
 
         let engine = Engine::new(paths).unwrap();

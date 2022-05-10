@@ -140,10 +140,6 @@ impl SysPath {
         Ok(Self::new(root, base, &target))
     }
 
-    // pub fn to_checked_file<T>(&self) -> Result<CheckedFilePath<T>> {
-    //     dbg!("non generic");
-    //     self.try_into()
-    // }
     pub fn to_checked_dir<T>(&self) -> Result<CheckedDirPath<T>> {
         self.try_into()
     }
@@ -157,7 +153,7 @@ impl fmt::Display for SysPath {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     use super::*;
