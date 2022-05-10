@@ -38,7 +38,7 @@ impl From<&str> for TemplateName {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
     use super::*;
 

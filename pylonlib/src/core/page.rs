@@ -88,8 +88,8 @@ pub mod script {
         #[cfg(test)]
         mod test {
             use super::rhai_module;
+            use crate::core::page::page::test::doc::MINIMAL;
             use crate::core::page::page::test::new_page_with_tree;
-            use crate::core::page::page::test::{doc::MINIMAL};
 
             use temptree::temptree;
 
