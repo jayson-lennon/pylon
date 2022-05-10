@@ -245,6 +245,8 @@ pub fn relative_uri_to_absolute_uri<S: AsRef<str>>(
 
 #[cfg(test)]
 mod test {
+    
+    #![allow(warnings, unused)]
 
     macro_rules! pair {
         ($tagname:literal, $tagsrc:literal, $target:ident) => {

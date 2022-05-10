@@ -210,7 +210,7 @@ fn split_document(raw: &str) -> Result<(&str, &str)> {
 #[cfg(test)]
 pub mod test {
     #![allow(clippy::all)]
-    #![allow(unused_variables)]
+    #![allow(warnings, unused)]
 
     use std::io;
     use std::path::Path;

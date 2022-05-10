@@ -177,6 +177,8 @@ pub mod script {
 #[cfg(test)]
 mod test {
 
+    #![allow(warnings, unused)]
+
     use super::PageStore;
     use crate::core::page::page::test::{doc::MINIMAL, new_page, new_page_with_tree};
     use temptree::temptree;

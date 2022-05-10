@@ -196,7 +196,7 @@ impl Engine {
         let script_engine_config = ScriptEngineConfig::new();
         let script_engine = ScriptEngine::new(&script_engine_config.modules());
 
-        let project_root = engine_paths.project_root();
+        let _project_root = engine_paths.project_root();
 
         let rule_script = std::fs::read_to_string(engine_paths.absolute_rule_script())
             .with_context(|| {
@@ -488,7 +488,8 @@ fn do_build_page_store(engine_paths: Arc<EnginePaths>, renderers: &Renderers) ->
 
 #[cfg(test)]
 pub mod test {
-    #![allow(unused_variables)]
+
+    #![allow(warnings, unused)]
 
     use crate::devserver::broker::EngineMsg;
 

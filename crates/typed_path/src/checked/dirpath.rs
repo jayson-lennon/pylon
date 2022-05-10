@@ -58,7 +58,8 @@ impl<T> fmt::Display for CheckedDirPath<T> {
 
 #[cfg(test)]
 mod test {
-    #![allow(unused_variables)]
+    
+    #![allow(warnings, unused)]
 
     use super::*;
     use crate::pathmarker;

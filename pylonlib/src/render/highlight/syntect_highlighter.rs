@@ -1,6 +1,4 @@
-
-
-use syntect::highlighting::{ThemeSet};
+use syntect::highlighting::ThemeSet;
 use syntect::html::ClassStyle;
 use syntect::html::{css_for_theme_with_class_style, line_tokens_to_classed_spans};
 use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
@@ -122,6 +120,7 @@ impl<'s> ClassHighlighter<'s> {
 #[cfg(test)]
 mod test {
     
+    #![allow(warnings, unused)]
 
     use super::*;
 

@@ -89,7 +89,7 @@ pub mod script {
         mod test {
             use super::rhai_module;
             use crate::core::page::page::test::new_page_with_tree;
-            use crate::core::page::page::test::{doc::MINIMAL, new_page};
+            use crate::core::page::page::test::{doc::MINIMAL};
 
             use temptree::temptree;
 
@@ -221,6 +221,8 @@ pub mod script {
 
 #[cfg(test)]
 mod test {
+
+    #![allow(warnings, unused)]
     use super::*;
 
     #[test]

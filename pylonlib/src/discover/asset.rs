@@ -42,5 +42,6 @@ impl Eq for AssetPath {}
 
 #[cfg(test)]
 mod test {
-    #![allow(unused_variables)]
+    
+    #![allow(warnings, unused)]
 }

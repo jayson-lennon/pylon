@@ -34,6 +34,8 @@ pub(in crate) mod helper {
 
 #[cfg(test)]
 mod test {
+
+    #![allow(warnings, unused)]
     macro_rules! abs {
         ($path:literal) => {{
             &crate::AbsPath::new($path).unwrap()

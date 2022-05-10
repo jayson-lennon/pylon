@@ -5,7 +5,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::Result;
-use crate::{RelPath, SysPath};
+use crate::{RelPath};
 use anyhow::anyhow;
 use serde::Serialize;
 
@@ -133,7 +133,8 @@ crate::helper::impl_try_from!(&PathBuf => AbsPath);
 
 #[cfg(test)]
 mod test {
-    #![allow(unused_variables)]
+    
+    #![allow(warnings, unused)]
 
     use super::*;
     use crate::test::{abs, rel};

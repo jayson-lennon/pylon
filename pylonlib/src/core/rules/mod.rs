@@ -289,6 +289,8 @@ pub mod script {
     #[cfg(test)]
     mod test_script {
 
+        #![allow(warnings, unused)]
+
         use super::rhai_module::*;
         use crate::core::rules::Rules;
         use crate::test::abs;
@@ -373,6 +375,7 @@ pub mod script {
 
 // #[cfg(test)]
 // mod test {
+//
 //     use crate::core::engine::Engine;
 //     use crate::test::abs;
 //     use crate::test::rel;

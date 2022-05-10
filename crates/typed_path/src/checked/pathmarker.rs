@@ -35,7 +35,8 @@ impl CheckedFile<Md> for SysPath {
 
 #[cfg(test)]
 mod test {
-    #![allow(unused_variables)]
+    
+    #![allow(warnings, unused)]
 
     use super::*;
     use crate::{test::rel, AbsPath};
