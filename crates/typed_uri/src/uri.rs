@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use crate::Result;
-use eyre::eyre;
+use eyre::{eyre, WrapErr};
 use serde::Serialize;
 use typed_path::{pathmarker, AbsPath, CheckedFilePath, RelPath, SysPath};
 
@@ -29,12 +29,18 @@ impl Uri {
         }
     }
 
+    #[tracing::instrument]
     pub fn to_sys_path(&self, root: &AbsPath, base: &RelPath) -> Result<SysPath> {
         let uri_without_root_slash = &self.uri[1..];
         Ok(SysPath::new(
             root,
             base,
-            &uri_without_root_slash.try_into()?,
+            &uri_without_root_slash.try_into().wrap_err_with(|| {
+                format!(
+                    "Failed converting Uri '{}' to SysPath with root '{}' and base '{}'",
+                    self.uri, root, base
+                )
+            })?,
         ))
     }
 

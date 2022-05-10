@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::RelPath;
 use crate::Result;
-use eyre::eyre;
+use eyre::{eyre, WrapErr};
 use serde::Serialize;
 
 #[derive(Derivative, Serialize)]
@@ -32,7 +32,7 @@ impl AbsPath {
     }
 
     pub fn to_relative(&self, base: &AbsPath) -> Result<RelPath> {
-        let relative = self.0.strip_prefix(base.as_path())?;
+        let relative = self.0.strip_prefix(base.as_path()).wrap_err_with(||format!("Failed converting abs path to rel path. Base '{}' doesn't exist on absolute path '{}'", base, self.0.display()))?;
         RelPath::new(relative.to_path_buf())
     }
 
@@ -41,7 +41,8 @@ impl AbsPath {
     }
 
     pub fn strip_prefix<P: AsRef<Path>>(&self, base: P) -> Result<RelPath> {
-        let stripped = self.0.strip_prefix(base.as_ref())?;
+        let base = base.as_ref();
+        let stripped = self.0.strip_prefix(base).wrap_err_with(||format!("Failed stripping prefix from abs path. Base '{}' doesn't exist on absolute path '{}'", base.display(), self.0.display()))?;
         RelPath::new(stripped)
     }
 
@@ -84,12 +85,6 @@ impl AbsPath {
     pub fn starts_with<P: AsRef<Path>>(&self, base: P) -> bool {
         self.0.starts_with(base)
     }
-
-    // pub fn to_sys_path(&self, engine_paths: GlobalEnginePaths, base: &RelPath) -> Result<SysPath> {
-    //     let rel_path = self.strip_prefix(engine_paths.project_root())?;
-    //     let target = rel_path.strip_prefix(base)?;
-    //     Ok(SysPath::new(engine_paths.project_root(), base, &target))
-    // }
 }
 
 impl Eq for AbsPath {}

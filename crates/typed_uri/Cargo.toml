@@ -12,6 +12,7 @@ derivative = "2.2"
 serde = { version = "1.0", features = ["derive"] }
 typed_path = { path = "../typed_path" }
 eyre = "0.6"
+tracing = "0.1"
 color-eyre = "0.6"
 
 [dev-dependencies]

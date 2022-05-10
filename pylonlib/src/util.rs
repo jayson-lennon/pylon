@@ -32,12 +32,24 @@ pub fn gen_temp_file() -> Result<NamedTempFile> {
 #[instrument]
 pub fn make_parent_dirs(dir: &AbsPath) -> Result<()> {
     trace!("create parent directories");
-    Ok(std::fs::create_dir_all(dir)?)
+    std::fs::create_dir_all(dir)
+        .wrap_err_with(|| format!("Failed to create parent directories from '{}'", dir))
 }
 
 pub fn checked_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Result<CheckedUri> {
-    let checked_html = CheckedFilePath::try_from(path)?;
-    let uri = Uri::new(uri)?;
+    let uri = uri.into();
+    let checked_html = CheckedFilePath::try_from(path).wrap_err_with(|| {
+        format!(
+            "Failed to create CheckedFilePath from '{}' when creating SysPath from Uri",
+            path
+        )
+    })?;
+    let uri = Uri::new(&uri).wrap_err_with(|| {
+        format!(
+            "Failed to create URI from '{}' when creating SysPath from Uri",
+            uri
+        )
+    })?;
     Ok(CheckedUri::new(&checked_html, &uri))
 }
 

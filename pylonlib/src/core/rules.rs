@@ -1,6 +1,7 @@
 pub mod fn_pointers;
 pub mod matcher;
 
+use eyre::{WrapErr};
 pub use fn_pointers::GlobStore;
 pub use matcher::Matcher;
 
@@ -62,7 +63,8 @@ impl Rules {
         }
     }
     pub fn set_global_context<S: Serialize>(&mut self, ctx: S) -> crate::Result<()> {
-        let ctx = serde_json::to_value(ctx)?;
+        let ctx = serde_json::to_value(ctx)
+            .wrap_err("Failed converting global context to serde value")?;
         self.global_context = Some(ctx);
         Ok(())
     }
@@ -126,7 +128,9 @@ pub struct RuleProcessor {
 impl RuleProcessor {
     pub fn new<S: AsRef<str>>(engine: rhai::Engine, script: S) -> crate::Result<Self> {
         let script = script.as_ref();
-        let ast = engine.compile(script)?;
+        let ast = engine
+            .compile(script)
+            .wrap_err("Failed to compile an AST from rule script")?;
         Ok(Self { engine, ast })
     }
 
@@ -135,7 +139,9 @@ impl RuleProcessor {
         ptr: &rhai::FnPtr,
         args: A,
     ) -> crate::Result<T> {
-        Ok(ptr.call(&self.engine, &self.ast, args)?)
+        Ok(ptr
+            .call(&self.engine, &self.ast, args)
+            .wrap_err("Failed to call function pointer in rule script")?)
     }
 }
 

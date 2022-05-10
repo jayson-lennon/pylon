@@ -3,7 +3,7 @@ use crate::core::{
     pagestore::SearchKey,
     rules::{Matcher, RuleProcessor},
 };
-use eyre::eyre;
+use eyre::{eyre, WrapErr};
 
 use slotmap::SlotMap;
 use std::str::FromStr;
@@ -192,7 +192,9 @@ pub fn lint(
         .collect();
     let mut lint_results = vec![];
     for lint in lints {
-        let check: bool = rule_processor.run(&lint.lint_fn, (page.clone(),))?;
+        let check: bool = rule_processor
+            .run(&lint.lint_fn, (page.clone(),))
+            .wrap_err("Failed to run lint")?;
         if check {
             let lint_result = LintResult::new(lint.level, lint.msg, &page.search_key());
             lint_results.push(lint_result);

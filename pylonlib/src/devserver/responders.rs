@@ -144,7 +144,7 @@ pub fn serve_rendered_file<S: AsRef<str>>(html: S) -> Response {
         .body(html_with_live_reload_script(html.as_ref()))
 }
 
-pub async fn run_pipelines<S: Into<String>>(_broker: &EngineBroker, path: S) -> Result<()> {
+pub async fn run_pipelines<S: Into<String>>(_broker: &EngineBroker, _path: S) -> Result<()> {
     // let (send, _recv) = EngineRequest::new(path.into());
     todo!();
     // broker

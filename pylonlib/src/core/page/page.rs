@@ -42,7 +42,7 @@ impl Page {
         renderers: &Renderers,
     ) -> Result<Self> {
         let mut file = std::fs::File::open(file_path.as_sys_path().to_absolute_path())
-            .with_context(|| format!("failed opening source file {}", file_path))?;
+            .wrap_err_with(|| format!("failed opening source file {}", file_path))?;
 
         Self::from_reader(engine_paths, file_path, &mut file, renderers)
     }
@@ -59,7 +59,7 @@ impl Page {
     {
         let mut raw_doc = String::new();
 
-        reader.read_to_string(&mut raw_doc).with_context(|| {
+        reader.read_to_string(&mut raw_doc).wrap_err_with(|| {
             format!(
                 "error reading document into string for path {}",
                 file_path.display()
@@ -67,11 +67,12 @@ impl Page {
         })?;
 
         let (mut frontmatter, raw_markdown) = split_raw_doc(&raw_doc)
-            .with_context(|| format!("failed parsing raw document for {}", file_path.display()))?;
+            .wrap_err_with(|| format!("failed parsing raw document for {}", file_path.display()))?;
 
         if frontmatter.template_name.is_none() {
             let all_templates = renderers.tera.get_template_names().collect::<HashSet<_>>();
-            let template = find_default_template(&all_templates, &file_path)?;
+            let template = find_default_template(&all_templates, &file_path)
+                .wrap_err("Failed to locate default templates when creating new page")?;
 
             frontmatter.template_name = Some(template);
         }
@@ -140,10 +141,10 @@ fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
     let raw = raw.as_ref();
 
     let (raw_frontmatter, raw_markdown) = split_document(raw)
-        .with_context(|| String::from("failed to split raw document into component parts"))?;
+        .wrap_err_with(|| String::from("failed to split raw document into component parts"))?;
 
     let frontmatter: FrontMatter = toml::from_str(raw_frontmatter)
-        .with_context(|| String::from("failed parsing frontmatter into TOML"))?;
+        .wrap_err_with(|| String::from("failed parsing frontmatter into TOML"))?;
     let raw_markdown = RawMarkdown(raw_markdown.to_string());
     Ok((frontmatter, raw_markdown))
 }
