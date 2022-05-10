@@ -228,18 +228,25 @@ impl Pipeline {
                     };
 
                     let command = {
+                        let target = asset_uri
+                            .to_sys_path(epaths.project_root(), epaths.output_dir())
+                            .wrap_err(
+                                "Failed to convert asset URI to SysPath during pipeline processing",
+                            )?
+                            .to_absolute_path();
+
+                        crate::util::make_parent_dirs(&target.pop()).wrap_err_with(|| {
+                            format!(
+                                "Failed to make parent directories for asset target '{}'",
+                                &target.pop()
+                            )
+                        })?;
+
                         command
                             .0
                             .replace("$SOURCE", src_path.to_string().as_str())
                             .replace("$SCRATCH", scratch_path.to_string_lossy().as_ref())
-                            .replace(
-                                "$TARGET",
-                                asset_uri
-                                    .to_sys_path(epaths.project_root(), epaths.output_dir()).wrap_err("Failed to convert asset URI to SysPath during pipeline processing")?
-                                    .to_absolute_path()
-                                    .to_string()
-                                    .as_str(),
-                            )
+                            .replace("$TARGET", target.to_string().as_str())
                     };
 
                     if command.contains("$NEW_SCRATCH") {
@@ -774,6 +781,38 @@ mod test {
 
         let target_content = fs::read_to_string(tree.path().join("target/inner/test.txt")).unwrap();
         assert_eq!(&target_content, "new");
+    }
+
+    #[test]
+    fn op_shell_direct_target_write_makes_needed_subdirs() {
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {},
+            target: {
+                "output.html": "",
+            },
+            src: {},
+            "test.txt": "old",
+            syntax_themes: {},
+        };
+
+        let paths = crate::test::default_test_paths(&tree);
+
+        let mut pipeline =
+            Pipeline::new(paths, &BaseDir::new("/"), "/static/styles/site.css").unwrap();
+
+        pipeline.push_op(Operation::Shell(ShellCommand::new("echo test > $TARGET")));
+
+        let html_file = checked_html_path(&tree, "target/output.html");
+        let asset_uri = Uri::new("/static/styles/site.css")
+            .unwrap()
+            .to_checked_uri(&html_file);
+
+        pipeline.run(&asset_uri).expect("failed to run pipeline");
+
+        let target_content =
+            fs::read_to_string(tree.path().join("target/static/styles/site.css")).unwrap();
+        assert_eq!(&target_content, "test\n");
     }
 
     #[test]

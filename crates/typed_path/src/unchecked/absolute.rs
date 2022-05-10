@@ -85,6 +85,12 @@ impl AbsPath {
     pub fn starts_with<P: AsRef<Path>>(&self, base: P) -> bool {
         self.0.starts_with(base)
     }
+
+    pub fn pop(&self) -> Self {
+        let mut buf = self.0.clone();
+        buf.pop();
+        Self(buf)
+    }
 }
 
 impl Eq for AbsPath {}
