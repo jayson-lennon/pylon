@@ -1,6 +1,7 @@
 use crate::core::engine::GlobalEnginePaths;
 use crate::util::Glob;
 use crate::Result;
+use color_eyre::{Section, SectionExt};
 use eyre::{eyre, WrapErr};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -74,7 +75,7 @@ impl Pipeline {
     where
         G: TryInto<Glob, Error = globset::Error>,
     {
-        let target_glob = target_glob.try_into()?;
+        let target_glob = target_glob.try_into().wrap_err("Failed to parse glob")?;
 
         trace!("make new pipeline using glob target {}", target_glob.glob());
 
@@ -96,7 +97,7 @@ impl Pipeline {
     where
         G: TryInto<Glob, Error = globset::Error>,
     {
-        let target_glob = target_glob.try_into()?;
+        let target_glob = target_glob.try_into().wrap_err("Failed to parse glob")?;
 
         trace!("make new pipeline using glob target {}", target_glob.glob());
 
@@ -125,21 +126,23 @@ impl Pipeline {
         let mut scratch_files = vec![];
         let result = self.do_run(&mut scratch_files, asset_uri);
 
-        clean_temp_files(&scratch_files)
-            .with_context(|| "failed to cleanup pipeline scratch files")?;
+        clean_temp_files(&scratch_files).wrap_err("failed to cleanup pipeline scratch files")?;
 
         result
     }
 
     #[allow(clippy::too_many_lines)]
     fn do_run(&self, scratch_files: &mut Vec<PathBuf>, asset_uri: &CheckedUri) -> Result<()> {
-        let mut scratch_path = new_scratch_file(scratch_files, &[])?;
+        let mut scratch_path = new_scratch_file(scratch_files, &[])
+            .wrap_err("Failed to created new scratch file for pipeline processing")?;
 
         let mut autocopy = false;
 
         let epaths = self.engine_paths();
 
-        let target_path = asset_uri.to_sys_path(epaths.project_root(), epaths.output_dir())?;
+        let target_path = asset_uri
+            .to_sys_path(epaths.project_root(), epaths.output_dir())
+            .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?;
 
         for op in &self.ops {
             let _span = info_span!("perform pipeline operation").entered();
@@ -152,10 +155,9 @@ impl Pipeline {
                         // "/"            "/static/styles/site.css"          $ROOT/static/styles/site.css
                         // "/wwwroot"     "/static/styles/site.css"          $ROOT/wwwroot/static/styles/site.css
                         BaseDir::RelativeToRoot(base) => {
-                            let base = base.strip_prefix("/")?;
+                            let base = base.strip_prefix("/").wrap_err_with(||format!("Failed to strip root prefix (/) from '{}' during pipeline processing", base.display()))?;
                             // Change the "base" directory to whatever is supplied by the user.
-                            let k = target_path.with_base(&base);
-                            k
+                            target_path.with_base(&base)
                         }
                         // Base           URI in HTML page                   filesystem location
                         // ----           -------------------------          ----------------------------
@@ -171,11 +173,13 @@ impl Pipeline {
                                 // Push the supplied relative path onto the existing path
                                 .push(relative)
                                 // Push the target file name back onto the path (this should always work)
-                                .push(&target_path.file_name().try_into()?)
+                                .push(&target_path.file_name().try_into().wrap_err(
+                                    "Missing file name from target path during pipeline processing",
+                                )?)
                         }
                     };
                     trace!("copy: {:?} -> {:?}", src_path, target_path);
-                    std::fs::copy(&src_path.to_absolute_path(), &target_path.to_absolute_path()).with_context(||format!("Failed performing copy operation in pipeline. '{src_path}' -> '{target_path}'"))?;
+                    std::fs::copy(&src_path.to_absolute_path(), &target_path.to_absolute_path()).wrap_err_with(||format!("Failed to copy '{src_path}' -> '{target_path}' during pipeline processing"))?;
                 }
                 Operation::Shell(command) => {
                     trace!("shell command: {:?}", command);
@@ -191,12 +195,12 @@ impl Pipeline {
                         // "/"            /blog/entry/post.html    /blog/entry/img.png     $ROOT/                   $ROOT/blog/entry/img.png
                         // "/wwwroot"     /blog/entry/post.html    /blog/entry/img.png     $ROOT/wwwroot/           $ROOT/wwwroot/blog/entry/img.png
                         BaseDir::RelativeToRoot(base) => {
-                            let relative_base = base.strip_prefix("/")?;
+                            let relative_base = base.strip_prefix("/").wrap_err_with(||format!("Failed to strip root prefix(/) from '{}' during pipline processing", base.display()))?;
                             let asset_uri_without_root = &asset_uri.as_str()[1..];
 
                             let working_dir = epaths.project_root().clone();
                             let relative_asset_path =
-                                relative_base.join(&asset_uri_without_root.try_into()?);
+                                relative_base.join(&asset_uri_without_root.try_into().wrap_err("Failed to create relative path from root base directory during pipeline processing")?);
 
                             (working_dir, relative_asset_path)
                         }
@@ -221,7 +225,7 @@ impl Pipeline {
                             let asset_name = asset_name
                                 .file_name()
                                 .ok_or_else(|| eyre!("failed to located filename in asset uri"))?;
-                            let relative_asset_path = relative.join(&RelPath::new(asset_name)?);
+                            let relative_asset_path = relative.join(&RelPath::new(asset_name).wrap_err_with(||format!("Failed to create relative path from asset '{}' during pipeline processing", asset_name.to_string_lossy()))?);
 
                             (working_dir, relative_asset_path)
                         }
@@ -235,7 +239,7 @@ impl Pipeline {
                             .replace(
                                 "$TARGET",
                                 asset_uri
-                                    .to_sys_path(epaths.project_root(), epaths.output_dir())?
+                                    .to_sys_path(epaths.project_root(), epaths.output_dir()).wrap_err("Failed to convert asset URI to SysPath during pipeline processing")?
                                     .to_absolute_path()
                                     .to_string()
                                     .as_str(),
@@ -244,10 +248,10 @@ impl Pipeline {
 
                     if command.contains("$NEW_SCRATCH") {
                         scratch_path =
-                            new_scratch_file(scratch_files, &std::fs::read(&scratch_path)?)
-                                .with_context(|| {
-                                    "failed to create new scratch file for shell operation"
-                                })?;
+                            new_scratch_file(scratch_files, &std::fs::read(&scratch_path).wrap_err("Failed to read scratch file during pipeline processing")?)
+                                .wrap_err(
+                                    "Failed to create new scratch file for shell operation during pipeline processing",
+                                )?;
                     }
 
                     let command =
@@ -268,19 +272,16 @@ impl Pipeline {
                             .stdout(Stdio::piped())
                             .stderr(Stdio::piped())
                             .output()
-                            .with_context(|| {
+                            .wrap_err_with(|| {
                                 format!("Failed running shell pipeline command: '{command}'")
                             })?;
                         if !output.status.success() {
                             let stdout = String::from_utf8_lossy(&output.stdout);
                             let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!(
-                                command = %command,
-                                stderr = %stderr,
-                                stdout = %stdout,
-                                "Pipeline command failed"
-                            );
-                            return Err(eyre!("pipeline processing failure"));
+                            error!(command = %command, "Pipeline command failed");
+                            return Err(eyre!("Pipeline processing failure"))
+                                .with_section(move || stdout.trim().to_string().header("Stdout:"))
+                                .with_section(move || stderr.trim().to_string().header("Stderr:"));
                         }
                     }
                 }
@@ -288,7 +289,7 @@ impl Pipeline {
         }
 
         if autocopy {
-            std::fs::copy(&scratch_path, &target_path.to_absolute_path()).with_context(||format!("Failed performing copy operation in pipeline. '{scratch_path:?}' -> '{target_path:?}'"))?;
+            std::fs::copy(&scratch_path, &target_path.to_absolute_path()).wrap_err_with(||format!("Failed performing copy operation in pipeline. '{scratch_path:?}' -> '{target_path:?}'"))?;
         }
 
         Ok(())
@@ -298,11 +299,11 @@ impl Pipeline {
 #[instrument(skip_all)]
 fn new_scratch_file(files: &mut Vec<PathBuf>, content: &[u8]) -> Result<PathBuf> {
     let tmp = crate::util::gen_temp_file()
-        .with_context(|| "Failed to generate temp file for pipeline shell operation")?
+        .wrap_err("Failed to generate temp file for pipeline shell operation")?
         .path()
         .to_path_buf();
     files.push(tmp.clone());
-    std::fs::write(&tmp, content).with_context(|| "failed to write contents into scratch file")?;
+    std::fs::write(&tmp, content).wrap_err("Failed to write contents into scratch file")?;
     Ok(files[files.len() - 1].clone())
 }
 
@@ -310,7 +311,7 @@ fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<()> {
     let _span = trace_span!("clean up temp files").entered();
     trace!(files = ?tmp_files);
     for f in tmp_files {
-        std::fs::remove_file(&f).with_context(|| {
+        std::fs::remove_file(&f).wrap_err_with(|| {
             format!(
                 "Failed to clean up temporary file: '{}'",
                 f.to_string_lossy()

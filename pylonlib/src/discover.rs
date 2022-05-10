@@ -5,6 +5,7 @@ pub mod html_asset;
 pub use asset::AssetPath;
 
 use crate::Result;
+use eyre::WrapErr;
 use std::fs;
 
 use std::path::Path;
@@ -22,12 +23,22 @@ pub fn get_all_paths<P: AsRef<Path> + std::fmt::Debug>(
     let root = root.as_ref();
     let mut paths = vec![];
     if root.is_dir() {
-        for entry in fs::read_dir(root)? {
-            let path = entry?.path();
+        for entry in fs::read_dir(root)
+            .wrap_err_with(|| format!("Failed to read directory '{}'", root.display()))?
+        {
+            let path = entry
+                .wrap_err_with(|| {
+                    format!("Failed to read directory entry in '{}'", root.display())
+                })?
+                .path();
             if path.is_dir() {
-                paths.append(&mut get_all_paths(&path, condition)?);
+                paths.append(&mut get_all_paths(&path, condition).wrap_err_with(|| {
+                    format!("Failed to get all paths from '{}'", path.display())
+                })?);
             } else if condition(path.as_ref()) {
-                paths.push(AbsPath::new(path)?);
+                paths.push(AbsPath::new(&path).wrap_err_with(|| {
+                    format!("Failed to convert '{}' to absolute path", path.display())
+                })?);
             }
         }
     }
@@ -61,7 +72,7 @@ pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
     use super::*;
 

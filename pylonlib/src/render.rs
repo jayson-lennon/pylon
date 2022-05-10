@@ -1,4 +1,5 @@
 use crate::Result;
+use eyre::WrapErr;
 use std::path::Path;
 
 pub mod highlight;
@@ -14,9 +15,16 @@ pub struct Renderers {
 
 impl Renderers {
     pub fn new<P: AsRef<Path>>(template_root: P) -> Result<Self> {
-        let tera = template::TeraRenderer::new(template_root)?;
+        let template_root = template_root.as_ref();
+        let tera = template::TeraRenderer::new(template_root).wrap_err_with(|| {
+            format!(
+                "Failed to initialize Tera with template root of '{}'",
+                template_root.display()
+            )
+        })?;
         let markdown = markup::MarkdownRenderer::new();
-        let highlight = highlight::SyntectHighlighter::new()?;
+        let highlight =
+            highlight::SyntectHighlighter::new().wrap_err("Failed to initialize Syntect")?;
         Ok(Self {
             tera,
             markdown,

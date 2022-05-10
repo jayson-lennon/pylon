@@ -139,7 +139,7 @@ impl Engine {
                 .enable_io()
                 .enable_time()
                 .build()
-                .with_context(|| "failed starting up tokio runtime when initializing broker")?,
+                .wrap_err("failed starting up tokio runtime when initializing broker")?,
         );
 
         let broker = EngineBroker::new(rt, render_behavior, paths.clone());
@@ -147,21 +147,21 @@ impl Engine {
 
         let engine_handle = broker
             .spawn_engine_thread(paths, bind, debounce_ms)
-            .with_context(|| "failed spawning engine thread when starting up broker")?;
+            .wrap_err("failed spawning engine thread when starting up broker")?;
 
         Ok((engine_handle, broker_clone))
     }
 
     #[instrument]
     pub fn new(paths: Arc<EnginePaths>) -> Result<Engine> {
-        let renderers = Renderers::new(&paths.absolute_template_dir()).with_context(|| {
+        let renderers = Renderers::new(&paths.absolute_template_dir()).wrap_err_with(|| {
             format!(
                 "failed initializing renderers using template root '{}'",
                 paths.absolute_template_dir().display()
             )
         })?;
 
-        let page_store = do_build_page_store(paths.clone(), &renderers).with_context(|| {
+        let page_store = do_build_page_store(paths.clone(), &renderers).wrap_err_with(|| {
             format!(
                 "failed building page store when initializing engine with engine paths '{:?}'",
                 paths
@@ -169,7 +169,7 @@ impl Engine {
         })?;
 
         let (script_engine, rule_processor, rules) = Self::load_rules(paths.clone(), &page_store)
-            .with_context(|| {
+            .wrap_err_with(|| {
             format!(
                 "failed loading rule script when initializing engine with paths '{:?}'",
                 paths
@@ -199,7 +199,7 @@ impl Engine {
         let _project_root = engine_paths.project_root();
 
         let rule_script = std::fs::read_to_string(engine_paths.absolute_rule_script())
-            .with_context(|| {
+            .wrap_err_with(|| {
                 format!(
                     "failed reading rule script at '{}'",
                     engine_paths.absolute_rule_script().display()
@@ -208,7 +208,7 @@ impl Engine {
 
         let (rule_processor, rules) = script_engine
             .build_rules(engine_paths, page_store, rule_script)
-            .with_context(|| "failed to build Rules structure")?;
+            .wrap_err("failed to build Rules structure")?;
 
         Ok((script_engine, rule_processor, rules))
     }
@@ -216,8 +216,7 @@ impl Engine {
     #[instrument(skip(self), ret)]
     pub fn reload_rules(&mut self) -> Result<()> {
         let (script_engine, rule_processor, rules) =
-            Self::load_rules(self.paths(), &self.page_store)
-                .with_context(|| "failed to reload rules")?;
+            Self::load_rules(self.paths(), &self.page_store).wrap_err("failed to reload rules")?;
         self.script_engine = script_engine;
         self.rule_processor = rule_processor;
         self.rules = rules;
@@ -273,10 +272,18 @@ impl Engine {
                         self.paths()
                             .absolute_output_dir()
                             .join(&RelPath::new(target_dir)?),
-                    )?;
-                    crate::util::make_parent_dirs(&target_dir)?;
+                    )
+                    .wrap_err("Failed to create target directory prior to pipeline processing")?;
+                    crate::util::make_parent_dirs(&target_dir).wrap_err_with(|| {
+                        format!(
+                            "Failed creating parent directories at '{}' prior to running pipeline",
+                            target_dir
+                        )
+                    })?;
 
-                    pipeline.run(asset.uri())?;
+                    pipeline.run(asset.uri()).wrap_err_with(|| {
+                        format!("Failed to run pipeline on asset '{}'", asset.uri())
+                    })?;
                 }
             }
             if !asset_has_pipeline {
@@ -295,7 +302,8 @@ impl Engine {
             .map(|page| {
                 crate::core::page::lint(engine.rule_processor(), engine.rules().lints(), page)
             })
-            .try_collect()?;
+            .try_collect()
+            .wrap_err("Failed building LintResult collection")?;
 
         let lint_results = lint_results.into_iter().flatten();
 
@@ -313,7 +321,8 @@ impl Engine {
 
         let rendered: Vec<RenderedPage> = pages
             .map(|page| crate::core::page::render(engine, page))
-            .try_collect()?;
+            .try_collect()
+            .wrap_err("Failed building RenderedPage collection")?;
 
         Ok(RenderedPageCollection::from_vec(rendered))
     }
@@ -323,14 +332,21 @@ impl Engine {
         use fs_extra::dir::CopyOptions;
         for mount in mounts {
             trace!(mount=?mount, "processing mount");
-            std::fs::create_dir_all(mount.target())?;
+            std::fs::create_dir_all(mount.target()).wrap_err_with(|| {
+                format!(
+                    "Failed to create parent directories at '{}' while processing mounts",
+                    mount.target()
+                )
+            })?;
             let options = CopyOptions {
                 copy_inside: true,
                 skip_exist: true,
                 content_only: true,
                 ..CopyOptions::default()
             };
-            fs_extra::dir::copy(mount.src(), mount.target(), &options)?;
+            fs_extra::dir::copy(mount.src(), mount.target(), &options).wrap_err_with(|| {
+                format!("Failed mounting '{}' at '{}'", mount.src(), mount.target())
+            })?;
         }
         Ok(())
     }
@@ -338,16 +354,20 @@ impl Engine {
     #[instrument(skip_all)]
     pub fn rebuild_page_store(&mut self) -> Result<()> {
         trace!("rebuilding the page store");
-        self.page_store = do_build_page_store(self.paths(), &self.renderers)?;
+        self.page_store = do_build_page_store(self.paths(), &self.renderers)
+            .wrap_err("Failed to rebuild the page store")?;
         Ok(())
     }
 
     #[instrument(skip_all)]
     pub fn re_init(&mut self) -> Result<()> {
         trace!("rebuilding everything");
-        self.reload_template_engines()?;
-        self.rebuild_page_store()?;
-        self.reload_rules()?;
+        self.reload_template_engines()
+            .wrap_err("Failed to reload template engines during re-init")?;
+        self.rebuild_page_store()
+            .wrap_err("Failed to rebuild the page store during re-init")?;
+        self.reload_rules()
+            .wrap_err("Failed to reload site rules during re-init")?;
         Ok(())
     }
 
@@ -361,7 +381,9 @@ impl Engine {
 
         {
             trace!("running lints");
-            let lints = self.lint(pages.clone())?;
+            let lints = self
+                .lint(pages.clone())
+                .wrap_err("Failed to run lints during site build")?;
             let mut abort = false;
             for lint in lints {
                 match lint.level {
@@ -378,23 +400,32 @@ impl Engine {
         }
 
         trace!("rendering pages");
-        let rendered = self.render(pages)?;
+        let rendered = self
+            .render(pages)
+            .wrap_err("Failed to render pages during site build")?;
 
         trace!("writing rendered pages to disk");
-        rendered.write_to_disk()?;
+        rendered
+            .write_to_disk()
+            .wrap_err("Failed to write rendered pages to disk during site build")?;
 
         trace!("processing mounts");
-        self.process_mounts(self.rules().mounts())?;
+        self.process_mounts(self.rules().mounts())
+            .wrap_err("Failed to process mounts during site build")?;
 
         {
             trace!("locating HTML assets");
             let mut html_assets =
-                crate::discover::html_asset::find_all(self.paths(), self.paths().output_dir())?;
+                crate::discover::html_asset::find_all(self.paths(), self.paths().output_dir())
+                    .wrap_err(
+                        "Failed to discover linked assets from HTML files during site build",
+                    )?;
             html_assets.drop_offsite();
 
             trace!("running pipelines");
-            let unhandled_assets =
-                self.run_pipelines(&html_assets, PipelineBehavior::NoOverwrite)?;
+            let unhandled_assets = self
+                .run_pipelines(&html_assets, PipelineBehavior::NoOverwrite)
+                .wrap_err("Failed to run pipelines during site build")?;
             // check for missing assets in pages
             {
                 for asset in &unhandled_assets {
@@ -447,7 +478,8 @@ impl Engine {
                 &watch_dirs,
                 engine_broker.clone(),
                 Duration::from_millis(debounce_ms),
-            )?;
+            )
+            .wrap_err("Failed to start watching directories when starting devserver")?;
         }
 
         let devserver = DevServer::run(engine_broker, engine.paths().output_dir(), bind);
@@ -460,16 +492,22 @@ fn do_build_page_store(engine_paths: Arc<EnginePaths>, renderers: &Renderers) ->
     let pages: Vec<_> =
         crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {
             path.extension() == Some(OsStr::new("md"))
-        })?
+        })
+        .wrap_err("Failed to discover source pages while building page store")?
         .iter()
         .map(|abs_path| {
             let root = engine_paths.project_root();
             let base = engine_paths.src_dir();
-            let target = abs_path.strip_prefix(root.join(base))?;
-            let checked_file_path = SysPath::new(root, base, &target).to_checked_file()?;
+            let target = abs_path
+                .strip_prefix(root.join(base))
+                .wrap_err("Failed to strip root+base from abs path while building page store")?;
+            let checked_file_path = SysPath::new(root, base, &target)
+                .to_checked_file()
+                .wrap_err("Failed to make CheckedFile while building page store")?;
             Page::from_file(engine_paths.clone(), checked_file_path, renderers)
         })
-        .try_collect()?;
+        .try_collect()
+        .wrap_err("Failed building page collection while building page store")?;
 
     let mut page_store = PageStore::new();
     page_store.insert_batch(pages);

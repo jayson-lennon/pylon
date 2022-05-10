@@ -1,4 +1,4 @@
-use eyre::eyre;
+use eyre::{eyre, WrapErr};
 use itertools::Itertools;
 use std::collections::HashSet;
 
@@ -51,7 +51,9 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 // the context items
                 let user_ctx = {
                     let page_ctxs = engine.rules().page_contexts();
-                    build_context(engine.rule_processor(), page_ctxs, page)?
+                    build_context(engine.rule_processor(), page_ctxs, page).wrap_err_with(|| {
+                        format!("Failed building page context for page {}", page.uri())
+                    })?
                 };
 
                 // abort if a user script overwrites a pre-defined context item
@@ -106,7 +108,9 @@ pub fn build_context(
         .iter()
         .filter_map(|key| page_ctxs.get(*key))
         .map(|ptr| script_fn_runner.run(&ptr, (for_page.clone(),)))
-        .try_collect()?;
+        .try_collect()
+        .wrap_err("Failed building ContextItem collection when building page context")?;
+
     let contexts = contexts.into_iter().flatten().collect::<Vec<_>>();
 
     let mut identifiers = HashSet::new();
@@ -181,9 +185,10 @@ impl RenderedPageCollection {
         use std::fs;
         for page in &self.pages {
             let parent_dir = page.target().without_file_name().to_absolute_path();
-            crate::util::make_parent_dirs(&parent_dir)?;
+            crate::util::make_parent_dirs(&parent_dir).wrap_err_with(||format!("Failed making parent directories at '{}' when writing RenderedPageCollection to disk", parent_dir))?;
             let target = page.target().to_absolute_path();
-            fs::write(&target, &page.html)?;
+            fs::write(&target, &page.html)
+                .wrap_err_with(|| format!("Failed to write rendered page to '{}'", target))?;
         }
 
         Ok(())
