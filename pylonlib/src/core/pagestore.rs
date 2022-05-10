@@ -54,24 +54,20 @@ impl PageStore {
         }
     }
 
-    #[instrument(ret)]
     pub fn get_with_key(&self, key: PageKey) -> Option<&Page> {
         self.pages.get(key)
     }
 
-    #[instrument(ret)]
     pub fn get(&self, search_key: &SearchKey) -> Option<&Page> {
         let page_key = self.key_map.get(search_key)?;
         self.pages.get(*page_key)
     }
 
-    #[instrument]
     pub fn get_mut(&mut self, search_key: &SearchKey) -> Option<&mut Page> {
         let page_key = self.key_map.get(search_key)?;
         self.pages.get_mut(*page_key)
     }
 
-    #[instrument(skip_all, fields(page=%page.uri()))]
     pub fn update(&mut self, page: Page) -> PageKey {
         trace!("updating existing page");
 
@@ -89,7 +85,6 @@ impl PageStore {
         page_key
     }
 
-    #[instrument(skip_all, fields(page=%page.uri()))]
     pub fn insert(&mut self, page: Page) -> PageKey {
         trace!("inserting page into page store");
 
@@ -108,14 +103,12 @@ impl PageStore {
         page_key
     }
 
-    #[instrument]
     pub fn insert_batch(&mut self, pages: Vec<Page>) {
         for page in pages {
             self.insert(page);
         }
     }
 
-    #[instrument]
     pub fn iter<'a>(&'a self) -> slotmap::basic::Iter<'a, PageKey, Page> {
         self.pages.iter()
     }

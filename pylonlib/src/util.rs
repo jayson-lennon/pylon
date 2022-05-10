@@ -29,7 +29,6 @@ pub fn gen_temp_file() -> Result<NamedTempFile> {
         .with_context(|| "failed creating temporary file for shell processing".to_string())
 }
 
-#[instrument]
 pub fn make_parent_dirs(dir: &AbsPath) -> Result<()> {
     trace!("create parent directories");
     std::fs::create_dir_all(dir)
@@ -84,7 +83,6 @@ impl Glob {
 impl TryFrom<String> for Glob {
     type Error = globset::Error;
 
-    #[instrument(ret)]
     fn try_from(s: String) -> std::result::Result<Glob, Self::Error> {
         s.as_str().try_into()
     }
@@ -93,7 +91,6 @@ impl TryFrom<String> for Glob {
 impl TryFrom<&str> for Glob {
     type Error = globset::Error;
 
-    #[instrument(ret)]
     fn try_from(s: &str) -> std::result::Result<Glob, Self::Error> {
         let glob = globset::GlobBuilder::new(s)
             .literal_separator(true)

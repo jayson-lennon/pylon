@@ -181,7 +181,7 @@ impl EngineBroker {
 
             loop {
                 if let Err(e) = handle_msg::process_mounts(&engine) {
-                    warn!(err=%e, "failed processing mounts")
+                    error!(err=%e, "failed processing mounts");
                 }
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
@@ -279,7 +279,6 @@ mod handle_msg {
         engine.process_mounts(engine.rules().mounts())
     }
 
-    #[instrument(skip_all)]
     pub fn render<S: AsRef<str> + std::fmt::Debug>(
         engine: &Engine,
         search_key: S,
@@ -338,7 +337,6 @@ mod handle_msg {
         }
     }
 
-    #[instrument(skip_all)]
     pub fn fs_event(engine: &mut Engine, events: FilesystemUpdateEvents) -> Result<()> {
         trace!(events = ?events, "receive file system update message");
         let mut reload_templates = false;

@@ -29,7 +29,6 @@ impl Uri {
         }
     }
 
-    #[tracing::instrument]
     pub fn to_sys_path(&self, root: &AbsPath, base: &RelPath) -> Result<SysPath> {
         let uri_without_root_slash = &self.uri[1..];
         Ok(SysPath::new(

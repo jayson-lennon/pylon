@@ -35,7 +35,6 @@ pub struct Page {
 }
 
 impl Page {
-    #[instrument(skip(renderers), ret)]
     pub fn from_file(
         engine_paths: GlobalEnginePaths,
         file_path: CheckedFilePath<pathmarker::Md>,
@@ -47,7 +46,6 @@ impl Page {
         Self::from_reader(engine_paths, file_path, &mut file, renderers)
     }
 
-    #[instrument(skip(renderers, reader), ret)]
     pub fn from_reader<R>(
         engine_paths: GlobalEnginePaths,
         file_path: CheckedFilePath<pathmarker::Md>,
@@ -97,12 +95,10 @@ impl Page {
         self.engine_paths.clone()
     }
 
-    #[instrument(ret)]
     pub fn path(&self) -> &CheckedFilePath<pathmarker::Md> {
         &self.path
     }
 
-    #[instrument(ret)]
     pub fn target(&self) -> SysPath {
         self.path()
             .as_sys_path()
@@ -130,7 +126,6 @@ impl Page {
         SearchKey::new(target_path.to_string_lossy())
     }
 
-    #[instrument(ret)]
     pub fn template_name(&self) -> TemplateName {
         debug_assert!(self.frontmatter.template_name.is_some());
         self.frontmatter.template_name.as_ref().cloned().unwrap()
@@ -149,7 +144,6 @@ fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
     Ok((frontmatter, raw_markdown))
 }
 
-#[instrument(skip_all, fields(page=?path))]
 fn find_default_template(
     all_templates: &HashSet<&str>,
     path: &CheckedFilePath<pathmarker::Md>,
@@ -166,7 +160,6 @@ fn find_default_template(
     }
 }
 
-#[instrument(ret)]
 fn get_default_template_name(
     default_template_names: &HashSet<&str>,
     path: &CheckedFilePath<pathmarker::Md>,

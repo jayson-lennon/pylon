@@ -28,7 +28,6 @@ pub enum Operation {
 impl FromStr for Operation {
     type Err = &'static str;
 
-    #[instrument(ret)]
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             "[COPY]" => Ok(Self::Copy),
@@ -66,7 +65,6 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    #[instrument(skip(target_glob))]
     pub fn new<G>(
         engine_paths: GlobalEnginePaths,
         base_dir: &BaseDir,
@@ -87,7 +85,6 @@ impl Pipeline {
         })
     }
 
-    #[instrument(skip(target_glob))]
     pub fn with_ops<G>(
         engine_paths: GlobalEnginePaths,
         base_dir: &BaseDir,
@@ -121,7 +118,6 @@ impl Pipeline {
         self.target_glob.is_match(asset)
     }
 
-    #[instrument(skip(self))]
     pub fn run(&self, asset_uri: &CheckedUri) -> Result<()> {
         let mut scratch_files = vec![];
         let result = self.do_run(&mut scratch_files, asset_uri);
@@ -278,8 +274,8 @@ impl Pipeline {
                         if !output.status.success() {
                             let stdout = String::from_utf8_lossy(&output.stdout);
                             let stderr = String::from_utf8_lossy(&output.stderr);
-                            error!(command = %command, "Pipeline command failed");
                             return Err(eyre!("Pipeline processing failure"))
+                                .with_section(move || command.header("Command:"))
                                 .with_section(move || stdout.trim().to_string().header("Stdout:"))
                                 .with_section(move || stderr.trim().to_string().header("Stderr:"));
                         }
@@ -296,7 +292,6 @@ impl Pipeline {
     }
 }
 
-#[instrument(skip_all)]
 fn new_scratch_file(files: &mut Vec<PathBuf>, content: &[u8]) -> Result<PathBuf> {
     let tmp = crate::util::gen_temp_file()
         .wrap_err("Failed to generate temp file for pipeline shell operation")?

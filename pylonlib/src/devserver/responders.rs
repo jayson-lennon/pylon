@@ -153,7 +153,6 @@ pub async fn run_pipelines<S: Into<String>>(_broker: &EngineBroker, _path: S) ->
     Ok(())
 }
 
-#[instrument(skip(mount_point, broker), ret)]
 #[handler]
 pub async fn handle(
     path: Path<String>,

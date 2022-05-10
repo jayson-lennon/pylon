@@ -25,14 +25,12 @@ where
         }
     }
 
-    #[instrument(skip_all)]
     pub fn add(&mut self, matcher: Matcher, data: T) {
         trace!("add matcher to fn pointers");
         let key = self.inner.insert(data);
         self.matchers.push((matcher, key));
     }
 
-    #[instrument(skip_all)]
     pub fn find_keys<S: AsRef<str>>(&self, search: S) -> Vec<K> {
         self.matchers
             .iter()

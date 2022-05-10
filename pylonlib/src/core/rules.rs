@@ -1,7 +1,7 @@
 pub mod fn_pointers;
 pub mod matcher;
 
-use eyre::{WrapErr};
+use eyre::WrapErr;
 pub use fn_pointers::GlobStore;
 pub use matcher::Matcher;
 
@@ -193,7 +193,6 @@ pub mod script {
 
         /// Associates the closure with the given matcher. This closure will be called
         /// and the returned context from the closure will be available in the page template.
-        #[instrument(skip(rules, ctx_fn))]
         #[rhai_fn(return_raw)]
         pub fn add_page_context(
             rules: &mut Rules,
@@ -211,7 +210,6 @@ pub mod script {
 
         /// Associates the closure with the given matcher. This closure will be called
         /// and the returned context from the closure will be available in the page template.
-        #[instrument(skip(rules))]
         #[rhai_fn(return_raw)]
         pub fn set_global_context(
             rules: &mut Rules,
@@ -225,7 +223,6 @@ pub mod script {
             Ok(())
         }
 
-        #[instrument(skip(rules, lint_fn))]
         #[rhai_fn(return_raw)]
         pub fn add_lint(
             rules: &mut Rules,
@@ -252,7 +249,6 @@ pub mod script {
             Ok(())
         }
 
-        #[instrument(skip(rules))]
         #[rhai_fn(return_raw)]
         pub fn mount(rules: &mut Rules, src: &str, target: &str) -> Result<(), Box<EvalAltResult>> {
             trace!("add mount");
@@ -269,7 +265,6 @@ pub mod script {
             Ok(())
         }
 
-        #[instrument(skip(rules))]
         #[rhai_fn(return_raw)]
         pub fn watch(rules: &mut Rules, path: &str) -> Result<(), Box<EvalAltResult>> {
             trace!("add watch");

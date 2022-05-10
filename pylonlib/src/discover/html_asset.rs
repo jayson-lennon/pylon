@@ -132,7 +132,6 @@ impl<'a> IntoIterator for &'a HtmlAssets {
     }
 }
 
-#[instrument(skip_all)]
 pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<HtmlAssets> {
     let html_paths =
         discover::get_all_paths(&engine_paths.project_root().join(search_dir), &|path| {
@@ -155,7 +154,6 @@ pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<
     Ok(all_assets)
 }
 
-#[instrument(skip(html))]
 /// This function rewrites the asset location if applicable
 pub fn find<S>(
     engine_paths: Arc<EnginePaths>,

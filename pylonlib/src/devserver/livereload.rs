@@ -135,7 +135,6 @@ impl ClientBroker {
     }
 }
 
-#[instrument(skip_all)]
 #[handler]
 pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse {
     use futures_util::{SinkExt, StreamExt};

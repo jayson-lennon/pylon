@@ -34,7 +34,6 @@ pub struct DevServer {
 }
 
 impl DevServer {
-    #[instrument(skip(broker))]
     pub fn run<
         P: AsRef<std::path::Path> + std::fmt::Debug,
         B: Into<SocketAddr> + std::fmt::Debug,
