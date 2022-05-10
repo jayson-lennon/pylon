@@ -3,7 +3,7 @@ use crate::core::{
     pagestore::SearchKey,
     rules::{Matcher, RuleProcessor},
 };
-use anyhow::anyhow;
+use eyre::eyre;
 
 use slotmap::SlotMap;
 use std::str::FromStr;
@@ -36,12 +36,12 @@ pub enum LintLevel {
 }
 
 impl FromStr for LintLevel {
-    type Err = anyhow::Error;
+    type Err = eyre::Report;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             LINT_LEVEL_DENY => Ok(Self::Deny),
             LINT_LEVEL_WARN => Ok(Self::Warn),
-            other => Err(anyhow!("invalid lint level {}", other)),
+            other => Err(eyre!("invalid lint level {}", other)),
         }
     }
 }

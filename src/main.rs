@@ -60,7 +60,7 @@ enum SyntaxCommand {
     Generate,
 }
 
-fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<(), eyre::Report> {
     let args = Args::parse();
 
     // a builder for `FmtSubscriber`.

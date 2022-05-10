@@ -7,7 +7,7 @@ use crate::pathmarker;
 use crate::Renderers;
 use crate::Result;
 use crate::SysPath;
-use anyhow::{anyhow, Context};
+use eyre::{eyre, WrapErr};
 use serde::Serialize;
 use typed_path::RelPath;
 use typed_uri::Uri;
@@ -157,7 +157,7 @@ fn find_default_template(
     match get_default_template_name(all_templates, path) {
         Some(template) => Ok(template),
         None => {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "no template provided and unable to find a default template for page {}",
                 path
             ))
@@ -196,15 +196,15 @@ fn split_document(raw: &str) -> Result<(&str, &str)> {
             let frontmatter = captures
                 .get(1)
                 .map(|m| m.as_str())
-                .ok_or_else(|| anyhow!("unable to read frontmatter"))?;
+                .ok_or_else(|| eyre!("unable to read frontmatter"))?;
 
             let markdown = captures
                 .get(2)
                 .map(|m| m.as_str())
-                .ok_or_else(|| anyhow!("unable to read markdown"))?;
+                .ok_or_else(|| eyre!("unable to read markdown"))?;
             Ok((frontmatter, markdown))
         }
-        None => Err(anyhow!("improperly formed document")),
+        None => Err(eyre!("improperly formed document")),
     }
 }
 #[cfg(test)]

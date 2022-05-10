@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use eyre::eyre;
 use std::ffi::OsStr;
 
 use crate::{CheckedFile, CheckedFilePath, Result, SysPath};
@@ -18,7 +18,7 @@ impl CheckedFile<Html> for SysPath {
         if self.extension() == Some(OsStr::new("html")) {
             self.try_into()
         } else {
-            Err(anyhow!("html files must end in .html"))
+            Err(eyre!("html files must end in .html"))
         }
     }
 }
@@ -28,14 +28,14 @@ impl CheckedFile<Md> for SysPath {
         if self.extension() == Some(OsStr::new("md")) {
             self.try_into()
         } else {
-            Err(anyhow!("md files must end in .md"))
+            Err(eyre!("md files must end in .md"))
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     use super::*;

@@ -2,7 +2,7 @@ use derivative::Derivative;
 
 use crate::Result;
 use crate::{RelPath, SysPath};
-use anyhow::anyhow;
+use eyre::eyre;
 use serde::Serialize;
 use std::fmt;
 
@@ -21,7 +21,7 @@ impl<T> CheckedDirPath<T> {
                 _phantom: std::marker::PhantomData,
             })
         } else {
-            Err(anyhow!("path is not a directory"))
+            Err(eyre!("path is not a directory"))
         }
     }
 
@@ -37,14 +37,14 @@ impl<T> CheckedDirPath<T> {
 impl<T> Eq for CheckedDirPath<T> {}
 
 impl<T> TryFrom<SysPath> for CheckedDirPath<T> {
-    type Error = anyhow::Error;
+    type Error = eyre::Report;
     fn try_from(path: SysPath) -> Result<Self> {
         Self::new(&path)
     }
 }
 
 impl<T> TryFrom<&SysPath> for CheckedDirPath<T> {
-    type Error = anyhow::Error;
+    type Error = eyre::Report;
     fn try_from(path: &SysPath) -> Result<Self> {
         Self::new(path)
     }
@@ -58,7 +58,7 @@ impl<T> fmt::Display for CheckedDirPath<T> {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     use super::*;

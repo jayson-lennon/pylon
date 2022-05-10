@@ -1,13 +1,13 @@
 use crate::core::engine::GlobalEnginePaths;
 use crate::util::Glob;
 use crate::Result;
-use anyhow::{anyhow, Context};
+use eyre::{eyre, WrapErr};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::str::FromStr;
 use tracing::{error, info_span, instrument, trace, trace_span};
 use typed_path::{AbsPath, RelPath};
-use typed_uri::{CheckedUri};
+use typed_uri::CheckedUri;
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
@@ -225,9 +225,9 @@ impl Pipeline {
                                 .to_absolute_path();
 
                             let asset_name = PathBuf::from(asset_uri.as_str());
-                            let asset_name = asset_name.file_name().ok_or_else(|| {
-                                anyhow!("failed to located filename in asset uri")
-                            })?;
+                            let asset_name = asset_name
+                                .file_name()
+                                .ok_or_else(|| eyre!("failed to located filename in asset uri"))?;
                             let relative_asset_path = relative.join(&RelPath::new(asset_name)?);
 
                             (working_dir, relative_asset_path)
@@ -295,7 +295,7 @@ impl Pipeline {
                                 stdout = %stdout,
                                 "Pipeline command failed"
                             );
-                            return Err(anyhow!("pipeline processing failure"));
+                            return Err(eyre!("pipeline processing failure"));
                         }
                     }
                 }

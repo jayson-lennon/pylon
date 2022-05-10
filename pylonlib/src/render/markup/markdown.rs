@@ -5,8 +5,7 @@ use crate::{
     Result,
 };
 
-
-use anyhow::anyhow;
+use eyre::eyre;
 
 #[derive(Debug)]
 pub struct MarkdownRenderer;
@@ -56,7 +55,7 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
                         UrlType::InternalDoc(ref target) => {
                             dbg!(&target);
                             let page = page_store.get(&target.into()).ok_or_else(|| {
-                                anyhow!(
+                                eyre!(
                                     "unable to find internal link '{}' on page '{}'",
                                     &target,
                                     page.uri()
@@ -142,7 +141,7 @@ fn render_code_block<S: AsRef<str>>(
     } else {
         let syntax = highlighter
             .get_syntax_by_token(lang)
-            .ok_or_else(|| anyhow!("unable to find theme for syntax {}", lang))?;
+            .ok_or_else(|| eyre!("unable to find theme for syntax {}", lang))?;
         dbg!(content.as_ref());
         Ok(highlighter.highlight(syntax, content))
     }
@@ -150,7 +149,7 @@ fn render_code_block<S: AsRef<str>>(
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(clippy::all)]
     #![allow(warnings, unused)]
 
