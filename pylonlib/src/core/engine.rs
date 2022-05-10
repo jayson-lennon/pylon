@@ -124,7 +124,6 @@ impl Engine {
         Arc::clone(&self.paths)
     }
 
-    #[instrument]
     pub fn with_broker<S: Into<SocketAddr> + std::fmt::Debug>(
         paths: Arc<EnginePaths>,
         bind: S,
@@ -152,7 +151,6 @@ impl Engine {
         Ok((engine_handle, broker_clone))
     }
 
-    #[instrument]
     pub fn new(paths: Arc<EnginePaths>) -> Result<Engine> {
         let renderers = Renderers::new(&paths.absolute_template_dir()).wrap_err_with(|| {
             format!(
@@ -188,7 +186,6 @@ impl Engine {
         })
     }
 
-    #[instrument(ret)]
     pub fn load_rules(
         engine_paths: Arc<EnginePaths>,
         page_store: &PageStore,
@@ -213,7 +210,6 @@ impl Engine {
         Ok((script_engine, rule_processor, rules))
     }
 
-    #[instrument(skip(self), ret)]
     pub fn reload_rules(&mut self) -> Result<()> {
         let (script_engine, rule_processor, rules) =
             Self::load_rules(self.paths(), &self.page_store).wrap_err("failed to reload rules")?;
@@ -223,13 +219,11 @@ impl Engine {
         Ok(())
     }
 
-    #[instrument(skip(self), ret)]
     pub fn reload_template_engines(&mut self) -> Result<()> {
         self.renderers.tera.reload()?;
         Ok(())
     }
 
-    #[instrument(skip(self))]
     pub fn run_pipelines<'a>(
         &self,
         html_assets: &'a HtmlAssets,
@@ -293,7 +287,6 @@ impl Engine {
         Ok(unhandled_assets)
     }
 
-    #[instrument(skip_all)]
     pub fn lint<'a, P: Iterator<Item = &'a Page>>(&self, pages: P) -> Result<LintResults> {
         trace!("linting");
         let engine: &Engine = self;
@@ -310,7 +303,6 @@ impl Engine {
         Ok(LintResults::from_iter(lint_results))
     }
 
-    #[instrument(skip_all)]
     pub fn render<'a, P: Iterator<Item = &'a Page>>(
         &self,
         pages: P,
@@ -327,7 +319,6 @@ impl Engine {
         Ok(RenderedPageCollection::from_vec(rendered))
     }
 
-    #[instrument(skip_all)]
     pub fn process_mounts<'a, M: Iterator<Item = &'a Mount>>(&self, mounts: M) -> Result<()> {
         use fs_extra::dir::CopyOptions;
         for mount in mounts {
@@ -351,7 +342,6 @@ impl Engine {
         Ok(())
     }
 
-    #[instrument(skip_all)]
     pub fn rebuild_page_store(&mut self) -> Result<()> {
         trace!("rebuilding the page store");
         self.page_store = do_build_page_store(self.paths(), &self.renderers)
@@ -359,7 +349,6 @@ impl Engine {
         Ok(())
     }
 
-    #[instrument(skip_all)]
     pub fn re_init(&mut self) -> Result<()> {
         trace!("rebuilding everything");
         self.reload_template_engines()
@@ -371,7 +360,6 @@ impl Engine {
         Ok(())
     }
 
-    #[instrument(skip_all)]
     pub fn build_site(&self) -> Result<()> {
         use crate::core::page::lint::LintLevel;
 
@@ -443,7 +431,6 @@ impl Engine {
         Ok(())
     }
 
-    #[instrument(skip(self, engine_broker))]
     pub fn start_devserver(
         &self,
         bind: SocketAddr,
@@ -487,7 +474,6 @@ impl Engine {
     }
 }
 
-#[instrument(skip(renderers), ret)]
 fn do_build_page_store(engine_paths: Arc<EnginePaths>, renderers: &Renderers) -> Result<PageStore> {
     let pages: Vec<_> =
         crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {

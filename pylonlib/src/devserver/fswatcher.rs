@@ -64,7 +64,6 @@ enum WatchMsg {
     Ev(hotwatch::Event),
 }
 
-#[instrument(skip(broker))]
 pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
     dirs: &[P],
     broker: EngineBroker,

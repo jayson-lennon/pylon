@@ -15,7 +15,6 @@ use crate::{
     Result, SysPath,
 };
 
-#[instrument(skip(engine), fields(page=%page.uri()))]
 pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
     trace!("rendering page");
 
@@ -96,7 +95,6 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
     }
 }
 
-#[instrument(skip_all, fields(page = %for_page.uri()))]
 pub fn build_context(
     script_fn_runner: &RuleProcessor,
     page_ctxs: &GlobStore<ContextKey, rhai::FnPtr>,
@@ -175,12 +173,10 @@ impl RenderedPageCollection {
         }
     }
 
-    #[instrument(ret)]
     pub fn from_vec(pages: Vec<RenderedPage>) -> Self {
         Self { pages }
     }
 
-    #[instrument(ret)]
     pub fn write_to_disk(&self) -> Result<()> {
         use std::fs;
         for page in &self.pages {

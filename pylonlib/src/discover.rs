@@ -15,7 +15,6 @@ use tracing::instrument;
 
 use crate::AbsPath;
 
-#[instrument(skip(condition), ret)]
 pub fn get_all_paths<P: AsRef<Path> + std::fmt::Debug>(
     root: P,
     condition: &dyn Fn(&Path) -> bool,

@@ -73,7 +73,6 @@ pub mod script {
         }
 
         /// Generates a new context for use within the page template.
-        #[instrument(ret)]
         #[rhai_fn(return_raw)]
         pub fn new_context(map: rhai::Map) -> Result<Vec<ContextItem>, Box<EvalAltResult>> {
             let mut context_items = vec![];

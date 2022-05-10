@@ -64,14 +64,12 @@ impl LintCollection {
         }
     }
 
-    #[instrument(skip_all)]
     pub fn add(&mut self, matcher: Matcher, lint: Lint) {
         trace!("add lint");
         let key = self.lints.insert(lint);
         self.matchers.push((matcher, key));
     }
 
-    #[instrument(skip_all)]
     pub fn find_keys<S: AsRef<str>>(&self, search: S) -> Vec<LintKey> {
         self.matchers
             .iter()
