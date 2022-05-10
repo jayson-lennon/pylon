@@ -204,6 +204,8 @@ pub fn lint(
 #[cfg(test)]
 mod test {
 
+    #![allow(warnings, unused)]
+
     use super::*;
 
     use temptree::temptree;

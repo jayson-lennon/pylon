@@ -64,6 +64,8 @@ where
 
 #[cfg(test)]
 mod test {
+
+    #![allow(warnings, unused)]
     use super::*;
     use crate::core::rules::matcher::test::make_matcher;
 

@@ -5,7 +5,7 @@ use rhai::{def_package, Scope};
 
 use crate::core::rules::{RuleProcessor, Rules};
 use crate::core::PageStore;
-use crate::{AbsPath, Result};
+use crate::{Result};
 
 use super::engine::GlobalEnginePaths;
 
@@ -132,6 +132,8 @@ impl ScriptEngine {
 
 #[cfg(test)]
 mod test {
+
+    #![allow(warnings, unused)]
     use super::*;
     use crate::test::abs;
 

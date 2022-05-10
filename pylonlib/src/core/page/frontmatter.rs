@@ -52,6 +52,8 @@ pub mod script {
 
     #[cfg(test)]
     mod test {
+
+        #![allow(warnings, unused)]
         use std::collections::HashMap;
 
         use crate::core::page::FrontMatter;

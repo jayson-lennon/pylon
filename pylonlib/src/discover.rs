@@ -61,6 +61,8 @@ pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
 
 #[cfg(test)]
 mod test {
+    
+    #![allow(warnings, unused)]
     use super::*;
 
     #[test]

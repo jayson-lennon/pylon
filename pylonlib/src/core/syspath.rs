@@ -167,6 +167,8 @@ impl std::fmt::Display for SysPath {
 
 #[cfg(test)]
 mod test {
+    
+    #![allow(warnings, unused)]
     use super::SysPath;
     use std::path::PathBuf;
 

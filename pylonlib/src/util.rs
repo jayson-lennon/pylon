@@ -93,6 +93,7 @@ impl TryFrom<&str> for Glob {
 
 #[cfg(test)]
 mod test {
+    #![allow(warnings, unused)]
 
     use super::*;
 

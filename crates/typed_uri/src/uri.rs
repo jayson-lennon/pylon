@@ -114,7 +114,7 @@ impl fmt::Display for CheckedUri {
 
 // #[cfg(test)]
 // mod test {
-//     #![allow(unused_variables)]
+//     
 
 //     use temptree::temptree;
 

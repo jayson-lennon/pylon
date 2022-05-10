@@ -4,7 +4,7 @@ use crate::{
     render::highlight::SyntectHighlighter,
     Result,
 };
-use typed_uri::CheckedUri;
+
 
 use anyhow::anyhow;
 
@@ -150,7 +150,9 @@ fn render_code_block<S: AsRef<str>>(
 
 #[cfg(test)]
 mod test {
+    
     #![allow(clippy::all)]
+    #![allow(warnings, unused)]
 
     use temptree::temptree;
 

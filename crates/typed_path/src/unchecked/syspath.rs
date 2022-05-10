@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::Result;
-use crate::{AbsPath, CheckedDirPath, CheckedFilePath, RelPath};
+use crate::{AbsPath, CheckedDirPath, RelPath};
 
 use serde::Serialize;
 
@@ -157,7 +157,8 @@ impl fmt::Display for SysPath {
 
 #[cfg(test)]
 mod test {
-    #![allow(unused_variables)]
+    
+    #![allow(warnings, unused)]
 
     use super::*;
     use crate::pathmarker;

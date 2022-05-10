@@ -29,6 +29,8 @@ impl Matcher {
 
 #[cfg(test)]
 pub mod test {
+
+    #![allow(warnings, unused)]
     use super::*;
     use crate::util::Glob;
 

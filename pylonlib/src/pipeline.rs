@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::str::FromStr;
 use tracing::{error, info_span, instrument, trace, trace_span};
-use typed_path::{AbsPath, RelPath, SysPath};
-use typed_uri::{CheckedUri, Uri};
+use typed_path::{AbsPath, RelPath};
+use typed_uri::{CheckedUri};
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
@@ -337,8 +337,8 @@ fn clean_temp_files(tmp_files: &[PathBuf]) -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    #![allow(clippy::all)]
-    #![allow(clippy::pedantic)]
+
+    #![allow(warnings, unused)]
 
     use crate::{pipeline::BaseDir, util::TMP_ARTIFACT_PREFIX};
 

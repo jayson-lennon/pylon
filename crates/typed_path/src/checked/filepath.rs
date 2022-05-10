@@ -59,7 +59,8 @@ impl<T> fmt::Display for CheckedFilePath<T> {
 
 #[cfg(test)]
 mod test {
-    #![allow(unused_variables)]
+    
+    #![allow(warnings, unused)]
 
     use super::*;
     use crate::{pathmarker, test::rel, AbsPath};

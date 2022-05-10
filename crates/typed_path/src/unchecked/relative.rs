@@ -112,7 +112,8 @@ impl fmt::Display for RelPath {
 
 #[cfg(test)]
 mod test {
-    #![allow(unused_variables)]
+    
+    #![allow(warnings, unused)]
 
     use super::*;
     use crate::test::rel;
