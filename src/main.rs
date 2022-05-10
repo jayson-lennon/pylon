@@ -13,19 +13,19 @@ use tracing_subscriber::FmtSubscriber;
 #[derive(clap::Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(long, default_value = "site-rules.rhai", env = "CMS_SITE_RULES")]
+    #[clap(long, default_value = "site-rules.rhai", env = "PYLON_RULES")]
     rule_script: PathBuf,
 
-    #[clap(long, default_value = "public", env = "CMS_OUTPUT_DIR")]
+    #[clap(long, default_value = "public", env = "PYLON_OUTPUT")]
     output_dir: PathBuf,
 
-    #[clap(long, default_value = "src", env = "CMS_SRC_DIR")]
-    src_dir: PathBuf,
+    #[clap(long, default_value = "content", env = "PYLON_CONTENT")]
+    content_dir: PathBuf,
 
-    #[clap(long, default_value = "syntax_themes", env = "CMS_SYNTAX_THEME_DIR")]
+    #[clap(long, default_value = "syntax_themes", env = "PYLON_SYNTAX_THEMES")]
     syntax_themes_dir: PathBuf,
 
-    #[clap(long, default_value = "templates", env = "CMS_TEMPLATE_DIR")]
+    #[clap(long, default_value = "templates", env = "PYLON_TEMPLATES")]
     template_dir: PathBuf,
 
     #[clap(subcommand)]
@@ -78,7 +78,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     let paths = EnginePaths {
         rule_script: RelPath::new(&args.rule_script)?,
-        src_dir: RelPath::new(&args.src_dir)?,
+        src_dir: RelPath::new(&args.content_dir)?,
         syntax_theme_dir: RelPath::new(&args.syntax_themes_dir)?,
         output_dir: RelPath::new(&args.output_dir)?,
         template_dir: RelPath::new(&args.template_dir)?,
