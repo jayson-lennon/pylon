@@ -1,4 +1,5 @@
 use derivative::Derivative;
+use eyre::WrapErr;
 use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -136,14 +137,14 @@ impl SysPath {
     }
 
     pub fn from_abs_path(abs_path: &AbsPath, root: &AbsPath, base: &RelPath) -> Result<Self> {
-        let target = abs_path.strip_prefix(root)?.strip_prefix(base)?;
+        let target = abs_path
+            .strip_prefix(root)
+            .wrap_err("Failed stripping root prefix from AbsPath while creating SysPath")?
+            .strip_prefix(base)
+            .wrap_err("Failed stripping base prefix from AbsPath while creating SysPath")?;
         Ok(Self::new(root, base, &target))
     }
 
-    // pub fn to_checked_file<T>(&self) -> Result<CheckedFilePath<T>> {
-    //     dbg!("non generic");
-    //     self.try_into()
-    // }
     pub fn to_checked_dir<T>(&self) -> Result<CheckedDirPath<T>> {
         self.try_into()
     }
@@ -157,7 +158,7 @@ impl fmt::Display for SysPath {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     use super::*;

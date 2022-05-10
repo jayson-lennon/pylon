@@ -5,8 +5,7 @@ use crate::{
     Result,
 };
 
-
-use anyhow::anyhow;
+use eyre::eyre;
 
 #[derive(Debug)]
 pub struct MarkdownRenderer;
@@ -54,16 +53,13 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
                     match discover::get_url_type(&href) {
                         // internal doc links get converted into target Uri
                         UrlType::InternalDoc(ref target) => {
-                            dbg!(&target);
                             let page = page_store.get(&target.into()).ok_or_else(|| {
-                                anyhow!(
+                                eyre!(
                                     "unable to find internal link '{}' on page '{}'",
                                     &target,
                                     page.uri()
                                 )
                             })?;
-                            dbg!(&page);
-                            dbg!(&page.uri());
                             events.push(Event::Start(Tag::Link(
                                 LinkType::Inline,
                                 CowStr::Boxed(page.uri().into_boxed_str()),
@@ -76,10 +72,7 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
                         }
                         // relative links need to get converted to absolute links
                         UrlType::Relative(uri) => {
-                            dbg!(&uri);
                             let uri = crate::util::checked_uri_from_sys_path(&page.target(), uri)?;
-                            dbg!(&uri);
-                            dbg!(&uri.into_boxed_str());
                             events.push(Event::Start(Tag::Link(
                                 LinkType::Inline,
                                 CowStr::Boxed(uri.into_boxed_str()),
@@ -119,7 +112,6 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
                     ));
                 }
                 other => {
-                    dbg!(&other);
                     events.push(other);
                 }
             }
@@ -142,15 +134,14 @@ fn render_code_block<S: AsRef<str>>(
     } else {
         let syntax = highlighter
             .get_syntax_by_token(lang)
-            .ok_or_else(|| anyhow!("unable to find theme for syntax {}", lang))?;
-        dbg!(content.as_ref());
+            .ok_or_else(|| eyre!("unable to find theme for syntax {}", lang))?;
         Ok(highlighter.highlight(syntax, content))
     }
 }
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(clippy::all)]
     #![allow(warnings, unused)]
 
@@ -244,7 +235,6 @@ mod test {
             "test.md",
         )
         .unwrap();
-        dbg!(&test_page);
 
         let linked_page = new_page(
             r#"+++
@@ -252,12 +242,9 @@ mod test {
             "doc.md",
         )
         .unwrap();
-        dbg!(&linked_page);
 
         let rendered = internal_doc_link_render(test_page, linked_page);
-        dbg!(&rendered);
         let href = get_href_attr(&rendered);
-        dbg!(&href);
 
         assert_eq!(href, "/doc.html");
     }

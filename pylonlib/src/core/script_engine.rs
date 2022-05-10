@@ -1,3 +1,4 @@
+use eyre::{WrapErr};
 use rhai::packages::{Package, StandardPackage};
 #[allow(clippy::wildcard_imports)]
 use rhai::plugin::*;
@@ -5,7 +6,7 @@ use rhai::{def_package, Scope};
 
 use crate::core::rules::{RuleProcessor, Rules};
 use crate::core::PageStore;
-use crate::{Result};
+use crate::Result;
 
 use super::engine::GlobalEnginePaths;
 
@@ -103,7 +104,6 @@ impl ScriptEngine {
         scope.push("PAGES", page_store.clone());
         scope.push("DENY", LINT_LEVEL_DENY);
         scope.push("WARN", LINT_LEVEL_WARN);
-        //dbg!(&page_store);
         scope
     }
 
@@ -114,17 +114,23 @@ impl ScriptEngine {
         script: S,
     ) -> Result<(RuleProcessor, Rules)> {
         let script = script.as_ref();
-        let ast = self.engine.compile(script)?;
+        let ast = self
+            .engine
+            .compile(script)
+            .wrap_err("Failed to compile AST while building rules")?;
 
         let mut scope = Self::new_scope(engine_paths, page_store);
 
-        self.engine.run_ast_with_scope(&mut scope, &ast)?;
+        self.engine
+            .run_ast_with_scope(&mut scope, &ast)
+            .wrap_err("Failed to run AST while building rules")?;
 
         let rules = scope.get_value("rules").unwrap();
 
         let runner = {
             let new_engine = Self::new_engine(&self.packages);
-            RuleProcessor::new(new_engine, script)?
+            RuleProcessor::new(new_engine, script)
+                .wrap_err("Failed to create a new RuleProcessor when building rules")?
         };
         Ok((runner, rules))
     }

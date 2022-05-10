@@ -8,13 +8,13 @@ pub use checked::*;
 pub use unchecked::*;
 // pub use uri::{CheckedUri, Uri};
 
-pub type Result<T> = std::result::Result<T, anyhow::Error>;
+pub type Result<T> = eyre::Result<T>;
 
 pub(in crate) mod helper {
     macro_rules! impl_try_from {
         ($src:ident => $target:ident) => {
             impl TryFrom<$src> for $target {
-                type Error = anyhow::Error;
+                type Error = eyre::Report;
                 fn try_from(path: $src) -> Result<Self> {
                     Self::new(path)
                 }
@@ -22,7 +22,7 @@ pub(in crate) mod helper {
         };
         (&$src:ident => $target:ident) => {
             impl TryFrom<&$src> for $target {
-                type Error = anyhow::Error;
+                type Error = eyre::Report;
                 fn try_from(path: &$src) -> Result<Self> {
                     Self::new(path)
                 }

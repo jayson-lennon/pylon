@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use eyre::{eyre, WrapErr};
 use itertools::Itertools;
 use std::collections::HashSet;
 
@@ -51,7 +51,9 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 // the context items
                 let user_ctx = {
                     let page_ctxs = engine.rules().page_contexts();
-                    build_context(engine.rule_processor(), page_ctxs, page)?
+                    build_context(engine.rule_processor(), page_ctxs, page).wrap_err_with(|| {
+                        format!("Failed building page context for page {}", page.uri())
+                    })?
                 };
 
                 // abort if a user script overwrites a pre-defined context item
@@ -59,7 +61,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                     let ids = get_overwritten_identifiers(&user_ctx);
                     if !ids.is_empty() {
                         error!(ids = ?ids, "overwritten system identifiers detected");
-                        return Err(anyhow!(
+                        return Err(eyre!(
                             "cannot overwrite reserved system context identifiers"
                         ));
                     }
@@ -88,9 +90,9 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             renderer
                 .render(template, &tera_ctx)
                 .map(|html| RenderedPage::new(page.page_key, html, &page.target()))
-                .map_err(|e| anyhow!("{}", e))
+                .map_err(|e| eyre!("{}", e))
         }
-        None => Err(anyhow!("no template declared for page '{}'", page.uri())),
+        None => Err(eyre!("no template declared for page '{}'", page.uri())),
     }
 }
 
@@ -106,13 +108,15 @@ pub fn build_context(
         .iter()
         .filter_map(|key| page_ctxs.get(*key))
         .map(|ptr| script_fn_runner.run(&ptr, (for_page.clone(),)))
-        .try_collect()?;
+        .try_collect()
+        .wrap_err("Failed building ContextItem collection when building page context")?;
+
     let contexts = contexts.into_iter().flatten().collect::<Vec<_>>();
 
     let mut identifiers = HashSet::new();
     for ctx in &contexts {
         if !identifiers.insert(ctx.identifier.as_str()) {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "duplicate context identifier encountered in page context generation: {}",
                 ctx.identifier.as_str()
             ));
@@ -181,9 +185,10 @@ impl RenderedPageCollection {
         use std::fs;
         for page in &self.pages {
             let parent_dir = page.target().without_file_name().to_absolute_path();
-            crate::util::make_parent_dirs(&parent_dir)?;
+            crate::util::make_parent_dirs(&parent_dir).wrap_err_with(||format!("Failed making parent directories at '{}' when writing RenderedPageCollection to disk", parent_dir))?;
             let target = page.target().to_absolute_path();
-            fs::write(&target, &page.html)?;
+            fs::write(&target, &page.html)
+                .wrap_err_with(|| format!("Failed to write rendered page to '{}'", target))?;
         }
 
         Ok(())

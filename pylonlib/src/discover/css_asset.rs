@@ -1,7 +1,7 @@
 use std::{collections::HashSet, path::Path};
 
 use crate::Result;
-use anyhow::anyhow;
+use eyre::eyre;
 use parcel_css::stylesheet::{ParserOptions, StyleSheet};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -76,7 +76,7 @@ pub fn find_css_assets<P: AsRef<Path>>(path: P) -> Result<CssAssets> {
             &file_content,
             options.clone(),
         )
-        .map_err(|e| anyhow!("error parsing stylesheet: {}", e))?;
+        .map_err(|e| eyre!("error parsing stylesheet: {}", e))?;
         let assets = find_assets(sheet)?;
         all_assets.extend(assets);
     }
