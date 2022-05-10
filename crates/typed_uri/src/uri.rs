@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use crate::Result;
-use anyhow::anyhow;
+use eyre::eyre;
 use serde::Serialize;
 use typed_path::{pathmarker, AbsPath, CheckedFilePath, RelPath, SysPath};
 
@@ -25,7 +25,7 @@ impl Uri {
                 uri: abs_uri.to_string_lossy().to_string(),
             })
         } else {
-            Err(anyhow!("virtual URI must be absolute"))
+            Err(eyre!("virtual URI must be absolute"))
         }
     }
 
@@ -114,7 +114,7 @@ impl fmt::Display for CheckedUri {
 
 // #[cfg(test)]
 // mod test {
-//     
+//
 
 //     use temptree::temptree;
 

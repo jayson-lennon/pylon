@@ -1,4 +1,4 @@
-use anyhow::Context;
+use eyre::{eyre, WrapErr};
 use std::path::{Path, PathBuf};
 use tera::Tera;
 
@@ -18,7 +18,7 @@ impl TeraRenderer {
 
         let r = Tera::new(
             root.to_str()
-                .with_context(|| "non UTF-8 characters in path")?,
+                .ok_or_else(|| eyre!("non UTF-8 characters in path"))?,
         )
         .with_context(|| "error initializing template rendering engine")?;
 
@@ -39,7 +39,7 @@ impl TeraRenderer {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
     use super::*;
     use temptree::temptree;

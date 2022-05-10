@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::Result;
-use anyhow::anyhow;
+use eyre::eyre;
 use serde::Serialize;
 
 /// Relative path to a resource on the system.
@@ -24,7 +24,7 @@ impl SysPath {
         let target = target.as_ref();
 
         if target.file_name().is_none() {
-            return Err(anyhow!("target must have filename"));
+            return Err(eyre!("target must have filename"));
         }
 
         let target = {
@@ -167,7 +167,7 @@ impl std::fmt::Display for SysPath {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
     use super::SysPath;
     use std::path::PathBuf;

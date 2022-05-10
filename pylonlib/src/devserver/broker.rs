@@ -7,6 +7,7 @@ use crate::core::page::RenderedPage;
 use crate::core::pagestore::SearchKey;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
 use crate::{RelPath, Result};
+
 use tokio::runtime::Handle;
 use tracing::{error, trace, warn};
 
@@ -231,7 +232,7 @@ impl EngineBroker {
 mod handle_msg {
     use std::ffi::OsStr;
 
-    use anyhow::Context;
+    use eyre::{eyre, WrapErr};
     use tracing::{error, instrument, trace};
 
     use crate::{
@@ -268,7 +269,7 @@ mod handle_msg {
                 error!(asset = ?asset, "missing asset");
             }
             if !unhandled_assets.is_empty() {
-                return Err(anyhow::anyhow!("one or more assets are missing"));
+                return Err(eyre!("one or more assets are missing"));
             }
         }
         Ok(())
@@ -291,7 +292,7 @@ mod handle_msg {
                 .lint(std::iter::once(page))
                 .with_context(|| "failed to lint page")?;
             if lints.has_deny() {
-                Err(anyhow::anyhow!(lints.to_string()))
+                Err(eyre!(lints.to_string()))
             } else {
                 let rendered = engine
                     .render(std::iter::once(page))
@@ -326,7 +327,7 @@ mod handle_msg {
                             error!(asset = ?asset, "missing asset");
                         }
                         if !unhandled_assets.is_empty() {
-                            return Err(anyhow::anyhow!("one or more assets are missing"));
+                            return Err(eyre!("one or more assets are missing"));
                         }
                     }
                 }

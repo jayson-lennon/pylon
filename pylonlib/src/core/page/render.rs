@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use eyre::eyre;
 use itertools::Itertools;
 use std::collections::HashSet;
 
@@ -59,7 +59,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                     let ids = get_overwritten_identifiers(&user_ctx);
                     if !ids.is_empty() {
                         error!(ids = ?ids, "overwritten system identifiers detected");
-                        return Err(anyhow!(
+                        return Err(eyre!(
                             "cannot overwrite reserved system context identifiers"
                         ));
                     }
@@ -88,9 +88,9 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             renderer
                 .render(template, &tera_ctx)
                 .map(|html| RenderedPage::new(page.page_key, html, &page.target()))
-                .map_err(|e| anyhow!("{}", e))
+                .map_err(|e| eyre!("{}", e))
         }
-        None => Err(anyhow!("no template declared for page '{}'", page.uri())),
+        None => Err(eyre!("no template declared for page '{}'", page.uri())),
     }
 }
 
@@ -112,7 +112,7 @@ pub fn build_context(
     let mut identifiers = HashSet::new();
     for ctx in &contexts {
         if !identifiers.insert(ctx.identifier.as_str()) {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "duplicate context identifier encountered in page context generation: {}",
                 ctx.identifier.as_str()
             ));

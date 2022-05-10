@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::Result;
 use crate::SysPath;
-use anyhow::anyhow;
+use eyre::eyre;
 use serde::Serialize;
 
 #[derive(Derivative, Serialize)]
@@ -22,7 +22,7 @@ impl<T> CheckedFilePath<T> {
                 _phantom: std::marker::PhantomData,
             })
         } else {
-            Err(anyhow!("relative path is not a file"))
+            Err(eyre!("relative path is not a file"))
         }
     }
 
@@ -38,14 +38,14 @@ impl<T> CheckedFilePath<T> {
 impl<T> Eq for CheckedFilePath<T> {}
 
 impl<T> TryFrom<SysPath> for CheckedFilePath<T> {
-    type Error = anyhow::Error;
+    type Error = eyre::Report;
     fn try_from(path: SysPath) -> Result<Self> {
         Self::new(&path)
     }
 }
 
 impl<T> TryFrom<&SysPath> for CheckedFilePath<T> {
-    type Error = anyhow::Error;
+    type Error = eyre::Report;
     fn try_from(path: &SysPath) -> Result<Self> {
         Self::new(path)
     }
@@ -59,7 +59,7 @@ impl<T> fmt::Display for CheckedFilePath<T> {
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     use super::*;

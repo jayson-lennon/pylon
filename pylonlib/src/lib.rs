@@ -21,17 +21,17 @@ pub mod util;
 pub use render::Renderers;
 pub use typed_path::*;
 
-pub type Result<T> = std::result::Result<T, anyhow::Error>;
+pub type Result<T> = eyre::Result<T>;
 
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 #[error(transparent)]
-pub struct AsStdError(#[from] anyhow::Error);
+pub struct AsStdError(#[from] eyre::Report);
 
 #[cfg(test)]
 pub(crate) mod test {
-    
+
     use std::sync::Arc;
     use tempfile::TempDir;
     use temptree::temptree;

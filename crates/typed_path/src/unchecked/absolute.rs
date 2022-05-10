@@ -4,9 +4,9 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use crate::RelPath;
 use crate::Result;
-use crate::{RelPath};
-use anyhow::anyhow;
+use eyre::eyre;
 use serde::Serialize;
 
 #[derive(Derivative, Serialize)]
@@ -17,7 +17,7 @@ impl AbsPath {
     pub fn new<P: Into<PathBuf>>(path: P) -> Result<Self> {
         let path = path.into();
         if !path.has_root() {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "absolute path must have a root component: '{}'",
                 path.display()
             ));
@@ -133,7 +133,7 @@ crate::helper::impl_try_from!(&PathBuf => AbsPath);
 
 #[cfg(test)]
 mod test {
-    
+
     #![allow(warnings, unused)]
 
     use super::*;

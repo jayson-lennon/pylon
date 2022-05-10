@@ -1,4 +1,4 @@
-use anyhow::Context;
+use eyre::{eyre, WrapErr};
 use itertools::Itertools;
 use serde::Serialize;
 use std::{
@@ -375,9 +375,7 @@ impl Engine {
                 }
             }
             if abort {
-                return Err(anyhow::anyhow!(
-                    "lint errors encountered while building site"
-                ));
+                return Err(eyre!("lint errors encountered while building site"));
             }
         }
 
@@ -407,7 +405,7 @@ impl Engine {
                     error!(asset = ?asset, "missing asset or no pipeline defined");
                 }
                 if !unhandled_assets.is_empty() {
-                    return Err(anyhow::anyhow!("one or more assets are missing"));
+                    return Err(eyre!("one or more assets are missing"));
                 }
             }
         }
