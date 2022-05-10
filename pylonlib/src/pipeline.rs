@@ -243,7 +243,6 @@ impl Pipeline {
                     };
 
                     if command.contains("$NEW_SCRATCH") {
-                        eprintln!("make new scratch file");
                         scratch_path =
                             new_scratch_file(scratch_files, &std::fs::read(&scratch_path)?)
                                 .with_context(|| {

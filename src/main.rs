@@ -140,7 +140,7 @@ fn main() -> Result<(), eyre::Report> {
                 opt.render_behavior,
             )
             .wrap_err("Failed to initialize engine broker")?;
-            println!("{:?}", handle.join());
+            let _ = handle.join().map_err(|e| eyre!("{:?}", e))?;
         }
         Command::Build => {
             let engine = Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
