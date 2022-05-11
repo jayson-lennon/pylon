@@ -26,6 +26,8 @@ use super::{
     rules::Mount,
 };
 
+pub mod step;
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum PipelineBehavior {
     Overwrite,
@@ -159,14 +161,14 @@ impl Engine {
             )
         })?;
 
-        let page_store = do_build_page_store(paths.clone(), &renderers).wrap_err_with(|| {
+        let page_store = step::build_page_store(paths.clone(), &renderers).wrap_err_with(|| {
             format!(
                 "failed building page store when initializing engine with engine paths '{:?}'",
                 paths
             )
         })?;
 
-        let (script_engine, rule_processor, rules) = Self::load_rules(paths.clone(), &page_store)
+        let (script_engine, rule_processor, rules) = step::load_rules(paths.clone(), &page_store)
             .wrap_err_with(|| {
             format!(
                 "failed loading rule script when initializing engine with paths '{:?}'",
@@ -186,33 +188,9 @@ impl Engine {
         })
     }
 
-    pub fn load_rules(
-        engine_paths: Arc<EnginePaths>,
-        page_store: &PageStore,
-    ) -> Result<(ScriptEngine, RuleProcessor, Rules)> {
-        let script_engine_config = ScriptEngineConfig::new();
-        let script_engine = ScriptEngine::new(&script_engine_config.modules());
-
-        let _project_root = engine_paths.project_root();
-
-        let rule_script = std::fs::read_to_string(engine_paths.absolute_rule_script())
-            .wrap_err_with(|| {
-                format!(
-                    "failed reading rule script at '{}'",
-                    engine_paths.absolute_rule_script().display()
-                )
-            })?;
-
-        let (rule_processor, rules) = script_engine
-            .build_rules(engine_paths, page_store, rule_script)
-            .wrap_err("failed to build Rules structure")?;
-
-        Ok((script_engine, rule_processor, rules))
-    }
-
     pub fn reload_rules(&mut self) -> Result<()> {
         let (script_engine, rule_processor, rules) =
-            Self::load_rules(self.paths(), &self.page_store).wrap_err("failed to reload rules")?;
+            step::load_rules(self.paths(), &self.page_store).wrap_err("failed to reload rules")?;
         self.script_engine = script_engine;
         self.rule_processor = rule_processor;
         self.rules = rules;
@@ -224,127 +202,9 @@ impl Engine {
         Ok(())
     }
 
-    pub fn run_pipelines<'a>(
-        &self,
-        html_assets: &'a HtmlAssets,
-        behavior: PipelineBehavior,
-    ) -> Result<HashSet<&'a HtmlAsset>> {
-        trace!("running pipelines");
-
-        let mut unhandled_assets = HashSet::new();
-
-        for asset in html_assets {
-            // Ignore anchor links for now. Issue https://github.com/jayson-lennon/pylon/issues/75
-            // to eventually make this work.
-            if asset.tag() == "a" {
-                continue;
-            }
-
-            // Ignore any assets that already exist in the target directory.
-            {
-                if behavior == PipelineBehavior::NoOverwrite && asset.path().target().exists() {
-                    continue;
-                }
-            }
-
-            // tracks which assets have no processing logic
-            let mut asset_has_pipeline = false;
-
-            for pipeline in self.rules().pipelines() {
-                if pipeline.is_match(asset.uri().as_str()) {
-                    // asset has an associate pipeline, so we won't report an error
-                    asset_has_pipeline = true;
-
-                    let asset_uri = asset.uri();
-                    let relative_asset = &asset_uri.as_str()[1..];
-                    // Make a new target in order to create directories for the asset.
-                    let mut target_dir = PathBuf::from(self.paths().output_dir());
-                    target_dir.push(relative_asset);
-
-                    let target_dir = target_dir.parent().expect("should have parent directory");
-                    let target_dir = AbsPath::new(
-                        self.paths()
-                            .absolute_output_dir()
-                            .join(&RelPath::new(target_dir)?),
-                    )
-                    .wrap_err("Failed to create target directory prior to pipeline processing")?;
-                    crate::util::make_parent_dirs(&target_dir).wrap_err_with(|| {
-                        format!(
-                            "Failed creating parent directories at '{}' prior to running pipeline",
-                            target_dir
-                        )
-                    })?;
-
-                    pipeline.run(asset.uri()).wrap_err_with(|| {
-                        format!("Failed to run pipeline on asset '{}'", asset.uri())
-                    })?;
-                }
-            }
-            if !asset_has_pipeline {
-                unhandled_assets.insert(asset);
-            }
-        }
-        Ok(unhandled_assets)
-    }
-
-    pub fn lint<'a, P: Iterator<Item = &'a Page>>(&self, pages: P) -> Result<LintResults> {
-        trace!("linting");
-        let engine: &Engine = self;
-
-        let lint_results: Vec<Vec<LintResult>> = pages
-            .map(|page| {
-                crate::core::page::lint(engine.rule_processor(), engine.rules().lints(), page)
-            })
-            .try_collect()
-            .wrap_err("Failed building LintResult collection")?;
-
-        let lint_results = lint_results.into_iter().flatten();
-
-        Ok(LintResults::from_iter(lint_results))
-    }
-
-    pub fn render<'a, P: Iterator<Item = &'a Page>>(
-        &self,
-        pages: P,
-    ) -> Result<RenderedPageCollection> {
-        trace!("rendering");
-
-        let engine: &Engine = self;
-
-        let rendered: Vec<RenderedPage> = pages
-            .map(|page| crate::core::page::render(engine, page))
-            .try_collect()
-            .wrap_err("Failed building RenderedPage collection")?;
-
-        Ok(RenderedPageCollection::from_vec(rendered))
-    }
-
-    pub fn process_mounts<'a, M: Iterator<Item = &'a Mount>>(&self, mounts: M) -> Result<()> {
-        use fs_extra::dir::CopyOptions;
-        for mount in mounts {
-            trace!(mount=?mount, "processing mount");
-            std::fs::create_dir_all(mount.target()).wrap_err_with(|| {
-                format!(
-                    "Failed to create parent directories at '{}' while processing mounts",
-                    mount.target()
-                )
-            })?;
-            let options = CopyOptions {
-                copy_inside: true,
-                skip_exist: true,
-                content_only: true,
-                ..CopyOptions::default()
-            };
-            fs_extra::dir::copy(mount.src(), mount.target(), &options).wrap_err_with(|| {
-                format!("Failed mounting '{}' at '{}'", mount.src(), mount.target())
-            })?;
-        }
-        Ok(())
-    }
-
     pub fn rebuild_page_store(&mut self) -> Result<()> {
         trace!("rebuilding the page store");
-        self.page_store = do_build_page_store(self.paths(), &self.renderers)
+        self.page_store = step::build_page_store(self.paths(), &self.renderers)
             .wrap_err("Failed to rebuild the page store")?;
         Ok(())
     }
@@ -361,6 +221,50 @@ impl Engine {
     }
 
     pub fn build_site(&self) -> Result<()> {
+        use tap::prelude::*;
+        trace!("running build");
+
+        let pages = self
+            .page_store()
+            .iter()
+            .map(|(_, page)| page)
+            .collect::<Vec<_>>();
+
+        // lints
+        step::run_lints(self, pages.iter().copied())
+            .wrap_err("Failed getting lints while building site")
+            .and_then(|lints| step::report::lints(&lints))
+            .wrap_err("Failed reporting lints while building site")?;
+
+        // rendering
+        step::render(self, pages.iter().copied())
+            .wrap_err("Failed to render pages during site build")?
+            .write_to_disk()
+            .wrap_err("Failed to write rendered pages to disk during site build")?;
+
+        // mounts
+        step::mount_directories(self.rules().mounts())
+            .wrap_err("Failed to process mounts during site build")?;
+
+        // asset discovery
+        let assets = step::discover_html_output_files(self)
+            .wrap_err("Failed to discover HTML files during site build")
+            .and_then(|files| step::discover_html_assets(self, files.iter()))
+            .wrap_err("Failed to discover HTML assets during site build")
+            .map(|mut assets| {
+                assets.drop_offsite();
+                assets
+            })?;
+
+        // run pipelines
+        step::run_pipelines(self, &assets, PipelineBehavior::NoOverwrite)
+            .wrap_err("Failed to run pipelines during site build")
+            .and_then(|assets| step::report::unhandled_assets(assets))?;
+
+        Ok(())
+    }
+
+    pub fn build_site_old(&self) -> Result<()> {
         use crate::core::page::lint::LintLevel;
 
         trace!("running build");
@@ -369,8 +273,7 @@ impl Engine {
 
         {
             trace!("running lints");
-            let lints = self
-                .lint(pages.clone())
+            let lints = step::run_lints(&self, pages.clone())
                 .wrap_err("Failed to run lints during site build")?;
             let mut abort = false;
             for lint in lints {
@@ -388,9 +291,8 @@ impl Engine {
         }
 
         trace!("rendering pages");
-        let rendered = self
-            .render(pages)
-            .wrap_err("Failed to render pages during site build")?;
+        let rendered =
+            step::render(&self, pages).wrap_err("Failed to render pages during site build")?;
 
         trace!("writing rendered pages to disk");
         rendered
@@ -398,7 +300,7 @@ impl Engine {
             .wrap_err("Failed to write rendered pages to disk during site build")?;
 
         trace!("processing mounts");
-        self.process_mounts(self.rules().mounts())
+        step::mount_directories(self.rules().mounts())
             .wrap_err("Failed to process mounts during site build")?;
 
         {
@@ -411,9 +313,9 @@ impl Engine {
             html_assets.drop_offsite();
 
             trace!("running pipelines");
-            let unhandled_assets = self
-                .run_pipelines(&html_assets, PipelineBehavior::NoOverwrite)
-                .wrap_err("Failed to run pipelines during site build")?;
+            let unhandled_assets =
+                step::run_pipelines(&self, &html_assets, PipelineBehavior::NoOverwrite)
+                    .wrap_err("Failed to run pipelines during site build")?;
             // check for missing assets in pages
             {
                 for asset in &unhandled_assets {
@@ -474,43 +376,20 @@ impl Engine {
     }
 }
 
-fn do_build_page_store(engine_paths: Arc<EnginePaths>, renderers: &Renderers) -> Result<PageStore> {
-    let pages: Vec<_> =
-        crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {
-            path.extension() == Some(OsStr::new("md"))
-        })
-        .wrap_err("Failed to discover source pages while building page store")?
-        .iter()
-        .map(|abs_path| {
-            let root = engine_paths.project_root();
-            let base = engine_paths.src_dir();
-            let target = abs_path
-                .strip_prefix(root.join(base))
-                .wrap_err("Failed to strip root+base from abs path while building page store")?;
-            let checked_file_path = SysPath::new(root, base, &target)
-                .to_checked_file()
-                .wrap_err("Failed to make CheckedFile while building page store")?;
-            Page::from_file(engine_paths.clone(), checked_file_path, renderers)
-        })
-        .try_collect()
-        .wrap_err("Failed building page collection while building page store")?;
-
-    let mut page_store = PageStore::new();
-    page_store.insert_batch(pages);
-
-    Ok(page_store)
-}
-
 #[cfg(test)]
 pub mod test {
 
     #![allow(warnings, unused)]
 
     use crate::devserver::broker::EngineMsg;
+    use tracing_test::traced_test;
 
     use temptree::temptree;
 
     use super::*;
+
+    // this makes traced_test happy
+    use std::result::Result;
 
     #[test]
     fn makes_new_engine() {
@@ -654,8 +533,7 @@ pub mod test {
 
         let engine = Engine::new(paths).unwrap();
 
-        let lints = engine
-            .lint(engine.page_store().iter().map(|(_, page)| page))
+        let lints = step::run_lints(&engine, engine.page_store().iter().map(|(_, page)| page))
             .expect("linting failed");
         assert_eq!(lints.into_iter().count(), 2);
     }
@@ -689,8 +567,7 @@ doc2"#;
 
         let engine = Engine::new(paths).unwrap();
 
-        let rendered = engine
-            .render(engine.page_store().iter().map(|(_, page)| page))
+        let rendered = step::render(&engine, engine.page_store().iter().map(|(_, page)| page))
             .expect("failed to render pages");
 
         assert_eq!(rendered.iter().count(), 2);
@@ -793,19 +670,17 @@ doc2"#;
         // located before running the pipeline.
         {
             let pages = engine.page_store().iter().map(|(_, page)| page);
-            let rendered = engine.render(pages).expect("failed to render");
+            let rendered = step::render(&engine, pages).expect("failed to render");
 
-            engine
-                .process_mounts(engine.rules().mounts())
-                .expect("failed to process mounts");
+            step::mount_directories(engine.rules().mounts()).expect("failed to process mounts");
 
             let html_assets =
                 crate::discover::html_asset::find_all(engine.paths(), engine.paths().output_dir())
                     .expect("failed to discover html assets");
 
-            let unhandled_assets = engine
-                .run_pipelines(&html_assets, PipelineBehavior::Overwrite)
-                .expect("failed to run pipelines");
+            let unhandled_assets =
+                step::run_pipelines(&engine, &html_assets, PipelineBehavior::Overwrite)
+                    .expect("failed to run pipelines");
 
             assert!(unhandled_assets.is_empty());
         }
@@ -858,6 +733,7 @@ doc2"#;
         assert!(engine.re_init().is_ok());
     }
 
+    #[traced_test]
     #[test]
     fn builds_site_no_lint_errors() {
         let doc1 = r#"+++
