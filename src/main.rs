@@ -9,9 +9,6 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-
-
-
 #[derive(clap::Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -68,7 +65,7 @@ fn install_tracing() {
 
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
+        .or_else(|_| EnvFilter::try_new("pylon=trace"))
         .unwrap();
 
     tracing_subscriber::registry()

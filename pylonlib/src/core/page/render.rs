@@ -102,7 +102,7 @@ pub fn build_context(
 ) -> Result<Vec<ContextItem>> {
     trace!("building page-specific context");
     let contexts: Vec<Vec<ContextItem>> = page_ctxs
-        .find_keys(&for_page.search_key().as_str())
+        .find_keys(&for_page.search_keys()[0].as_str())
         .iter()
         .filter_map(|key| page_ctxs.get(*key))
         .map(|ptr| script_fn_runner.run(&ptr, (for_page.clone(),)))

@@ -9,6 +9,7 @@ use crate::Result;
 use crate::SysPath;
 use eyre::{eyre, WrapErr};
 use serde::Serialize;
+use typed_path::AbsPath;
 use typed_path::RelPath;
 use typed_uri::Uri;
 
@@ -120,10 +121,16 @@ impl Page {
         Uri::new(uri).unwrap()
     }
 
-    pub fn search_key(&self) -> SearchKey {
-        let mut target_path = PathBuf::from("/");
-        target_path.push(self.path().as_sys_path().target());
-        SearchKey::new(target_path.to_string_lossy())
+    pub fn search_keys(&self) -> Vec<SearchKey> {
+        vec![
+            self.uri().as_str().into(),
+            self.path()
+                .as_sys_path()
+                .with_root(&AbsPath::from_absolute("/"))
+                .with_base(&RelPath::from_relative(""))
+                .to_string()
+                .into(),
+        ]
     }
 
     pub fn template_name(&self) -> TemplateName {
@@ -361,7 +368,11 @@ pub mod test {
         .unwrap();
 
         assert_eq!(page.template_name(), TemplateName::new("default.tera"));
-        assert_eq!(page.search_key(), SearchKey::new("/doc.md"));
+        for key in page.search_keys() {
+            if key != "/doc.md".into() && key != "/doc.html".into() {
+                panic!("invalid search key: {}", key);
+            }
+        }
     }
 
     #[test]

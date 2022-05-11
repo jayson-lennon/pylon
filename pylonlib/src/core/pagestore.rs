@@ -1,6 +1,7 @@
 use crate::core::page::{Page, PageKey};
 use slotmap::SlotMap;
 use std::collections::HashMap;
+use std::fmt;
 use tracing::{instrument, trace};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8,7 +9,8 @@ pub struct SearchKey(String);
 
 impl SearchKey {
     pub fn new<S: Into<String>>(key: S) -> Self {
-        Self(key.into())
+        let key: String = key.into();
+        Self(key)
     }
 
     pub fn as_str(&self) -> &str {
@@ -24,19 +26,25 @@ impl AsRef<str> for SearchKey {
 
 impl From<&str> for SearchKey {
     fn from(key: &str) -> Self {
-        Self::new(key)
+        Self(key.to_string())
     }
 }
 
 impl From<&String> for SearchKey {
     fn from(key: &String) -> Self {
-        Self::new(key)
+        Self(key.clone())
     }
 }
 
 impl From<String> for SearchKey {
     fn from(key: String) -> Self {
-        Self::new(key)
+        Self(key)
+    }
+}
+
+impl fmt::Display for SearchKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -71,7 +79,7 @@ impl PageStore {
     pub fn update(&mut self, page: Page) -> PageKey {
         trace!("updating existing page");
 
-        let page_key = match self.get_mut(&page.search_key()) {
+        let page_key = match self.get_mut(&page.search_keys()[0]) {
             Some(old) => {
                 let mut page = page;
                 page.page_key = old.page_key;
@@ -88,7 +96,7 @@ impl PageStore {
     pub fn insert(&mut self, page: Page) -> PageKey {
         trace!("inserting page into page store");
 
-        let search_keys = [page.search_key()];
+        let search_keys = page.search_keys();
 
         let page_key = self.pages.insert_with_key(|key| {
             let mut page = page;
