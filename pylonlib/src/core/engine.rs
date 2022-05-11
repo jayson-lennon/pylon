@@ -233,8 +233,7 @@ impl Engine {
         // lints
         step::run_lints(self, pages.iter().copied())
             .wrap_err("Failed getting lints while building site")
-            .and_then(|lints| step::report::lints(&lints))
-            .wrap_err("Failed reporting lints while building site")?;
+            .and_then(|lints| step::report::lints(&lints))?;
 
         // rendering
         step::render(self, pages.iter().copied())
@@ -246,90 +245,31 @@ impl Engine {
         step::mount_directories(self.rules().mounts())
             .wrap_err("Failed to process mounts during site build")?;
 
-        // asset discovery
-        let assets = step::discover_html_output_files(self)
+        // build list of assets needed for the site (stuff linked in HTML pages)
+        let missing_assets = step::get_all_html_output_files(self)
             .wrap_err("Failed to discover HTML files during site build")
-            .and_then(|files| step::discover_html_assets(self, files.iter()))
+            .and_then(|files| step::build_asset_requirement_list(self, files.iter()))
             .wrap_err("Failed to discover HTML assets during site build")
             .map(|mut assets| {
+                // We don't care about links that exist offsite (for now)
                 assets.drop_offsite();
                 assets
-            })?;
+            })?
+            .into_iter()
+            .filter(|asset| !asset.path().target().exists())
+            .collect::<HtmlAssets>();
 
+        for a in &missing_assets {
+            if a.path().target().to_string().contains("site.css") {
+                dbg!(&a);
+            }
+        }
         // run pipelines
-        step::run_pipelines(self, &assets, PipelineBehavior::NoOverwrite)
+        step::run_pipelines(self, &missing_assets)
             .wrap_err("Failed to run pipelines during site build")
-            .and_then(|assets| step::report::unhandled_assets(assets))?;
+            .and_then(step::find_unpipelined_assets)
+            .and_then(step::report::missing_assets)?;
 
-        Ok(())
-    }
-
-    pub fn build_site_old(&self) -> Result<()> {
-        use crate::core::page::lint::LintLevel;
-
-        trace!("running build");
-
-        let pages = self.page_store().iter().map(|(_, page)| page);
-
-        {
-            trace!("running lints");
-            let lints = step::run_lints(&self, pages.clone())
-                .wrap_err("Failed to run lints during site build")?;
-            let mut abort = false;
-            for lint in lints {
-                match lint.level {
-                    LintLevel::Warn => warn!(%lint.msg),
-                    LintLevel::Deny => {
-                        error!(%lint.msg);
-                        abort = true;
-                    }
-                }
-            }
-            if abort {
-                return Err(eyre!("lint errors encountered while building site"));
-            }
-        }
-
-        trace!("rendering pages");
-        let rendered =
-            step::render(&self, pages).wrap_err("Failed to render pages during site build")?;
-
-        trace!("writing rendered pages to disk");
-        rendered
-            .write_to_disk()
-            .wrap_err("Failed to write rendered pages to disk during site build")?;
-
-        trace!("processing mounts");
-        step::mount_directories(self.rules().mounts())
-            .wrap_err("Failed to process mounts during site build")?;
-
-        {
-            trace!("locating HTML assets");
-            let mut html_assets =
-                crate::discover::html_asset::find_all(self.paths(), self.paths().output_dir())
-                    .wrap_err(
-                        "Failed to discover linked assets from HTML files during site build",
-                    )?;
-            html_assets.drop_offsite();
-
-            trace!("running pipelines");
-            let unhandled_assets =
-                step::run_pipelines(&self, &html_assets, PipelineBehavior::NoOverwrite)
-                    .wrap_err("Failed to run pipelines during site build")?;
-            // check for missing assets in pages
-            {
-                for asset in &unhandled_assets {
-                    error!(asset = ?asset, "missing asset or no pipeline defined");
-                }
-                if !unhandled_assets.is_empty() {
-                    return Err(eyre!("one or more assets are missing"));
-                }
-            }
-        }
-
-        {
-            // TODO: check for missing assets in CSS
-        }
         Ok(())
     }
 
@@ -679,8 +619,7 @@ doc2"#;
                     .expect("failed to discover html assets");
 
             let unhandled_assets =
-                step::run_pipelines(&engine, &html_assets, PipelineBehavior::Overwrite)
-                    .expect("failed to run pipelines");
+                step::run_pipelines(&engine, &html_assets).expect("failed to run pipelines");
 
             assert!(unhandled_assets.is_empty());
         }

@@ -17,7 +17,7 @@ use crate::discover::AssetPath;
 use super::UrlType;
 
 #[derive(Derivative, Serialize)]
-#[derivative(Debug, Clone, Hash, PartialEq)]
+#[derivative(Debug, Clone)]
 pub struct HtmlAsset {
     target: AssetPath,
     tag: String,
@@ -62,6 +62,18 @@ impl HtmlAsset {
 
     pub fn path(&self) -> &AssetPath {
         &self.target
+    }
+}
+
+impl std::hash::Hash for HtmlAsset {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.target.uri().as_str().hash(state)
+    }
+}
+
+impl PartialEq for HtmlAsset {
+    fn eq(&self, other: &Self) -> bool {
+        self.target.uri().as_str() == other.target.uri().as_str()
     }
 }
 
@@ -129,6 +141,26 @@ impl<'a> IntoIterator for &'a HtmlAssets {
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter()
+    }
+}
+
+impl FromIterator<HtmlAsset> for HtmlAssets {
+    fn from_iter<I: IntoIterator<Item = HtmlAsset>>(iter: I) -> Self {
+        let mut assets = HtmlAssets::new();
+        for asset in iter {
+            assets.insert(asset);
+        }
+        assets
+    }
+}
+
+impl<'a> FromIterator<&'a HtmlAsset> for HtmlAssets {
+    fn from_iter<I: IntoIterator<Item = &'a HtmlAsset>>(iter: I) -> Self {
+        let mut assets = HtmlAssets::new();
+        for asset in iter {
+            assets.insert(asset.clone());
+        }
+        assets
     }
 }
 

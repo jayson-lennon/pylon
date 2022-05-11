@@ -59,7 +59,6 @@ pub enum EngineMsg {
     /// the request.
     RenderPage(EngineRequest<SearchKey, Result<Option<RenderedPage>>>),
     ProcessMounts(EngineRequest<(), Result<()>>),
-    ProcessPipelines(EngineRequest<RelPath, Result<()>>),
     /// Quits the application
     Quit,
 }
@@ -190,11 +189,6 @@ impl EngineBroker {
                                 handle_msg::mount_directories(&engine)
                             });
                         }
-                        EngineMsg::ProcessPipelines(chan) => {
-                            respond_sync!(chan, &broker.handle(), {
-                                handle_msg::process_pipelines(&engine, &chan.inner)
-                            });
-                        }
                         EngineMsg::RenderPage(chan) => {
                             respond_sync!(chan, &broker.handle(), {
                                 handle_msg::render(&engine, chan.inner(), broker.render_behavior)
@@ -247,29 +241,6 @@ mod handle_msg {
 
     use super::FilesystemUpdateEvents;
 
-    pub fn process_pipelines(engine: &Engine, page_path: &RelPath) -> Result<()> {
-        let abs_path = AbsPath::new(engine.paths().output_dir())?.join(page_path);
-
-        let html_path = SysPath::from_abs_path(
-            &abs_path,
-            engine.paths().project_root(),
-            engine.paths().output_dir(),
-        )?
-        .to_checked_file()?;
-
-        let assets = step::discover_html_assets(engine, std::iter::once(&html_path))
-            .wrap_err("Failed to discover HTML assets during pipeline processing in dev server")
-            .map(|mut assets| {
-                assets.drop_offsite();
-                assets
-            })?;
-        step::run_pipelines(engine, &assets, PipelineBehavior::Overwrite)
-            .wrap_err("Failed to run pipelines in dev server")
-            .and_then(step::report::unhandled_assets)?;
-
-        Ok(())
-    }
-
     pub fn mount_directories(engine: &Engine) -> Result<()> {
         step::mount_directories(engine.rules().mounts())
     }
@@ -284,6 +255,7 @@ mod handle_msg {
         if let Some(page) = engine.page_store().get(&search_key.as_ref().into()) {
             let lints = step::run_lints(engine, std::iter::once(page))
                 .wrap_err_with(|| format!("Failed to run lints for page '{}'", page.uri()))?;
+            let _cli_report = step::report::lints(&lints);
             if lints.has_deny() {
                 Err(eyre!(lints.to_string()))
             } else {
@@ -298,15 +270,17 @@ mod handle_msg {
 
                 let rendered_page = rendered_collection.into_iter().next().unwrap();
                 let html_path = page.target().to_checked_file()?;
-                let assets = step::discover_html_assets(engine, std::iter::once(&html_path))
-                    .wrap_err("Failed to discover HTML assets during single page render")
-                    .map(|mut assets| {
-                        assets.drop_offsite();
-                        assets
-                    })?;
-                step::run_pipelines(engine, &assets, PipelineBehavior::Overwrite)
+                let assets =
+                    step::build_asset_requirement_list(engine, std::iter::once(&html_path))
+                        .wrap_err("Failed to discover HTML assets during single page render")
+                        .map(|mut assets| {
+                            assets.drop_offsite();
+                            assets
+                        })?;
+                step::run_pipelines(engine, &assets)
                     .wrap_err("Failed to run pipelines during single page render")
-                    .and_then(step::report::unhandled_assets)?;
+                    .and_then(step::find_unpipelined_assets)
+                    .and_then(step::report::missing_assets)?;
 
                 Ok(Some(rendered_page))
             }

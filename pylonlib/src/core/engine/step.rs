@@ -52,7 +52,7 @@ pub mod report {
         Ok(())
     }
 
-    pub fn unhandled_assets(assets: HashSet<&HtmlAsset>) -> Result<()> {
+    pub fn missing_assets(assets: HashSet<&HtmlAsset>) -> Result<()> {
         for asset in &assets {
             error!(asset = ?asset, "missing asset or no pipeline defined");
         }
@@ -61,6 +61,14 @@ pub mod report {
         }
         Ok(())
     }
+}
+
+pub fn find_unpipelined_assets(not_pipelined: HashSet<&HtmlAsset>) -> Result<HashSet<&HtmlAsset>> {
+    Ok(not_pipelined
+        .iter()
+        .copied()
+        .filter(|asset| !asset.path().target().exists())
+        .collect::<HashSet<_>>())
 }
 
 pub fn run_lints<'a, P: Iterator<Item = &'a Page>>(
@@ -142,7 +150,6 @@ pub fn load_rules(
 pub fn run_pipelines<'a>(
     engine: &Engine,
     html_assets: &'a HtmlAssets,
-    behavior: PipelineBehavior,
 ) -> Result<HashSet<&'a HtmlAsset>> {
     trace!("running pipelines");
 
@@ -153,13 +160,6 @@ pub fn run_pipelines<'a>(
         // to eventually make this work.
         if asset.tag() == "a" {
             continue;
-        }
-
-        // Ignore any assets that already exist in the target directory.
-        {
-            if behavior == PipelineBehavior::NoOverwrite && asset.path().target().exists() {
-                continue;
-            }
         }
 
         // tracks which assets have no processing logic
@@ -236,7 +236,10 @@ pub fn build_page_store(
     Ok(page_store)
 }
 
-pub fn discover_html_assets<'a, F: Iterator<Item = &'a CheckedFilePath<pathmarker::Html>>>(
+pub fn build_asset_requirement_list<
+    'a,
+    F: Iterator<Item = &'a CheckedFilePath<pathmarker::Html>>,
+>(
     engine: &Engine,
     files: F,
 ) -> Result<HtmlAssets> {
@@ -262,7 +265,7 @@ pub fn discover_html_assets<'a, F: Iterator<Item = &'a CheckedFilePath<pathmarke
     Ok(html_assets)
 }
 
-pub fn discover_html_output_files(
+pub fn get_all_html_output_files(
     engine: &Engine,
 ) -> Result<Vec<CheckedFilePath<pathmarker::Html>>> {
     crate::discover::get_all_paths(engine.paths().absolute_output_dir(), &|path| {
