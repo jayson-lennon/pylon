@@ -41,6 +41,7 @@ scraper = "0.12"
 parcel_css = "1.0.0-alpha.23"
 syntect = "4.6"
 derivative = "2.2"
+ansi-to-html = "0.1"
 
 [dev-dependencies]
 temptree = "0.2.0"

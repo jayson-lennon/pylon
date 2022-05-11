@@ -319,7 +319,7 @@ mod handle_msg {
 
                     let unhandled_assets = engine
                         .run_pipelines(&html_assets, PipelineBehavior::Overwrite)
-                        .wrap_err("failed to run pipelines")?;
+                        .wrap_err("failed running pipelines from dev server")?;
                     // check for missing assets in pages
                     {
                         for asset in &unhandled_assets {

@@ -132,7 +132,7 @@ pub async fn try_rendered_file<S: AsRef<str>>(
 
     trace!("try to serve rendered file");
 
-    let (send, recv) = EngineRequest::new(SearchKey::from(path.as_ref()));
+    let (send, recv) = EngineRequest::new(SearchKey::from(format!("/{}", path.as_ref())));
 
     broker.send_engine_msg(EngineMsg::RenderPage(send)).await?;
     recv.recv().await?
@@ -163,7 +163,19 @@ pub async fn handle(
 
     match try_rendered_file(*broker, &path).await {
         Ok(Some(page)) => return Ok(serve_rendered_file(&page.html())),
-        Err(e) => return Err(poem::error::InternalServerError(AsStdError(e))),
+        Err(e) => {
+            let report = {
+                let msg = format!("{:?}", e);
+                let msg = ansi_to_html::convert_escaped(&msg)
+                    .unwrap()
+                    .replace('━', "=");
+                error_page_with_msg(format!("<pre>{}</pre>", &msg))
+            };
+            return Err(poem::error::Error::from_string(
+                report,
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
+        }
         _ => (),
     }
 
