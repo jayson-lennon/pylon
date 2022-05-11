@@ -180,14 +180,14 @@ impl EngineBroker {
             let _devserver = engine.start_devserver(bind, debounce_ms, broker.clone())?;
 
             loop {
-                if let Err(e) = handle_msg::process_mounts(&engine) {
-                    error!(err=%e, "failed processing mounts");
+                if let Err(e) = handle_msg::mount_directories(&engine) {
+                    error!(err=%e, "failed mounting directories");
                 }
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::ProcessMounts(chan) => {
                             respond_sync!(chan, &broker.handle(), {
-                                handle_msg::process_mounts(&engine)
+                                handle_msg::mount_directories(&engine)
                             });
                         }
                         EngineMsg::ProcessPipelines(chan) => {
@@ -237,7 +237,7 @@ mod handle_msg {
 
     use crate::{
         core::{
-            engine::{Engine, PipelineBehavior},
+            engine::{step, Engine, PipelineBehavior},
             page::RenderedPage,
             Page,
         },
@@ -250,8 +250,6 @@ mod handle_msg {
     pub fn process_pipelines(engine: &Engine, page_path: &RelPath) -> Result<()> {
         let abs_path = AbsPath::new(engine.paths().output_dir())?.join(page_path);
 
-        let raw_html = std::fs::read_to_string(&abs_path)?;
-
         let html_path = SysPath::from_abs_path(
             &abs_path,
             engine.paths().project_root(),
@@ -259,24 +257,21 @@ mod handle_msg {
         )?
         .to_checked_file()?;
 
-        let html_assets = crate::discover::html_asset::find(engine.paths(), &html_path, &raw_html)?;
+        let assets = step::discover_html_assets(engine, std::iter::once(&html_path))
+            .wrap_err("Failed to discover HTML assets during pipeline processing in dev server")
+            .map(|mut assets| {
+                assets.drop_offsite();
+                assets
+            })?;
+        step::run_pipelines(engine, &assets, PipelineBehavior::Overwrite)
+            .wrap_err("Failed to run pipelines in dev server")
+            .and_then(step::report::unhandled_assets)?;
 
-        // check that each required asset was processed
-        {
-            let unhandled_assets =
-                engine.run_pipelines(&html_assets, PipelineBehavior::Overwrite)?;
-            for asset in &unhandled_assets {
-                error!(asset = ?asset, "missing asset");
-            }
-            if !unhandled_assets.is_empty() {
-                return Err(eyre!("one or more assets are missing"));
-            }
-        }
         Ok(())
     }
 
-    pub fn process_mounts(engine: &Engine) -> Result<()> {
-        engine.process_mounts(engine.rules().mounts())
+    pub fn mount_directories(engine: &Engine) -> Result<()> {
+        step::mount_directories(engine.rules().mounts())
     }
 
     pub fn render<S: AsRef<str> + std::fmt::Debug>(
@@ -287,50 +282,33 @@ mod handle_msg {
         trace!(search_key = ?search_key, "receive render page message");
 
         if let Some(page) = engine.page_store().get(&search_key.as_ref().into()) {
-            let lints = engine
-                .lint(std::iter::once(page))
-                .wrap_err("failed to lint page")?;
+            let lints = step::run_lints(engine, std::iter::once(page))
+                .wrap_err_with(|| format!("Failed to run lints for page '{}'", page.uri()))?;
             if lints.has_deny() {
                 Err(eyre!(lints.to_string()))
             } else {
-                let rendered = engine
-                    .render(std::iter::once(page))
-                    .wrap_err("failed to render page")?
-                    .into_iter()
-                    .next()
-                    .unwrap();
+                let rendered_collection = step::render(engine, std::iter::once(page))
+                    .wrap_err_with(|| format!("Failed to render page '{}'", page.uri()))?;
 
                 if render_behavior == RenderBehavior::Write {
-                    let parent_dir = rendered.target().without_file_name().to_absolute_path();
-                    crate::util::make_parent_dirs(&parent_dir)?;
-                    std::fs::write(rendered.target().to_absolute_path(), &rendered.html())?;
+                    rendered_collection.write_to_disk().wrap_err(
+                        "Failed to write rendered page to disk with RenderBehavior::Write",
+                    )?;
                 }
 
-                // asset discovery & pipeline processing
-                {
-                    let html_path = page.target().to_checked_file()?;
-                    let mut html_assets = crate::discover::html_asset::find(
-                        engine.paths(),
-                        &html_path,
-                        &rendered.html(),
-                    )
-                    .wrap_err("failed to discover HTML assets")?;
-                    html_assets.drop_offsite();
+                let rendered_page = rendered_collection.into_iter().next().unwrap();
+                let html_path = page.target().to_checked_file()?;
+                let assets = step::discover_html_assets(engine, std::iter::once(&html_path))
+                    .wrap_err("Failed to discover HTML assets during single page render")
+                    .map(|mut assets| {
+                        assets.drop_offsite();
+                        assets
+                    })?;
+                step::run_pipelines(engine, &assets, PipelineBehavior::Overwrite)
+                    .wrap_err("Failed to run pipelines during single page render")
+                    .and_then(step::report::unhandled_assets)?;
 
-                    let unhandled_assets = engine
-                        .run_pipelines(&html_assets, PipelineBehavior::Overwrite)
-                        .wrap_err("failed running pipelines from dev server")?;
-                    // check for missing assets in pages
-                    {
-                        for asset in &unhandled_assets {
-                            error!(asset = ?asset, "missing asset");
-                        }
-                        if !unhandled_assets.is_empty() {
-                            return Err(eyre!("one or more assets are missing"));
-                        }
-                    }
-                }
-                Ok(Some(rendered))
+                Ok(Some(rendered_page))
             }
         } else {
             Ok(None)
