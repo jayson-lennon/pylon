@@ -28,6 +28,14 @@ impl SysPath {
         }
     }
 
+    pub fn with_root(&self, root: &AbsPath) -> Self {
+        Self {
+            base: self.base.clone(),
+            root: root.to_path_buf(),
+            target: self.target.clone(),
+        }
+    }
+
     pub fn with_base(&self, base: &RelPath) -> Self {
         Self {
             base: base.to_path_buf(),

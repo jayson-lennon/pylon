@@ -8,6 +8,7 @@ use eyre::{eyre, WrapErr};
 use slotmap::SlotMap;
 use std::str::FromStr;
 use tracing::{instrument, trace};
+use typed_path::{pathmarker, CheckedFilePath};
 
 pub const LINT_LEVEL_DENY: &str = "DENY";
 pub const LINT_LEVEL_WARN: &str = "WARN";
@@ -99,15 +100,19 @@ impl Default for LintCollection {
 pub struct LintResult {
     pub level: LintLevel,
     pub msg: String,
-    pub page_search_key: SearchKey,
+    pub md_file: CheckedFilePath<pathmarker::Md>,
 }
 
 impl LintResult {
-    pub fn new<S: Into<String>>(level: LintLevel, msg: S, page_search_key: &SearchKey) -> Self {
+    pub fn new<S: Into<String>>(
+        level: LintLevel,
+        msg: S,
+        md_file: &CheckedFilePath<pathmarker::Md>,
+    ) -> Self {
         Self {
             level,
             msg: msg.into(),
-            page_search_key: page_search_key.clone(),
+            md_file: md_file.clone(),
         }
     }
 }
@@ -194,7 +199,7 @@ pub fn lint(
             .run(&lint.lint_fn, (page.clone(),))
             .wrap_err("Failed to run lint")?;
         if check {
-            let lint_result = LintResult::new(lint.level, lint.msg, &page.search_key());
+            let lint_result = LintResult::new(lint.level, lint.msg, page.path());
             lint_results.push(lint_result);
         }
     }
@@ -205,6 +210,8 @@ pub fn lint(
 mod test {
 
     #![allow(warnings, unused)]
+
+    use std::path::PathBuf;
 
     use super::*;
 
@@ -245,7 +252,14 @@ mod test {
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
         assert_eq!(lints[0].msg, "Missing author");
-        assert_eq!(lints[0].page_search_key, "/test.md".into());
+        assert_eq!(
+            lints[0]
+                .md_file
+                .as_sys_path()
+                .to_relative_path()
+                .to_path_buf(),
+            PathBuf::from("src/test.md")
+        );
     }
 
     #[test]
@@ -284,11 +298,25 @@ mod test {
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
         assert_eq!(lints[0].msg, "Missing author");
-        assert_eq!(lints[0].page_search_key, "/test.md".into());
+        assert_eq!(
+            lints[0]
+                .md_file
+                .as_sys_path()
+                .to_relative_path()
+                .to_path_buf(),
+            PathBuf::from("src/test.md")
+        );
 
         assert_eq!(lints[1].level, LintLevel::Warn);
         assert_eq!(lints[1].msg, "Missing publish date");
-        assert_eq!(lints[1].page_search_key, "/test.md".into());
+        assert_eq!(
+            lints[1]
+                .md_file
+                .as_sys_path()
+                .to_relative_path()
+                .to_path_buf(),
+            PathBuf::from("src/test.md")
+        );
     }
 
     #[test]
@@ -329,9 +357,15 @@ mod test {
 
     #[test]
     fn lintmessages_from_iter() {
+        let tree = temptree! {
+          src: {
+              "test.md": "",
+          },
+        };
+        let checked_file = crate::test::checked_md_path(&tree, "src/test.md");
         let lints = vec![
-            LintResult::new(LintLevel::Warn, "", &"/".into()),
-            LintResult::new(LintLevel::Deny, "", &"/".into()),
+            LintResult::new(LintLevel::Warn, "", &checked_file),
+            LintResult::new(LintLevel::Deny, "", &checked_file),
         ];
         let messages = LintResults::from_iter(lints.into_iter());
         assert_eq!(messages.inner.len(), 2);
@@ -339,9 +373,15 @@ mod test {
 
     #[test]
     fn lintmessages_into_iter() {
+        let tree = temptree! {
+          src: {
+              "test.md": "",
+          },
+        };
+        let checked_file = crate::test::checked_md_path(&tree, "src/test.md");
         let lints = vec![
-            LintResult::new(LintLevel::Warn, "", &"/".into()),
-            LintResult::new(LintLevel::Deny, "", &"/".into()),
+            LintResult::new(LintLevel::Warn, "", &checked_file),
+            LintResult::new(LintLevel::Deny, "", &checked_file),
         ];
         let messages = LintResults::from_iter(lints.into_iter());
         let mut messages_iter = messages.into_iter();
@@ -351,9 +391,15 @@ mod test {
 
     #[test]
     fn lintmessages_into_iter_ref() {
+        let tree = temptree! {
+          src: {
+              "test.md": "",
+          },
+        };
+        let checked_file = crate::test::checked_md_path(&tree, "src/test.md");
         let lints = vec![
-            LintResult::new(LintLevel::Warn, "", &"/".into()),
-            LintResult::new(LintLevel::Deny, "", &"/".into()),
+            LintResult::new(LintLevel::Warn, "", &checked_file),
+            LintResult::new(LintLevel::Deny, "", &checked_file),
         ];
         let messages = LintResults::from_iter(lints.into_iter());
         let messages_iter = &mut messages.into_iter();
@@ -363,20 +409,32 @@ mod test {
 
     #[test]
     fn lint_messages_denies_properly() {
-        let mut lints = vec![LintResult::new(LintLevel::Warn, "", &"/".into())];
+        let tree = temptree! {
+          src: {
+              "test.md": "",
+          },
+        };
+        let checked_file = crate::test::checked_md_path(&tree, "src/test.md");
+        let mut lints = vec![LintResult::new(LintLevel::Warn, "", &checked_file)];
         let messages = LintResults::from_slice(lints.as_slice());
         assert_eq!(messages.has_deny(), false);
 
-        lints.push(LintResult::new(LintLevel::Deny, "", &"/".into()));
+        lints.push(LintResult::new(LintLevel::Deny, "", &checked_file));
         let messages = LintResults::from_slice(lints.as_slice());
         assert!(messages.has_deny());
     }
 
     #[test]
     fn lintmessages_display_impl() {
+        let tree = temptree! {
+          src: {
+              "test.md": "",
+          },
+        };
+        let checked_file = crate::test::checked_md_path(&tree, "src/test.md");
         let lints = vec![
-            LintResult::new(LintLevel::Warn, "abc", &"/".into()),
-            LintResult::new(LintLevel::Deny, "123", &"/".into()),
+            LintResult::new(LintLevel::Warn, "abc", &checked_file),
+            LintResult::new(LintLevel::Deny, "123", &checked_file),
         ];
         let messages = LintResults::from_iter(lints.into_iter());
         assert_eq!(messages.to_string(), String::from("abc\n123"));
