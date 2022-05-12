@@ -259,11 +259,6 @@ impl Engine {
             .filter(|asset| !asset.path().target().exists())
             .collect::<HtmlAssets>();
 
-        for a in &missing_assets {
-            if a.path().target().to_string().contains("site.css") {
-                dbg!(&a);
-            }
-        }
         // run pipelines
         step::run_pipelines(self, &missing_assets)
             .wrap_err("Failed to run pipelines during site build")?
@@ -790,7 +785,7 @@ doc2"#;
         let paths = crate::test::default_test_paths(&tree);
 
         let rules = r#"
-                rules.mount("wwwroot", "target");
+                rules.mount("wwwroot");
             "#;
 
         let rule_script = tree.path().join("rules.rhai");
@@ -809,6 +804,50 @@ doc2"#;
             assert!(file_1.exists());
 
             let mut file_2 = tree.path().join("target");
+            file_2.push("inner");
+            file_2.push("file_2");
+            assert!(file_2.exists());
+        }
+    }
+
+    #[test]
+    fn copies_mounts_inner() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {},
+          src: {},
+          wwwroot: {
+              "file_1": "data",
+              inner: {
+                  "file_2": "data"
+              }
+          },
+          syntax_themes: {}
+        };
+
+        let paths = crate::test::default_test_paths(&tree);
+
+        let rules = r#"
+                rules.mount("wwwroot", "inner");
+            "#;
+
+        let rule_script = tree.path().join("rules.rhai");
+        std::fs::write(&rule_script, rules).unwrap();
+
+        let engine = Engine::new(paths).unwrap();
+        engine.build_site().expect("failed to build site");
+
+        {
+            let mut wwwroot = tree.path().join("target/inner");
+            wwwroot.push("wwwroot");
+            assert!(!wwwroot.exists());
+
+            let mut file_1 = tree.path().join("target/inner");
+            file_1.push("file_1");
+            assert!(file_1.exists());
+
+            let mut file_2 = tree.path().join("target/inner");
             file_2.push("inner");
             file_2.push("file_2");
             assert!(file_2.exists());

@@ -112,7 +112,7 @@ pub fn mount_directories<'a, M: Iterator<Item = &'a Mount>>(mounts: M) -> Result
     use fs_extra::dir::CopyOptions;
     for mount in mounts {
         trace!(mount=?mount, "mounting");
-        std::fs::create_dir_all(mount.target()).wrap_err_with(|| {
+        crate::util::make_parent_dirs(mount.target()).wrap_err_with(|| {
             format!(
                 "Failed to create parent directories at '{}' while processing mounts",
                 mount.target()
@@ -177,30 +177,6 @@ pub fn run_pipelines<'a>(
             if pipeline.is_match(asset.uri().as_str()) {
                 // asset has an associate pipeline, so we won't report an error
                 asset_has_pipeline = true;
-
-                // create parent directories
-                {
-                    let asset_uri = asset.uri();
-                    let relative_asset = &asset_uri.as_str()[1..];
-                    // Make a new target in order to create directories for the asset.
-                    let mut target_dir = PathBuf::from(engine.paths().output_dir());
-                    target_dir.push(relative_asset);
-
-                    let target_dir = target_dir.parent().expect("should have parent directory");
-                    let target_dir = AbsPath::new(
-                        engine
-                            .paths()
-                            .absolute_output_dir()
-                            .join(&RelPath::new(target_dir)?),
-                    )
-                    .wrap_err("Failed to create target directory prior to pipeline processing")?;
-                    crate::util::make_parent_dirs(&target_dir).wrap_err_with(|| {
-                        format!(
-                            "Failed creating parent directories at '{}' prior to running pipeline",
-                            target_dir
-                        )
-                    })?;
-                }
 
                 pipeline.run(asset.uri()).wrap_err_with(|| {
                     format!("Failed to run pipeline on asset '{}'", asset.uri())
