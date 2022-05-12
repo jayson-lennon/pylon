@@ -29,8 +29,9 @@ pub fn gen_temp_file() -> Result<NamedTempFile> {
         .with_context(|| "failed creating temporary file for shell processing".to_string())
 }
 
+#[instrument]
 pub fn make_parent_dirs(dir: &AbsPath) -> Result<()> {
-    trace!("create parent directories");
+    trace!(target=?dir, "create parent directories");
     std::fs::create_dir_all(dir)
         .wrap_err_with(|| format!("Failed to create parent directories from '{}'", dir))
 }

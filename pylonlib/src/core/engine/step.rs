@@ -63,12 +63,20 @@ pub mod report {
     }
 }
 
-pub fn find_unpipelined_assets(not_pipelined: HashSet<&HtmlAsset>) -> Result<HashSet<&HtmlAsset>> {
-    Ok(not_pipelined
+pub mod filter {
+    use crate::discover::html_asset::HtmlAsset;
+
+    pub fn not_on_disk(asset: &HtmlAsset) -> bool {
+        !asset.path().target().exists()
+    }
+}
+
+pub fn find_unpipelined_assets(not_pipelined: HashSet<&HtmlAsset>) -> HashSet<&HtmlAsset> {
+    not_pipelined
         .iter()
         .copied()
         .filter(|asset| !asset.path().target().exists())
-        .collect::<HashSet<_>>())
+        .collect::<HashSet<_>>()
 }
 
 pub fn run_lints<'a, P: Iterator<Item = &'a Page>>(
@@ -236,10 +244,7 @@ pub fn build_page_store(
     Ok(page_store)
 }
 
-pub fn build_asset_requirement_list<
-    'a,
-    F: Iterator<Item = &'a CheckedFilePath<pathmarker::Html>>,
->(
+pub fn build_required_asset_list<'a, F: Iterator<Item = &'a CheckedFilePath<pathmarker::Html>>>(
     engine: &Engine,
     files: F,
 ) -> Result<HtmlAssets> {

@@ -92,6 +92,10 @@ impl CheckedUri {
     pub fn to_sys_path(&self, root: &AbsPath, base: &RelPath) -> Result<SysPath> {
         self.uri.to_sys_path(root, base)
     }
+
+    pub fn as_unchecked(&self) -> &Uri {
+        &self.uri
+    }
 }
 
 impl From<CheckedFilePath<pathmarker::Html>> for CheckedUri {

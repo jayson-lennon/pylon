@@ -10,6 +10,7 @@ use crate::{RelPath, Result};
 
 use tokio::runtime::Handle;
 use tracing::{error, trace, warn};
+use typed_uri::Uri;
 
 use super::fswatcher::FilesystemUpdateEvents;
 
@@ -58,6 +59,7 @@ pub enum EngineMsg {
     /// Renders a page and then returns it on the channel supplied in
     /// the request.
     RenderPage(EngineRequest<SearchKey, Result<Option<RenderedPage>>>),
+    ProcessPipelines(EngineRequest<Uri, Result<()>>),
     ProcessMounts(EngineRequest<(), Result<()>>),
     /// Quits the application
     Quit,
@@ -191,7 +193,16 @@ impl EngineBroker {
                         }
                         EngineMsg::RenderPage(chan) => {
                             respond_sync!(chan, &broker.handle(), {
-                                handle_msg::render(&engine, chan.inner(), broker.render_behavior)
+                                handle_msg::render_page(
+                                    &engine,
+                                    chan.inner(),
+                                    broker.render_behavior,
+                                )
+                            });
+                        }
+                        EngineMsg::ProcessPipelines(chan) => {
+                            respond_sync!(chan, &broker.handle(), {
+                                handle_msg::process_pipelines(&engine, &chan.inner)
                             });
                         }
 
@@ -224,10 +235,12 @@ impl EngineBroker {
 }
 
 mod handle_msg {
-    use std::ffi::OsStr;
+    use std::{collections::HashSet, ffi::OsStr};
 
     use eyre::{eyre, WrapErr};
+    use tap::Pipe;
     use tracing::{error, instrument, trace};
+    use typed_uri::Uri;
 
     use crate::{
         core::{
@@ -236,6 +249,7 @@ mod handle_msg {
             Page,
         },
         devserver::broker::RenderBehavior,
+        discover::html_asset::{HtmlAssets, MissingAssetsError},
         AbsPath, CheckedFile, RelPath, Result, SysPath,
     };
 
@@ -245,7 +259,40 @@ mod handle_msg {
         step::mount_directories(engine.rules().mounts())
     }
 
-    pub fn render<S: AsRef<str> + std::fmt::Debug>(
+    pub fn process_pipelines(engine: &Engine, uri: &Uri) -> Result<()> {
+        let sys_path = uri
+            .to_sys_path(engine.paths().project_root(), engine.paths().output_dir())
+            .wrap_err_with(|| format!("Failed to generate SysPath from {}", uri))?;
+
+        let html_path = sys_path.to_checked_file()?;
+
+        let missing_assets = step::build_required_asset_list(engine, std::iter::once(&html_path))
+            .map(|mut assets| {
+                assets.drop_offsite();
+                assets
+            })
+            .wrap_err_with(|| format!("Failed find assets in file '{}'", &html_path))?
+            .into_iter()
+            .filter(step::filter::not_on_disk)
+            .collect::<HtmlAssets>();
+
+        let missing_assets = step::run_pipelines(engine, &missing_assets)
+            .wrap_err("Failed to run pipelines in dev server")?
+            .into_iter()
+            .filter(|asset| step::filter::not_on_disk(*asset))
+            .collect::<HashSet<_>>();
+
+        if !missing_assets.is_empty() {
+            return Err(eyre!(MissingAssetsError::from_iter(
+                missing_assets
+                    .iter()
+                    .map(|asset| asset.uri().as_unchecked())
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn render_page<S: AsRef<str> + std::fmt::Debug>(
         engine: &Engine,
         search_key: S,
         render_behavior: RenderBehavior,
@@ -270,17 +317,27 @@ mod handle_msg {
 
                 let rendered_page = rendered_collection.into_iter().next().unwrap();
                 let html_path = page.target().to_checked_file()?;
-                let assets =
-                    step::build_asset_requirement_list(engine, std::iter::once(&html_path))
+
+                let missing_assets =
+                    step::build_required_asset_list(engine, std::iter::once(&html_path))
                         .wrap_err("Failed to discover HTML assets during single page render")
                         .map(|mut assets| {
                             assets.drop_offsite();
                             assets
                         })?;
-                step::run_pipelines(engine, &assets)
-                    .wrap_err("Failed to run pipelines during single page render")
-                    .and_then(step::find_unpipelined_assets)
-                    .and_then(step::report::missing_assets)?;
+                let missing_assets = step::run_pipelines(engine, &missing_assets)
+                    .wrap_err("Failed to run pipelines during single page render")?
+                    .into_iter()
+                    .filter(|asset| step::filter::not_on_disk(*asset))
+                    .collect::<HashSet<_>>();
+
+                if !missing_assets.is_empty() {
+                    return Err(eyre!(MissingAssetsError::from_iter(
+                        missing_assets
+                            .iter()
+                            .map(|asset| asset.uri().as_unchecked())
+                    )));
+                }
 
                 Ok(Some(rendered_page))
             }
