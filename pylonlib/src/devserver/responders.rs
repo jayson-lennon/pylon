@@ -132,7 +132,17 @@ pub async fn try_rendered_file<S: AsRef<str>>(
 
     trace!("try to serve rendered file");
 
-    let (send, recv) = EngineRequest::new(SearchKey::from(format!("/{}", path.as_ref())));
+    let path = path.as_ref();
+
+    let search_key = {
+        if path.starts_with('/') {
+            SearchKey::from(path)
+        } else {
+            SearchKey::from(format!("/{}", path))
+        }
+    };
+
+    let (send, recv) = EngineRequest::new(search_key);
 
     broker.send_engine_msg(EngineMsg::RenderPage(send)).await?;
     recv.recv().await?
