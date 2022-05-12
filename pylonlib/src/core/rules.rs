@@ -183,7 +183,7 @@ pub mod script {
                 parsed_ops.push(op);
             }
 
-            let base_dir = if base_dir.starts_with("/") {
+            let base_dir = if base_dir.starts_with('/') {
                 BaseDir::RelativeToRoot(AbsPath::from_absolute(base_dir))
             } else {
                 BaseDir::RelativeToDoc(RelPath::from_relative(base_dir))
@@ -270,8 +270,16 @@ pub mod script {
                 EvalAltResult::ErrorSystem("src dir must be relative: {}".into(), e.into())
             })?;
 
+            let target = {
+                if target.starts_with('/') {
+                    target.strip_prefix('/').unwrap()
+                } else {
+                    target
+                }
+            };
+
             let target = &crate::RelPath::new(target).map_err(|e| {
-                EvalAltResult::ErrorSystem("target dir must be relative: {}".into(), e.into())
+                EvalAltResult::ErrorSystem("error parsing target directory: {}".into(), e.into())
             })?;
 
             rules.add_mount(src, target);
@@ -283,7 +291,10 @@ pub mod script {
             trace!("add mount");
 
             let src = &crate::RelPath::new(src).map_err(|e| {
-                EvalAltResult::ErrorSystem("src dir must be relative: {}".into(), e.into())
+                EvalAltResult::ErrorSystem(
+                    "error parsing source directory for mount: {}".into(),
+                    e.into(),
+                )
             })?;
 
             rules.add_mount(src, &RelPath::from_relative(""));
