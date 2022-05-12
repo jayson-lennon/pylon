@@ -24,10 +24,15 @@ pub struct Mount {
 }
 
 impl Mount {
-    pub fn new(project_root: &AbsPath, src: &RelPath, target: &RelPath) -> Self {
+    pub fn new(
+        project_root: &AbsPath,
+        output_dir: &RelPath,
+        src: &RelPath,
+        target: &RelPath,
+    ) -> Self {
         Self {
             src: project_root.join(src),
-            target: project_root.join(target),
+            target: project_root.join(output_dir).join(target),
         }
     }
     pub fn src(&self) -> &AbsPath {
@@ -98,8 +103,12 @@ impl Rules {
     }
 
     pub fn add_mount(&mut self, src: &RelPath, target: &RelPath) {
-        self.mounts
-            .push(Mount::new(&self.engine_paths.project_root(), src, target));
+        self.mounts.push(Mount::new(
+            self.engine_paths.project_root(),
+            self.engine_paths.output_dir(),
+            src,
+            target,
+        ));
     }
 
     pub fn mounts(&self) -> impl Iterator<Item = &Mount> {
@@ -261,7 +270,7 @@ pub mod script {
                 EvalAltResult::ErrorSystem("target dir must be relative: {}".into(), e.into())
             })?;
 
-            rules.add_mount(&src, &target);
+            rules.add_mount(src, target);
             Ok(())
         }
 
