@@ -258,8 +258,12 @@ pub mod script {
             Ok(())
         }
 
-        #[rhai_fn(return_raw)]
-        pub fn mount(rules: &mut Rules, src: &str, target: &str) -> Result<(), Box<EvalAltResult>> {
+        #[rhai_fn(return_raw, name = "mount")]
+        pub fn mount_at(
+            rules: &mut Rules,
+            src: &str,
+            target: &str,
+        ) -> Result<(), Box<EvalAltResult>> {
             trace!("add mount");
 
             let src = &crate::RelPath::new(src).map_err(|e| {
@@ -271,6 +275,18 @@ pub mod script {
             })?;
 
             rules.add_mount(src, target);
+            Ok(())
+        }
+
+        #[rhai_fn(return_raw, name = "mount")]
+        pub fn mount(rules: &mut Rules, src: &str) -> Result<(), Box<EvalAltResult>> {
+            trace!("add mount");
+
+            let src = &crate::RelPath::new(src).map_err(|e| {
+                EvalAltResult::ErrorSystem("src dir must be relative: {}".into(), e.into())
+            })?;
+
+            rules.add_mount(src, &RelPath::from_relative(""));
             Ok(())
         }
 
@@ -313,10 +329,18 @@ pub mod script {
         }
 
         #[test]
-        fn adds_mount() {
+        fn adds_mount_at_target() {
             let (paths, tree) = crate::test::simple_init();
             let mut rules = Rules::new(paths);
-            mount(&mut rules, "src", "target");
+            mount_at(&mut rules, "src", "target");
+            assert_eq!(rules.mounts().count(), 1);
+        }
+
+        #[test]
+        fn adds_mount_at_root() {
+            let (paths, tree) = crate::test::simple_init();
+            let mut rules = Rules::new(paths);
+            mount(&mut rules, "src");
             assert_eq!(rules.mounts().count(), 1);
         }
 
