@@ -144,12 +144,16 @@ pub fn serve_rendered_file<S: AsRef<str>>(html: S) -> Response {
         .body(html_with_live_reload_script(html.as_ref()))
 }
 
-pub async fn run_pipelines<S: Into<String>>(_broker: &EngineBroker, _path: S) -> Result<()> {
-    // let (send, _recv) = EngineRequest::new(path.into());
-    todo!();
-    // broker
-    //     .send_engine_msg(EngineMsg::ProcessPipelines(send))
-    //     .await?;
+pub async fn run_pipelines<S: AsRef<str>>(broker: &EngineBroker, path: S) -> Result<()> {
+    use super::broker::{EngineMsg, EngineRequest};
+    use typed_uri::Uri;
+
+    let uri = Uri::new(format!("/{}", path.as_ref())).unwrap();
+
+    let (send, _recv) = EngineRequest::new(uri);
+    broker
+        .send_engine_msg(EngineMsg::ProcessPipelines(send))
+        .await?;
     Ok(())
 }
 

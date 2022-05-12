@@ -248,7 +248,7 @@ impl Engine {
         // build list of assets needed for the site (stuff linked in HTML pages)
         let missing_assets = step::get_all_html_output_files(self)
             .wrap_err("Failed to discover HTML files during site build")
-            .and_then(|files| step::build_asset_requirement_list(self, files.iter()))
+            .and_then(|files| step::build_required_asset_list(self, files.iter()))
             .wrap_err("Failed to discover HTML assets during site build")
             .map(|mut assets| {
                 // We don't care about links that exist offsite (for now)
@@ -266,9 +266,9 @@ impl Engine {
         }
         // run pipelines
         step::run_pipelines(self, &missing_assets)
-            .wrap_err("Failed to run pipelines during site build")
-            .and_then(step::find_unpipelined_assets)
-            .and_then(step::report::missing_assets)?;
+            .wrap_err("Failed to run pipelines during site build")?
+            .pipe(step::find_unpipelined_assets)
+            .pipe(step::report::missing_assets)?;
 
         Ok(())
     }

@@ -234,6 +234,7 @@ impl Pipeline {
                                 "Failed to convert asset URI to SysPath during pipeline processing",
                             )?
                             .to_absolute_path();
+                        dbg!(&target);
 
                         crate::util::make_parent_dirs(&target.pop()).wrap_err_with(|| {
                             format!(

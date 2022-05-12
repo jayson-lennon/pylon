@@ -7,6 +7,7 @@ use typed_uri::{CheckedUri, Uri};
 use std::sync::Arc;
 
 use serde::Serialize;
+use thiserror::Error;
 use tracing::instrument;
 
 use crate::core::engine::EnginePaths;
@@ -15,6 +16,32 @@ use crate::{discover, pathmarker, CheckedFile, CheckedFilePath, RelPath, Result,
 use crate::discover::AssetPath;
 
 use super::UrlType;
+
+#[derive(Error, Debug)]
+#[error("missing assets: {missing:?}")]
+pub struct MissingAssetsError {
+    missing: Vec<Uri>,
+}
+
+impl FromIterator<Uri> for MissingAssetsError {
+    fn from_iter<I: IntoIterator<Item = Uri>>(iter: I) -> Self {
+        let mut uris = vec![];
+        for uri in iter {
+            uris.push(uri);
+        }
+        Self { missing: uris }
+    }
+}
+
+impl<'a> FromIterator<&'a Uri> for MissingAssetsError {
+    fn from_iter<I: IntoIterator<Item = &'a Uri>>(iter: I) -> Self {
+        let mut uris = vec![];
+        for uri in iter {
+            uris.push(uri.clone());
+        }
+        Self { missing: uris }
+    }
+}
 
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone)]
