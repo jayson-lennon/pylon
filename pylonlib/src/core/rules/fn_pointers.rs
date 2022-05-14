@@ -68,6 +68,14 @@ mod test {
     use crate::core::rules::matcher::test::make_matcher;
 
     #[test]
+    fn globstore_default() {
+        slotmap::new_key_type! {
+            pub struct TestKey;
+        }
+        let store = GlobStore::<TestKey, usize>::default();
+    }
+
+    #[test]
     fn finds_pointer_keys() {
         slotmap::new_key_type! {
             pub struct TestKey;
