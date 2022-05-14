@@ -137,7 +137,7 @@ impl Pipeline {
         let epaths = self.engine_paths();
 
         let target_path = asset_uri
-            .to_sys_path(epaths.project_root(), epaths.output_dir())
+            .to_target_sys_path(epaths.project_root(), epaths.output_dir())
             .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?;
 
         for op in &self.ops {
@@ -229,7 +229,7 @@ impl Pipeline {
 
                     let command = {
                         let target = asset_uri
-                            .to_sys_path(epaths.project_root(), epaths.output_dir())
+                            .to_target_sys_path(epaths.project_root(), epaths.output_dir())
                             .wrap_err(
                                 "Failed to convert asset URI to SysPath during pipeline processing",
                             )?
