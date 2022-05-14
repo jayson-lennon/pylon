@@ -78,6 +78,17 @@ mod test {
     }
 
     #[test]
+    fn as_sys_path() {
+        let tree = temptree! {
+            "test": ""
+        };
+        let root = AbsPath::new(tree.path()).unwrap();
+        let sys_path = SysPath::new(&root, rel!(""), rel!("test"));
+        let file_path = CheckedFilePath::<pathmarker::Any>::new(&sys_path).unwrap();
+        assert_eq!(file_path.as_sys_path(), &sys_path);
+    }
+
+    #[test]
     fn new_tryfrom_sys_path() {
         let tree = temptree! {
             "test": ""
