@@ -193,14 +193,6 @@ impl RenderedPageCollection {
     pub fn iter(&self) -> std::slice::Iter<'_, RenderedPage> {
         self.pages.iter()
     }
-
-    pub fn as_slice(&self) -> &[RenderedPage] {
-        self.pages.as_slice()
-    }
-
-    pub fn as_mut_slice(&mut self) -> &mut [RenderedPage] {
-        self.pages.as_mut_slice()
-    }
 }
 
 impl IntoIterator for RenderedPageCollection {
@@ -232,4 +224,102 @@ fn get_overwritten_identifiers(contexts: &[ContextItem]) -> HashSet<String> {
     }
 
     overwritten_ids
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(warnings, unused)]
+
+    use super::*;
+    use crate::core::page::page::test::{doc::MINIMAL, new_page, new_page_with_tree};
+    use crate::core::PageStore;
+    use crate::test::{abs, rel};
+    use std::result::Result;
+    use temptree::temptree;
+
+    slotmap::new_key_type! {
+        pub struct TestKey;
+    }
+
+    pub fn new_rendered_page(content: &str) -> RenderedPage {
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {
+                "default.tera": "",
+                "empty.tera": "",
+            },
+            target: {
+                "test.html": "",
+            },
+            src: {
+                "test.md": "",
+            },
+            syntax_themes: {},
+        };
+
+        let page1 = new_page_with_tree(&tree, &tree.path().join("src/test.md"), MINIMAL).unwrap();
+
+        let mut store = PageStore::new();
+        let key1 = store.insert(page1);
+
+        let sys_path = SysPath::new(abs!("/root"), rel!(""), rel!("test.html"));
+
+        RenderedPage::new(key1, content, &sys_path)
+    }
+
+    #[test]
+    fn rendered_page_collection_new() {
+        let collection = RenderedPageCollection::new();
+    }
+
+    #[test]
+    fn rendered_page_collection_push() {
+        let mut collection = RenderedPageCollection::new();
+        let page = new_rendered_page("");
+        collection.push(page);
+        assert_eq!(collection.pages.len(), 1);
+    }
+
+    #[test]
+    fn rendered_page_collection_iter() {
+        let mut collection = RenderedPageCollection::new();
+        let page = new_rendered_page("");
+        collection.push(page);
+        assert_eq!(collection.iter().count(), 1);
+    }
+
+    #[test]
+    fn rendered_page_collection_into_iter() {
+        let mut collection = RenderedPageCollection::new();
+        let page = new_rendered_page("");
+        collection.push(page);
+        assert_eq!(collection.into_iter().count(), 1);
+    }
+
+    #[test]
+    fn rendered_page_collection_into_iter_ref() {
+        let mut collection = RenderedPageCollection::new();
+        let page = new_rendered_page("");
+        collection.push(page);
+        let iter = &collection.into_iter();
+    }
+
+    #[test]
+    fn get_overwritten_ids() {
+        let contexts = vec![ContextItem::new("ok", serde_json::from_str("{}").unwrap())];
+        let ids = get_overwritten_identifiers(&contexts);
+        assert!(ids.is_empty());
+    }
+
+    #[test]
+    fn get_overwritten_ids_finds_reserved() {
+        let contexts = vec![
+            ContextItem::new("site", serde_json::from_str("{}").unwrap()),
+            ContextItem::new("content", serde_json::from_str("{}").unwrap()),
+            ContextItem::new("page_store", serde_json::from_str("{}").unwrap()),
+            ContextItem::new("global", serde_json::from_str("{}").unwrap()),
+        ];
+        let ids = get_overwritten_identifiers(&contexts);
+        assert_eq!(ids.len(), 4);
+    }
 }
