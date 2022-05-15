@@ -347,27 +347,6 @@ mod test {
         path.try_into().expect("failed to make checked path")
     }
 
-    // #[test]
-    // #[ignore]
-    // fn check_artifacts() {
-    //     let tmp_dir = temptree! {
-    //         "empty": "",
-    //     };
-    //     let tmp_dir = tmp_dir
-    //         .path()
-    //         .parent()
-    //         .expect("temp file should have a parent dir");
-    //     let entries = std::fs::read_dir(tmp_dir).unwrap();
-    //     for entry in entries {
-    //         let entry = entry.unwrap();
-    //         let file_name = entry.file_name();
-    //         let file_name = file_name.to_string_lossy();
-    //         if file_name.starts_with(TMP_ARTIFACT_PREFIX) {
-    //             panic!("leftover artifact: {:?}", entry.path());
-    //         }
-    //     }
-    // }
-
     #[test]
     fn new_with_ops() {
         let tree = temptree! {

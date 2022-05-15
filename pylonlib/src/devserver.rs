@@ -6,6 +6,7 @@ mod responders;
 pub use broker::EngineBroker;
 use eyre::WrapErr;
 pub use livereload::DevServerMsg;
+pub use responders::{error_page_with_msg, html_with_live_reload_script, page_not_found};
 
 use poem::EndpointExt;
 use std::net::SocketAddr;
