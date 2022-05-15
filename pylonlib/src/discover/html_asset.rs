@@ -262,7 +262,7 @@ where
                     }
                     // relative links need to get converted to absolute links
                     UrlType::Relative(target) => {
-                        let uri = relative_uri_to_absolute_uri(html_path, &target);
+                        let uri = raw_relative_uri_to_checked_uri(html_path, &target);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
                         let html_asset =
                             HtmlAsset::new(&asset_path, tag, &UrlType::Relative(target), html_path);
@@ -278,7 +278,7 @@ where
     Ok(assets)
 }
 
-pub fn relative_uri_to_absolute_uri<S: AsRef<str>>(
+fn raw_relative_uri_to_checked_uri<S: AsRef<str>>(
     html_path: &CheckedFilePath<pathmarker::Html>,
     relative_uri: S,
 ) -> CheckedUri {
@@ -286,6 +286,12 @@ pub fn relative_uri_to_absolute_uri<S: AsRef<str>>(
 
     let mut abs_uri = PathBuf::new();
 
+    // If we get an absolute Uri at this point in the program, we will
+    // just assume that it is correct since we can create a CheckedUri
+    // from an absolute Uri. Leave this `debug_assert` so tests will fail
+    // if we ever use an absolute Uri as this may indicate a problem
+    // with the caller.
+    debug_assert!(!relative_uri.starts_with('/'));
     if relative_uri.starts_with('/') {
         abs_uri.push(&relative_uri);
     } else {
@@ -302,6 +308,10 @@ pub fn relative_uri_to_absolute_uri<S: AsRef<str>>(
 mod test {
 
     #![allow(warnings, unused)]
+
+    use crate::test::{abs, rel};
+    use temptree::temptree;
+    use typed_path::SysPath;
 
     macro_rules! pair {
         ($tagname:literal, $tagsrc:literal, $target:ident) => {
@@ -327,58 +337,219 @@ mod test {
         ]
     }
 
-    // #[test]
-    // fn finds_assets_in_single_file() {
-    //     let tree = temptree! {
-    //       "rules.rhai": "",
-    //       templates: {},
-    //       target: {
-    //           file_path: {
-    //               is: {
-    //                   "index.html": "",
-    //               },
-    //           },
-    //       },
-    //       src: {},
-    //       syntax_themes: {}
-    //     };
-    //     let paths = crate::test::default_test_paths(&tree);
+    #[test]
+    fn finds_absolute_uri_assets() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+            "asset.png": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"<img src="/asset.png">"#;
+        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
 
-    //     let html_path =
-    //         HtmlFilePath::new(paths.clone(), rel!("target/file_path/is/index.html")).unwrap();
-    //     let html = tags("test.png");
-    //     for (tagname, entry) in html {
-    //         let assets = super::find(paths.clone(), &html_path, entry).unwrap();
-    //         let asset = assets.iter().next().unwrap();
-    //         assert_eq!(asset.uri().as_str(), "/file_path/is/test.png");
-    //         assert_eq!(asset.tag(), tagname);
-    //         assert_eq!(asset.html_path(), &html_path);
-    //     }
-    // }
+        assert_eq!(assets.len(), 1);
 
-    // #[test]
-    // fn finds_assets_in_multiple_files() {
-    //     let tree = temptree! {
-    //       "rules.rhai": "",
-    //       templates: {},
-    //       target: {
-    //           "1.html": r#"<img src="test1.png">"#,
-    //           "2.html": r#"<img src="inner/test2.png">"#,
-    //       },
-    //       src: {},
-    //       syntax_themes: {}
-    //     };
-    //     let paths = crate::test::default_test_paths(&tree);
+        let asset = assets.iter().next().unwrap();
 
-    //     let assets = super::find_all(paths, rel!("target")).expect("failed to find assets");
+        assert_eq!(asset.target.uri().as_str(), "/asset.png");
+    }
 
-    //     assert_eq!(assets.len(), 2);
+    #[test]
+    fn finds_relative_uri_assets() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+            "asset.png": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"<img src="asset.png">"#;
+        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
 
-    //     for asset in &assets {
-    //         if !(asset.uri().as_str() == "/test1.png" || asset.uri().as_str() == "/inner/test2.png")
-    //         {
-    //             panic!("wrong assets in collection");
-    //         }
-    //     }
-    // }
+        assert_eq!(assets.len(), 1);
+
+        let asset = assets.iter().next().unwrap();
+
+        assert_eq!(asset.target.uri().as_str(), "/asset.png");
+    }
+
+    #[test]
+    fn finds_relative_uri_assets_in_subdir() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+            img: {
+                "asset.png": "",
+            },
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"<img src="img/asset.png">"#;
+        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
+
+        assert_eq!(assets.len(), 1);
+
+        let asset = assets.iter().next().unwrap();
+
+        assert_eq!(asset.target.uri().as_str(), "/img/asset.png");
+    }
+
+    #[test]
+    fn finds_absolute_uri_assets_in_subdir() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+            img: {
+                "asset.png": "",
+            },
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"<img src="/img/asset.png">"#;
+        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
+
+        assert_eq!(assets.len(), 1);
+
+        let asset = assets.iter().next().unwrap();
+
+        assert_eq!(asset.target.uri().as_str(), "/img/asset.png");
+    }
+
+    #[test]
+    fn aborts_if_asset_is_missing() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"<img src="/img/asset.png">"#;
+        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
+
+        assert_eq!(assets.len(), 1);
+
+        let asset = assets.iter().next().unwrap();
+
+        assert_eq!(asset.target.uri().as_str(), "/img/asset.png");
+    }
+
+    #[test]
+    fn ignores_offsite_assets() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"<img src="http://example.com/asset.png">"#;
+        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
+
+        assert_eq!(assets.len(), 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn internal_doc_link_abort() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"<img src="@/whoops.md">"#;
+        super::find(paths, &html_path, html);
+    }
+
+    #[test]
+    fn converts_raw_relative_to_checked_uri() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+            "test.txt": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let relative_uri = "test.txt";
+        let uri = super::raw_relative_uri_to_checked_uri(&html_path, relative_uri);
+        assert_eq!(uri.as_str(), "/test.txt");
+    }
+
+    #[test]
+    #[should_panic]
+    fn converting_raw_relative_uri_to_checked_uri_fails_if_given_absolute_uri() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+            "test.txt": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let relative_uri = "/test.txt";
+        super::raw_relative_uri_to_checked_uri(&html_path, relative_uri);
+    }
 }
