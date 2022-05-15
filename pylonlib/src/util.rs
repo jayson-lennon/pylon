@@ -106,6 +106,8 @@ mod test {
     #![allow(warnings, unused)]
 
     use super::*;
+    use crate::test::{abs, rel};
+    use temptree::temptree;
 
     #[test]
     fn glob_try_into_str() {
@@ -145,5 +147,42 @@ mod test {
         let glob = Glob::try_from("*.txt".to_owned()).unwrap();
 
         assert_eq!(glob.glob(), "*.txt");
+    }
+
+    #[test]
+    fn gets_checked_uri_from_sys_path() {
+        let tree = temptree! {
+            dir: {
+                "test.ext": "",
+            }
+        };
+        let root = AbsPath::new(tree.path()).unwrap();
+        let sys_path = SysPath::new(&root, rel!("dir"), rel!("test.ext"));
+        checked_uri_from_sys_path(&sys_path, "/test.href")
+            .expect("failed to create checked Uri from sys path");
+    }
+
+    #[test]
+    fn gets_checked_uri_from_sys_path_fails_when_missing_file() {
+        let tree = temptree! {
+            dir: {}
+        };
+        let root = AbsPath::new(tree.path()).unwrap();
+        let sys_path = SysPath::new(&root, rel!("dir"), rel!("test.ext"));
+        let checked_uri = checked_uri_from_sys_path(&sys_path, "/test.href");
+        assert!(checked_uri.is_err());
+    }
+
+    #[test]
+    fn gets_checked_uri_from_sys_path_fails_with_invalid_uri() {
+        let tree = temptree! {
+            dir: {
+                "test.ext": "",
+            }
+        };
+        let root = AbsPath::new(tree.path()).unwrap();
+        let sys_path = SysPath::new(&root, rel!("dir"), rel!("test.ext"));
+        let checked_uri = checked_uri_from_sys_path(&sys_path, "&^*@%#&^*#^@$");
+        assert!(checked_uri.is_err());
     }
 }
