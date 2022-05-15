@@ -63,6 +63,8 @@ pub enum EngineMsg {
     ProcessMounts(EngineRequest<(), Result<()>>),
     /// Quits the application
     Quit,
+
+    Ping,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -221,8 +223,10 @@ impl EngineBroker {
                             broker.send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
                         }
                         EngineMsg::Quit => {
+                            dbg!("quit");
                             break;
                         }
+                        EngineMsg::Ping => {}
                     },
                     Err(e) => panic!("problem receiving from engine channel: {e}"),
                 }

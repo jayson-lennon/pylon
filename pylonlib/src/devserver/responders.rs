@@ -36,7 +36,7 @@ fn error_page() -> &'static str {
     include_str!("error.html")
 }
 
-fn error_page_with_msg<S: AsRef<str>>(msg: S) -> String {
+pub fn error_page_with_msg<S: AsRef<str>>(msg: S) -> String {
     let html = error_page().replace("{{ERROR}}", msg.as_ref());
     format!(
         r#"{html}
@@ -48,11 +48,11 @@ fn error_page_with_msg<S: AsRef<str>>(msg: S) -> String {
     )
 }
 
-fn page_not_found() -> String {
+pub fn page_not_found() -> String {
     error_page_with_msg("404")
 }
 
-fn html_with_live_reload_script(html: &str) -> String {
+pub fn html_with_live_reload_script(html: &str) -> String {
     format!(
         r#"{html}
         <script>{}</script>
