@@ -5,4 +5,4 @@ build: clean
   cargo build
 
 coverage:
-  cargo tarpaulin --out Html
+  cargo tarpaulin --all --out Html
