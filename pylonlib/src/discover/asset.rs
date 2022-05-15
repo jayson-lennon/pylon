@@ -42,6 +42,33 @@ impl Eq for AssetPath {}
 
 #[cfg(test)]
 mod test {
-    
     #![allow(warnings, unused)]
+
+    use crate::test::{abs, rel};
+    use temptree::temptree;
+    use typed_path::SysPath;
+
+    #[test]
+    fn gets_html_src_file() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+            "asset.png": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"<img src="asset.png">"#;
+        let assets = crate::discover::html_asset::find(paths, &html_path, html)
+            .expect("failed to find assets");
+
+        let asset = assets.iter().next().unwrap();
+        assert_eq!(asset.html_src_file(), &html_path);
+    }
 }

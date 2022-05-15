@@ -213,7 +213,6 @@ pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<
     Ok(all_assets)
 }
 
-/// This function rewrites the asset location if applicable
 pub fn find<S>(
     engine_paths: Arc<EnginePaths>,
     html_path: &CheckedFilePath<pathmarker::Html>,
@@ -338,6 +337,39 @@ mod test {
     }
 
     #[test]
+    fn finds_all_tags() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "test.html": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
+            .try_into()
+            .unwrap();
+        let html = r#"
+            <a href="/a.file"></a>
+            <audio src="/audio.file"></audio>
+            <embed src="/embed.file" />
+            <img src="/img.file" />
+            <link href="/link.file">
+            <object data="/object.file"></object>
+            <script src="/script.file"></script>
+            <source src="/source.file">
+            <source srcset="/sourceset.file">
+            <track src="/track.file" />
+            <video src="/video.file"></video>
+"#;
+        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
+
+        assert_eq!(assets.len(), 11);
+    }
+
+    #[test]
     fn finds_absolute_uri_assets() {
         let tree = temptree! {
           "rules.rhai": "",
@@ -427,31 +459,6 @@ mod test {
             img: {
                 "asset.png": "",
             },
-          },
-          src: {},
-          syntax_themes: {}
-        };
-        let paths = crate::test::default_test_paths(&tree);
-        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
-            .unwrap();
-        let html = r#"<img src="/img/asset.png">"#;
-        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
-
-        assert_eq!(assets.len(), 1);
-
-        let asset = assets.iter().next().unwrap();
-
-        assert_eq!(asset.target.uri().as_str(), "/img/asset.png");
-    }
-
-    #[test]
-    fn aborts_if_asset_is_missing() {
-        let tree = temptree! {
-          "rules.rhai": "",
-          templates: {},
-          target: {
-            "test.html": "",
           },
           src: {},
           syntax_themes: {}
