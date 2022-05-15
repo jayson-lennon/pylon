@@ -1848,9 +1848,12 @@ dependencies = [
  "parking_lot",
  "pylonlib",
  "rhai",
+ "tempfile",
+ "temptree",
  "tracing",
  "tracing-error",
  "tracing-subscriber",
+ "typed_path",
 ]
 
 [[package]]
