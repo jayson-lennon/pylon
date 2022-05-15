@@ -135,7 +135,7 @@ fn render_code_block<S: AsRef<str>>(
         let syntax = highlighter
             .get_syntax_by_token(lang)
             .ok_or_else(|| eyre!("unable to find theme for syntax {}", lang))?;
-        Ok(highlighter.highlight(syntax, content))
+        highlighter.highlight(syntax, content)
     }
 }
 

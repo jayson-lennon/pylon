@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use syntect::highlighting::ThemeSet;
 use syntect::html::ClassStyle;
 use syntect::html::{css_for_theme_with_class_style, line_tokens_to_classed_spans};
@@ -53,19 +54,23 @@ impl SyntectHighlighter {
         let theme = ThemeSet::get_theme(path.as_ref())?;
         let theme = CssTheme {
             path: path.as_ref().to_path_buf(),
-            css: css_for_theme_with_class_style(&theme, THEME_CLASS_STYLE),
+            css: css_for_theme_with_class_style(&theme, THEME_CLASS_STYLE)?,
         };
         Ok(theme)
     }
 
-    pub fn highlight<S: AsRef<str>>(&self, syntax: &SyntaxReference, code: S) -> Vec<String> {
+    pub fn highlight<S: AsRef<str>>(
+        &self,
+        syntax: &SyntaxReference,
+        code: S,
+    ) -> Result<Vec<String>> {
         let mut highlighter = ClassHighlighter::new(syntax, &self.syntax_set);
 
         let lines = LinesWithEndings::from(code.as_ref());
         lines
             .into_iter()
             .map(|line| highlighter.highlight_line(line))
-            .collect()
+            .try_collect()
     }
 }
 
@@ -93,17 +98,18 @@ impl<'s> ClassHighlighter<'s> {
     ///
     /// *Note:* This function requires `line` to include a newline at the end and
     /// also use of the `load_defaults_newlines` version of the syntaxes.
-    pub fn highlight_line(&mut self, line: &str) -> String {
+    pub fn highlight_line(&mut self, line: &str) -> Result<String> {
         debug_assert!(line.ends_with('\n'));
-        let parsed_line = self.parse_state.parse_line(line, self.syntax_set);
+        let parsed_line = self.parse_state.parse_line(line, self.syntax_set)?;
         let (formatted_line, delta) = line_tokens_to_classed_spans(
             line,
             parsed_line.as_slice(),
             THEME_CLASS_STYLE,
             &mut self.scope_stack,
-        );
+        )?;
         self.open_spans += delta;
-        formatted_line
+
+        Ok(formatted_line)
     }
 
     /// Close all open `<span>` tags and return the finished HTML string
