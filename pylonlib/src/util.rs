@@ -1,6 +1,6 @@
 use eyre::WrapErr;
 use typed_path::{CheckedFilePath, SysPath};
-use typed_uri::{CheckedUri, Uri};
+use typed_uri::{BasedUri, Uri};
 
 use crate::{AbsPath, Result};
 use std::path::Path;
@@ -36,7 +36,7 @@ pub fn make_parent_dirs(dir: &AbsPath) -> Result<()> {
         .wrap_err_with(|| format!("Failed to create parent directories from '{}'", dir))
 }
 
-pub fn checked_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Result<CheckedUri> {
+pub fn based_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Result<BasedUri> {
     let uri = uri.into();
     let checked_html = CheckedFilePath::try_from(path).wrap_err_with(|| {
         format!(
@@ -50,7 +50,7 @@ pub fn checked_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Res
             uri
         )
     })?;
-    Ok(CheckedUri::new(&checked_html, &uri))
+    Ok(BasedUri::new(&checked_html, &uri))
 }
 
 #[derive(Debug)]
@@ -150,7 +150,7 @@ mod test {
     }
 
     #[test]
-    fn gets_checked_uri_from_sys_path() {
+    fn gets_based_uri_from_sys_path() {
         let tree = temptree! {
             dir: {
                 "test.ext": "",
@@ -158,23 +158,23 @@ mod test {
         };
         let root = AbsPath::new(tree.path()).unwrap();
         let sys_path = SysPath::new(&root, rel!("dir"), rel!("test.ext"));
-        checked_uri_from_sys_path(&sys_path, "/test.href")
+        based_uri_from_sys_path(&sys_path, "/test.href")
             .expect("failed to create checked Uri from sys path");
     }
 
     #[test]
-    fn gets_checked_uri_from_sys_path_fails_when_missing_file() {
+    fn gets_based_uri_from_sys_path_fails_when_missing_file() {
         let tree = temptree! {
             dir: {}
         };
         let root = AbsPath::new(tree.path()).unwrap();
         let sys_path = SysPath::new(&root, rel!("dir"), rel!("test.ext"));
-        let checked_uri = checked_uri_from_sys_path(&sys_path, "/test.href");
-        assert!(checked_uri.is_err());
+        let based_uri = based_uri_from_sys_path(&sys_path, "/test.href");
+        assert!(based_uri.is_err());
     }
 
     #[test]
-    fn gets_checked_uri_from_sys_path_fails_with_invalid_uri() {
+    fn gets_based_uri_from_sys_path_fails_with_invalid_uri() {
         let tree = temptree! {
             dir: {
                 "test.ext": "",
@@ -182,7 +182,7 @@ mod test {
         };
         let root = AbsPath::new(tree.path()).unwrap();
         let sys_path = SysPath::new(&root, rel!("dir"), rel!("test.ext"));
-        let checked_uri = checked_uri_from_sys_path(&sys_path, "&^*@%#&^*#^@$");
-        assert!(checked_uri.is_err());
+        let based_uri = based_uri_from_sys_path(&sys_path, "&^*@%#&^*#^@$");
+        assert!(based_uri.is_err());
     }
 }

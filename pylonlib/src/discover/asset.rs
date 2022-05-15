@@ -1,5 +1,5 @@
 use derivative::Derivative;
-use typed_uri::CheckedUri;
+use typed_uri::BasedUri;
 
 use crate::core::engine::GlobalEnginePaths;
 use crate::{pathmarker, Result};
@@ -11,11 +11,11 @@ use serde::Serialize;
 #[derivative(Debug, Clone, Hash, PartialEq)]
 pub struct AssetPath {
     target: AbsPath,
-    uri: CheckedUri,
+    uri: BasedUri,
 }
 
 impl AssetPath {
-    pub fn new(engine_paths: GlobalEnginePaths, uri: &CheckedUri) -> Result<Self> {
+    pub fn new(engine_paths: GlobalEnginePaths, uri: &BasedUri) -> Result<Self> {
         let target = RelPath::new(&uri.as_str()[1..])?;
         let target = engine_paths.absolute_output_dir().join(&target);
 
@@ -29,7 +29,7 @@ impl AssetPath {
         self.uri.html_src()
     }
 
-    pub fn uri(&self) -> &CheckedUri {
+    pub fn uri(&self) -> &BasedUri {
         &self.uri
     }
 
