@@ -72,7 +72,7 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
                         }
                         // relative links need to get converted to absolute links
                         UrlType::Relative(uri) => {
-                            let uri = crate::util::checked_uri_from_sys_path(&page.target(), uri)?;
+                            let uri = crate::util::based_uri_from_sys_path(&page.target(), uri)?;
                             events.push(Event::Start(Tag::Link(
                                 LinkType::Inline,
                                 CowStr::Boxed(uri.into_boxed_str()),

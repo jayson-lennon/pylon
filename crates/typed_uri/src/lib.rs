@@ -1,6 +1,6 @@
 pub mod uri;
 
-pub use uri::{CheckedUri, Uri};
+pub use uri::{BasedUri, Uri};
 
 pub type Result<T> = eyre::Result<T>;
 

@@ -2,7 +2,7 @@ use derivative::Derivative;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use typed_uri::{CheckedUri, Uri};
+use typed_uri::{BasedUri, Uri};
 
 use std::sync::Arc;
 
@@ -75,7 +75,7 @@ impl HtmlAsset {
         self.tag == tag.as_ref()
     }
 
-    pub fn uri(&self) -> &CheckedUri {
+    pub fn uri(&self) -> &BasedUri {
         self.target.uri()
     }
 
@@ -250,7 +250,7 @@ where
                 match discover::get_url_type(url) {
                     UrlType::Absolute => {
                         let uri = Uri::new(url)?;
-                        let uri = CheckedUri::new(html_path, &uri);
+                        let uri = BasedUri::new(html_path, &uri);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
                         let html_asset =
                             HtmlAsset::new(&asset_path, tag, &UrlType::Absolute, html_path);
@@ -261,7 +261,7 @@ where
                     }
                     // relative links need to get converted to absolute links
                     UrlType::Relative(target) => {
-                        let uri = raw_relative_uri_to_checked_uri(html_path, &target);
+                        let uri = raw_relative_uri_to_based_uri(html_path, &target);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
                         let html_asset =
                             HtmlAsset::new(&asset_path, tag, &UrlType::Relative(target), html_path);
@@ -277,10 +277,10 @@ where
     Ok(assets)
 }
 
-fn raw_relative_uri_to_checked_uri<S: AsRef<str>>(
+fn raw_relative_uri_to_based_uri<S: AsRef<str>>(
     html_path: &CheckedFilePath<pathmarker::Html>,
     relative_uri: S,
-) -> CheckedUri {
+) -> BasedUri {
     let relative_uri = relative_uri.as_ref();
 
     let mut abs_uri = PathBuf::new();
@@ -300,7 +300,7 @@ fn raw_relative_uri_to_checked_uri<S: AsRef<str>>(
     }
 
     let uri = Uri::new(abs_uri.to_string_lossy().to_string()).unwrap();
-    CheckedUri::new(html_path, &uri)
+    BasedUri::new(html_path, &uri)
 }
 
 #[cfg(test)]
@@ -519,7 +519,7 @@ mod test {
     }
 
     #[test]
-    fn converts_raw_relative_to_checked_uri() {
+    fn converts_raw_relative_to_based_uri() {
         let tree = temptree! {
           "rules.rhai": "",
           templates: {},
@@ -535,13 +535,13 @@ mod test {
             .try_into()
             .unwrap();
         let relative_uri = "test.txt";
-        let uri = super::raw_relative_uri_to_checked_uri(&html_path, relative_uri);
+        let uri = super::raw_relative_uri_to_based_uri(&html_path, relative_uri);
         assert_eq!(uri.as_str(), "/test.txt");
     }
 
     #[test]
     #[should_panic]
-    fn converting_raw_relative_uri_to_checked_uri_fails_if_given_absolute_uri() {
+    fn converting_raw_relative_uri_to_based_uri_fails_if_given_absolute_uri() {
         let tree = temptree! {
           "rules.rhai": "",
           templates: {},
@@ -557,6 +557,6 @@ mod test {
             .try_into()
             .unwrap();
         let relative_uri = "/test.txt";
-        super::raw_relative_uri_to_checked_uri(&html_path, relative_uri);
+        super::raw_relative_uri_to_based_uri(&html_path, relative_uri);
     }
 }
