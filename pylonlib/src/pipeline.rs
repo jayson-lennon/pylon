@@ -8,7 +8,7 @@ use std::process::Stdio;
 use std::str::FromStr;
 use tracing::{error, info_span, instrument, trace, trace_span};
 use typed_path::{AbsPath, RelPath};
-use typed_uri::CheckedUri;
+use typed_uri::BasedUri;
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
@@ -118,7 +118,7 @@ impl Pipeline {
         self.target_glob.is_match(asset)
     }
 
-    pub fn run(&self, asset_uri: &CheckedUri) -> Result<()> {
+    pub fn run(&self, asset_uri: &BasedUri) -> Result<()> {
         let mut scratch_files = vec![];
         let result = self.do_run(&mut scratch_files, asset_uri);
 
@@ -128,7 +128,7 @@ impl Pipeline {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn do_run(&self, scratch_files: &mut Vec<PathBuf>, asset_uri: &CheckedUri) -> Result<()> {
+    fn do_run(&self, scratch_files: &mut Vec<PathBuf>, asset_uri: &BasedUri) -> Result<()> {
         let mut scratch_path = new_scratch_file(scratch_files, &[])
             .wrap_err("Failed to created new scratch file for pipeline processing")?;
 
@@ -424,7 +424,7 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -452,7 +452,7 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -479,7 +479,7 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         let status = pipeline.run(&asset_uri);
         assert!(status.is_err());
@@ -504,7 +504,7 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         let status = pipeline.run(&asset_uri);
         assert!(status.is_err());
@@ -531,7 +531,7 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -566,7 +566,7 @@ mod test {
         let html_file = checked_html_path(&tree, "target/inner/output.html");
         let asset_uri = Uri::new("/inner/test.txt")
             .unwrap()
-            .to_checked_uri(&html_file);
+            .to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -603,7 +603,7 @@ mod test {
         let html_file = checked_html_path(&tree, "target/inner/output.html");
         let asset_uri = Uri::new("/inner/test.txt")
             .unwrap()
-            .to_checked_uri(&html_file);
+            .to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -633,7 +633,7 @@ mod test {
         )));
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -663,7 +663,7 @@ mod test {
         )));
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -695,7 +695,7 @@ mod test {
         pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -734,7 +734,7 @@ mod test {
         let html_file = checked_html_path(&tree, "target/inner/output.html");
         let asset_uri = Uri::new("/inner/test.txt")
             .unwrap()
-            .to_checked_uri(&html_file);
+            .to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -775,7 +775,7 @@ mod test {
         let html_file = checked_html_path(&tree, "target/inner/output.html");
         let asset_uri = Uri::new("/inner/test.txt")
             .unwrap()
-            .to_checked_uri(&html_file);
+            .to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -806,7 +806,7 @@ mod test {
         let html_file = checked_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/static/styles/site.css")
             .unwrap()
-            .to_checked_uri(&html_file);
+            .to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -857,7 +857,7 @@ mod test {
         pipeline.push_op(Operation::Shell(ShellCommand::new("CMD_NOT_FOUND")));
 
         let html_file = checked_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_checked_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         let result = pipeline.run(&asset_uri);
         assert!(result.is_err());

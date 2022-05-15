@@ -43,8 +43,8 @@ impl Uri {
         ))
     }
 
-    pub fn to_checked_uri(&self, initiator: &CheckedFilePath<pathmarker::Html>) -> CheckedUri {
-        CheckedUri::new(initiator, self)
+    pub fn to_based_uri(&self, initiator: &CheckedFilePath<pathmarker::Html>) -> BasedUri {
+        BasedUri::new(initiator, self)
     }
 
     pub fn as_str(&self) -> &str {
@@ -64,12 +64,12 @@ impl fmt::Display for Uri {
 
 #[derive(Derivative, Serialize)]
 #[derivative(Debug, Clone, Hash, PartialEq)]
-pub struct CheckedUri {
+pub struct BasedUri {
     uri: Uri,
     html_src: CheckedFilePath<pathmarker::Html>,
 }
 
-impl CheckedUri {
+impl BasedUri {
     pub fn new(initiator: &CheckedFilePath<pathmarker::Html>, uri: &Uri) -> Self {
         Self {
             uri: uri.clone(),
@@ -102,7 +102,7 @@ impl CheckedUri {
     }
 }
 
-impl From<CheckedFilePath<pathmarker::Html>> for CheckedUri {
+impl From<CheckedFilePath<pathmarker::Html>> for BasedUri {
     fn from(html_path: CheckedFilePath<pathmarker::Html>) -> Self {
         // slash is prepended to the URI. creationwill always succeed
         let uri = Uri::new(format!(
@@ -117,9 +117,9 @@ impl From<CheckedFilePath<pathmarker::Html>> for CheckedUri {
     }
 }
 
-impl Eq for CheckedUri {}
+impl Eq for BasedUri {}
 
-impl fmt::Display for CheckedUri {
+impl fmt::Display for BasedUri {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
@@ -134,55 +134,55 @@ mod test {
     use crate::test::{abs, rel};
 
     #[test]
-    fn checked_uri_as_str() {
+    fn based_uri_as_str() {
         let tree = temptree! {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path.try_into().expect("failed to make checked file path");
-        let checked_uri = CheckedUri::new(&checked_path, &uri);
-        assert_eq!(checked_uri.as_str(), "/page.html");
+        let based_uri = BasedUri::new(&checked_path, &uri);
+        assert_eq!(based_uri.as_str(), "/page.html");
     }
 
     #[test]
-    fn checked_uri_into_boxed_str() {
+    fn based_uri_into_boxed_str() {
         let tree = temptree! {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path.try_into().expect("failed to make checked file path");
-        let checked_uri = CheckedUri::new(&checked_path, &uri);
-        assert_eq!(checked_uri.into_boxed_str(), "/page.html".into());
+        let based_uri = BasedUri::new(&checked_path, &uri);
+        assert_eq!(based_uri.into_boxed_str(), "/page.html".into());
     }
 
     #[test]
-    fn checked_uri_display() {
+    fn based_uri_display() {
         let tree = temptree! {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path.try_into().expect("failed to make checked file path");
-        let checked_uri = CheckedUri::new(&checked_path, &uri);
-        assert_eq!(checked_uri.to_string(), "/page.html".to_owned());
+        let based_uri = BasedUri::new(&checked_path, &uri);
+        assert_eq!(based_uri.to_string(), "/page.html".to_owned());
     }
 
     #[test]
-    fn checked_uri_as_unchecked() {
+    fn based_uri_as_unchecked() {
         let tree = temptree! {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path.try_into().expect("failed to make checked file path");
-        let checked_uri = CheckedUri::new(&checked_path, &uri);
-        assert_eq!(checked_uri.as_unchecked(), &uri);
+        let based_uri = BasedUri::new(&checked_path, &uri);
+        assert_eq!(based_uri.as_unchecked(), &uri);
     }
 
     #[test]
-    fn checked_uri_src_sys_path() {
+    fn based_uri_src_sys_path() {
         let tree = temptree! {
           "test.html": "",
         };
@@ -192,20 +192,20 @@ mod test {
             .clone()
             .try_into()
             .expect("failed to make checked file path");
-        let checked_uri = CheckedUri::new(&checked_path, &uri);
-        assert_eq!(checked_uri.src_sys_path(), &path);
+        let based_uri = BasedUri::new(&checked_path, &uri);
+        assert_eq!(based_uri.src_sys_path(), &path);
     }
 
     #[test]
-    fn checked_uri_to_target_sys_path() {
+    fn based_uri_to_target_sys_path() {
         let tree = temptree! {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path.try_into().expect("failed to make checked file path");
-        let checked_uri = CheckedUri::new(&checked_path, &uri);
-        let sys_path = checked_uri
+        let based_uri = BasedUri::new(&checked_path, &uri);
+        let sys_path = based_uri
             .to_target_sys_path(abs!(tree.path()), rel!(""))
             .expect("failed to conver URI target to SysPath");
         assert_eq!(
