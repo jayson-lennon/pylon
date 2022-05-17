@@ -40,9 +40,9 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
 
             // the [meta] section where users can define anything they want
             {
-                let meta_ctx = tera::Context::from_serialize(&page.frontmatter.meta)
-                    .expect("failed converting page metadata into tera context");
-                tera_ctx.extend(meta_ctx);
+                // let meta_ctx = tera::Context::from_serialize(&page.frontmatter.meta)
+                //     .expect("failed converting page metadata into tera context");
+                tera_ctx.insert("meta", &page.frontmatter.meta);
             }
 
             // page-specific context items provided by user script
