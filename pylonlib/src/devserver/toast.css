@@ -2,14 +2,14 @@
     position: fixed;
     bottom: 0;
     left: 0;
-    display: flex;
+    display: none;
     width: 100%;
     justify-content: center;
-    background: #00e7ff;
+    background: #00e7ff !important;
     margin: 0;
     padding: 0;
-    padding-top: 1rem;
-    padding-bottom: 1rem;
-    font-weight: bold;
-    opacity: 0;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    font-weight: bold !important;
+    color: #000000 !important;
 }

@@ -32,7 +32,7 @@
             const msgEl = document.getElementById("devserver-notify-payload");
             msgEl.innerHTML = msg.payload;
             const msgContainer = document.querySelector(".devserver-notify-container");
-            msgContainer.style.opacity = "1.0";
+            msgContainer.style.display = "flex";
             break;
         }
       } else {
