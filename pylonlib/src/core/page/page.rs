@@ -69,7 +69,10 @@ impl Page {
             .wrap_err_with(|| format!("failed parsing raw document for {}", file_path.display()))?;
 
         if frontmatter.template_name.is_none() {
-            let all_templates = renderers.tera.get_template_names().collect::<HashSet<_>>();
+            let all_templates = renderers
+                .tera()
+                .get_template_names()
+                .collect::<HashSet<_>>();
             let template = find_default_template(&all_templates, &file_path)
                 .wrap_err("Failed to locate default templates when creating new page")?;
 

@@ -198,7 +198,7 @@ impl Engine {
     }
 
     pub fn reload_template_engines(&mut self) -> Result<()> {
-        self.renderers.tera.reload()?;
+        self.renderers.tera_mut().reload()?;
         Ok(())
     }
 
@@ -424,7 +424,7 @@ pub mod test {
         let paths = crate::test::default_test_paths(&tree);
 
         let mut engine = Engine::new(paths).unwrap();
-        assert_eq!(engine.renderers().tera.get_template_names().count(), 1);
+        assert_eq!(engine.renderers().tera().get_template_names().count(), 1);
 
         let mut new_template = tree.path().join("templates");
         new_template.push("b.tera");
@@ -435,7 +435,7 @@ pub mod test {
             .reload_template_engines()
             .expect("failed to reload template engines");
 
-        assert_eq!(engine.renderers().tera.get_template_names().count(), 2);
+        assert_eq!(engine.renderers().tera().get_template_names().count(), 2);
     }
 
     #[test]
