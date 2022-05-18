@@ -67,7 +67,6 @@ fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter)
         let mut heading_level: Option<HeadingLevel> = None;
 
         for event in parser {
-            dbg!(&event);
             match event {
                 Event::Start(Tag::Link(LinkType::Inline, href, title)) => {
                     use discover::UrlType;

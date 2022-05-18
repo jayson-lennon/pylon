@@ -76,11 +76,11 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
 
             // the actual markdown content (rendered)
             {
-                let rendered_markdown = engine.renderers().markdown().render(
-                    page,
-                    engine.page_store(),
-                    engine.renderers().highlight(),
-                )?;
+                let rendered_markdown = engine
+                    .renderers()
+                    .markdown()
+                    .render(page, engine.page_store(), engine.renderers().highlight())
+                    .wrap_err("Failed rendering Markdown")?;
                 tera_ctx.insert("content", &rendered_markdown);
             }
 
@@ -96,6 +96,9 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 .render(template, &tera_ctx)
                 .map(|html| RenderedPage::new(page.page_key, html, &page.target()))
                 .map_err(|e| eyre!("{}", e))
+                .wrap_err_with(|| {
+                    format!("Failed to render template. Tera context: {:#?}", &tera_ctx)
+                })
         }
         None => Err(eyre!("no template declared for page '{}'", page.uri())),
     }
