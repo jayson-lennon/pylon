@@ -76,16 +76,22 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
 
             // the actual markdown content (rendered)
             {
-                let rendered_markdown = engine.renderers().markdown.render(
+                let rendered_markdown = engine.renderers().markdown().render(
                     page,
                     engine.page_store(),
-                    &engine.renderers().highlight,
+                    engine.renderers().highlight(),
                 )?;
                 tera_ctx.insert("content", &rendered_markdown);
             }
 
+            // table of contents
+            {
+                let toc = engine.renderers().markdown().render_toc(page);
+                tera_ctx.insert("toc", &toc);
+            }
+
             // render the template with the context
-            let renderer = &engine.renderers().tera;
+            let renderer = &engine.renderers().tera();
             renderer
                 .render(template, &tera_ctx)
                 .map(|html| RenderedPage::new(page.page_key, html, &page.target()))
@@ -214,7 +220,7 @@ impl<'a> IntoIterator for &'a RenderedPageCollection {
 }
 
 fn get_overwritten_identifiers(contexts: &[ContextItem]) -> HashSet<String> {
-    let reserved = ["site", "content", "page_store", "global"];
+    let reserved = ["site", "content", "page_store", "global", "toc", "meta"];
     let mut overwritten_ids = HashSet::new();
 
     for ctx in contexts.iter() {
@@ -318,8 +324,10 @@ mod test {
             ContextItem::new("content", serde_json::from_str("{}").unwrap()),
             ContextItem::new("page_store", serde_json::from_str("{}").unwrap()),
             ContextItem::new("global", serde_json::from_str("{}").unwrap()),
+            ContextItem::new("toc", serde_json::from_str("{}").unwrap()),
+            ContextItem::new("meta", serde_json::from_str("{}").unwrap()),
         ];
         let ids = get_overwritten_identifiers(&contexts);
-        assert_eq!(ids.len(), 4);
+        assert_eq!(ids.len(), 6);
     }
 }

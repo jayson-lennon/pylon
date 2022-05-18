@@ -3,6 +3,8 @@ pub mod lint;
 pub mod page;
 pub mod render;
 
+use std::ops::Deref;
+
 pub use frontmatter::FrontMatter;
 pub use lint::{lint, LintLevel, LintResult};
 pub use page::Page;
@@ -33,6 +35,13 @@ pub struct RawMarkdown(String);
 
 impl AsRef<str> for RawMarkdown {
     fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl Deref for RawMarkdown {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
         self.0.as_str()
     }
 }

@@ -1999,6 +1999,18 @@ dependencies = [
 
 [[package]]
 name = "pulldown-cmark"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca36dea94d187597e104a5c8e4b07576a8a45aa5db48a65e12940d3eb7461f55"
+dependencies = [
+ "bitflags",
+ "getopts",
+ "memchr",
+ "unicase",
+]
+
+[[package]]
+name = "pulldown-cmark"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34f197a544b0c9ab3ae46c359a7ec9cbbb5c7bf97054266fecb7ead794a181d6"
@@ -2006,6 +2018,17 @@ dependencies = [
  "bitflags",
  "memchr",
  "unicase",
+]
+
+[[package]]
+name = "pulldown-cmark-toc"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b3ccae6f09dbd34c82dfd66ec17b348fe3987f7353da47da93c2d75f6bcbbc7"
+dependencies = [
+ "lazy_static",
+ "pulldown-cmark 0.7.2",
+ "regex",
 ]
 
 [[package]]
@@ -2052,7 +2075,8 @@ dependencies = [
  "parking_lot 0.12.0",
  "percent-encoding",
  "poem",
- "pulldown-cmark",
+ "pulldown-cmark 0.9.1",
+ "pulldown-cmark-toc",
  "regex",
  "rhai",
  "scraper",

@@ -8,9 +8,9 @@ pub mod template;
 
 #[derive(Debug)]
 pub struct Renderers {
-    pub tera: template::TeraRenderer,
-    pub markdown: markup::MarkdownRenderer,
-    pub highlight: highlight::SyntectHighlighter,
+    tera: template::TeraRenderer,
+    markdown: markup::MarkdownRenderer,
+    highlight: highlight::SyntectHighlighter,
 }
 
 impl Renderers {
@@ -30,5 +30,21 @@ impl Renderers {
             markdown,
             highlight,
         })
+    }
+
+    pub fn markdown(&self) -> &markup::MarkdownRenderer {
+        &self.markdown
+    }
+
+    pub fn highlight(&self) -> &highlight::SyntectHighlighter {
+        &self.highlight
+    }
+
+    pub fn tera(&self) -> &template::TeraRenderer {
+        &self.tera
+    }
+
+    pub fn tera_mut(&mut self) -> &mut template::TeraRenderer {
+        &mut self.tera
     }
 }
