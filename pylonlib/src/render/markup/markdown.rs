@@ -1,5 +1,5 @@
 use crate::{
-    core::{Page, PageStore},
+    core::{page::RawMarkdown, Page, PageStore},
     discover,
     render::highlight::SyntectHighlighter,
     Result,
@@ -21,8 +21,9 @@ impl MarkdownRenderer {
         page: &Page,
         page_store: &PageStore,
         highlighter: &SyntectHighlighter,
+        raw_markdown: &RawMarkdown,
     ) -> Result<String> {
-        render(page, page_store, highlighter)
+        render(page, page_store, highlighter, raw_markdown)
     }
 
     #[allow(clippy::unused_self)]
@@ -47,12 +48,16 @@ impl Default for MarkdownRenderer {
 }
 
 #[allow(clippy::too_many_lines)]
-fn render(page: &Page, page_store: &PageStore, highlighter: &SyntectHighlighter) -> Result<String> {
+fn render(
+    page: &Page,
+    page_store: &PageStore,
+    highlighter: &SyntectHighlighter,
+    raw_markdown: &RawMarkdown,
+) -> Result<String> {
     use pulldown_cmark::{
         html, CodeBlockKind, CowStr, Event, HeadingLevel, LinkType, Options, Parser, Tag,
     };
 
-    let raw_markdown = page.raw_markdown.as_ref();
     let options = Options::all();
     let mut buf = String::new();
 
@@ -231,7 +236,7 @@ mod test {
             .get_with_key(key)
             .expect("page is missing from page store");
         let rendered_page = md_renderer
-            .render(&test_page, &store, &highlighter)
+            .render(&test_page, &store, &highlighter, test_page.raw_markdown())
             .expect("failed to render test page");
         rendered_page
     }
@@ -332,8 +337,8 @@ code sample here
 
         let highlighter = SyntectHighlighter::new().unwrap();
 
-        let rendered =
-            super::render(page, &store, &highlighter).expect("failed to render markdown");
+        let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
+            .expect("failed to render markdown");
         assert_eq!(rendered, "<pre><code>code sample here</code></pre>");
     }
 
@@ -357,8 +362,8 @@ code sample here
 
         let highlighter = SyntectHighlighter::new().unwrap();
 
-        let rendered =
-            super::render(page, &store, &highlighter).expect("failed to render markdown");
+        let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
+            .expect("failed to render markdown");
 
         assert_eq!(
             rendered,
@@ -388,8 +393,8 @@ let x = 1;
 
         let highlighter = SyntectHighlighter::new().unwrap();
 
-        let rendered =
-            super::render(page, &store, &highlighter).expect("failed to render markdown");
+        let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
+            .expect("failed to render markdown");
         let expected = r#"<pre><code><span class="syn-source syn-rust"><span class="syn-storage syn-type syn-rust">let</span> x <span class="syn-keyword syn-operator syn-rust">=</span> <span class="syn-constant syn-numeric syn-integer syn-decimal syn-rust">1</span><span class="syn-punctuation syn-terminator syn-rust">;</span>
 </code></pre>"#.replace("syn-", THEME_CLASS_PREFIX);
         assert_eq!(rendered, expected);
@@ -419,8 +424,8 @@ let x = 1;
 
         let highlighter = SyntectHighlighter::new().unwrap();
 
-        let rendered =
-            super::render(page, &store, &highlighter).expect("failed to render markdown");
+        let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
+            .expect("failed to render markdown");
         assert_eq!(
             rendered,
             r#"<h1 id="h1">h1</h1><h2 id="h2">h2</h2><h3 id="h3">h3</h3><h4 id="h4">h4</h4><h5 id="h5">h5</h5><h6 id="h6">h6</h6>"#
@@ -451,8 +456,8 @@ let x = 1;
 
         let highlighter = SyntectHighlighter::new().unwrap();
 
-        let rendered =
-            super::render(page, &store, &highlighter).expect("failed to render markdown");
+        let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
+            .expect("failed to render markdown");
         assert_eq!(
             rendered,
             r#"<h1 id="h1-is-a-header">h1 is a HEADER</h1><h2 id="h2-is-a-header">h2 is a HEADER</h2><h3 id="h3-is-a-header">h3 is a HEADER</h3><h4 id="h4-is-a-header">h4 is a HEADER</h4><h5 id="h5-is-a-header">h5 is a HEADER</h5><h6 id="h6-is-a-header">h6 is a HEADER</h6>"#

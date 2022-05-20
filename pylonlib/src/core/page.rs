@@ -33,6 +33,12 @@ impl ContextItem {
 #[derive(Clone, Debug, Serialize, Default)]
 pub struct RawMarkdown(String);
 
+impl RawMarkdown {
+    pub fn from_raw<S: Into<String>>(raw: S) -> Self {
+        Self(raw.into())
+    }
+}
+
 impl AsRef<str> for RawMarkdown {
     fn as_ref(&self) -> &str {
         self.0.as_str()
