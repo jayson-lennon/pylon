@@ -1,5 +1,7 @@
 use eyre::{eyre, WrapErr};
+use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tera::Tera;
 
 use crate::Result;
@@ -8,7 +10,7 @@ use super::TemplateName;
 
 #[derive(Debug)]
 pub struct TeraRenderer {
-    renderer: Tera,
+    renderer: Arc<Mutex<Tera>>,
 }
 
 impl TeraRenderer {
@@ -22,18 +24,31 @@ impl TeraRenderer {
         )
         .with_context(|| "error initializing template rendering engine")?;
 
-        Ok(Self { renderer: r })
+        Ok(Self {
+            renderer: Arc::new(Mutex::new(r)),
+        })
     }
     pub fn render(&self, template: &TemplateName, context: &tera::Context) -> Result<String> {
-        Ok(self.renderer.render(template.as_ref(), context)?)
+        let renderer = self.renderer.lock();
+        Ok(renderer.render(template.as_ref(), context)?)
     }
 
-    pub fn get_template_names(&self) -> impl Iterator<Item = &str> {
-        self.renderer.get_template_names()
+    pub fn one_off<S: AsRef<str>>(&self, input: S, context: &tera::Context) -> Result<String> {
+        let mut renderer = self.renderer.lock();
+        Ok(renderer.render_str(input.as_ref(), context)?)
+    }
+
+    pub fn get_template_names(&self) -> Vec<String> {
+        let renderer = self.renderer.lock();
+        renderer
+            .get_template_names()
+            .map(|s| s.to_string())
+            .collect()
     }
 
     pub fn reload(&mut self) -> Result<()> {
-        Ok(self.renderer.full_reload()?)
+        let mut renderer = self.renderer.lock();
+        Ok(renderer.full_reload()?)
     }
 }
 
@@ -85,5 +100,26 @@ mod test {
         let rendered = template_renderer.render(&"basic.tera".into(), &ctx);
 
         assert!(rendered.is_err());
+    }
+
+    #[test]
+    fn renders_one_off() {
+        let tree = temptree! {
+            templates: { }
+        };
+
+        let template_root = tree.path().join("templates");
+
+        let template_renderer =
+            TeraRenderer::new(template_root).expect("failed to create renderer");
+
+        let mut ctx = tera::Context::new();
+        ctx.insert("content", "testing");
+
+        let rendered = template_renderer
+            .one_off("data: {{content}}", &ctx)
+            .unwrap();
+
+        assert_eq!(rendered.as_str(), "data: testing");
     }
 }

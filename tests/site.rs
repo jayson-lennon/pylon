@@ -51,3 +51,39 @@ fn sample() {
 
     assert_content(tree.path().join("target/sample.html"), "<p>sample</p>\n");
 }
+
+#[test]
+fn renders_macros_in_markdown() {
+    let sample_md = r#"+++
+    +++
+    {{ test_macro::sample(arg="hello") }}"#;
+
+    let default_template = r#"
+    {% import "test_macro.tera" as test_macro %}
+    {{ content | safe }}
+    "#;
+
+    let test_macro = r#"
+    {% macro sample(arg) %}
+        {{ arg }}
+    {% endmacro sample %}"#;
+
+    let tree = temptree! {
+        "rules.rhai": "",
+        src: {
+            "sample.md": sample_md,
+        },
+        templates: {
+            "default.tera": default_template,
+            "test_macro.tera": test_macro,
+        },
+        target: {},
+        syntax_themes: {}
+    };
+
+    let engine_paths = engine_paths(&tree);
+    let engine = Engine::new(engine_paths).unwrap();
+    engine.build_site().unwrap();
+
+    assert_content(tree.path().join("target/sample.html"), "hello");
+}

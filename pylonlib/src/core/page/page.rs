@@ -72,6 +72,7 @@ impl Page {
             let all_templates = renderers
                 .tera()
                 .get_template_names()
+                .into_iter()
                 .collect::<HashSet<_>>();
             let template = find_default_template(&all_templates, &file_path)
                 .wrap_err("Failed to locate default templates when creating new page")?;
@@ -155,7 +156,7 @@ fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
 }
 
 fn find_default_template(
-    all_templates: &HashSet<&str>,
+    all_templates: &HashSet<String>,
     path: &CheckedFilePath<pathmarker::Md>,
 ) -> Result<TemplateName> {
     let _span = trace_span!("no template specified").entered();
@@ -171,7 +172,7 @@ fn find_default_template(
 }
 
 fn get_default_template_name(
-    default_template_names: &HashSet<&str>,
+    default_template_names: &HashSet<String>,
     path: &CheckedFilePath<pathmarker::Md>,
 ) -> Option<TemplateName> {
     let mut path = path.as_sys_path().target().to_path_buf();
