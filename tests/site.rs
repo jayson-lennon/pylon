@@ -53,20 +53,14 @@ fn sample() {
 }
 
 #[test]
-fn renders_macros_in_markdown() {
+fn renders_shortcodes() {
     let sample_md = r#"+++
     +++
-    {{ test_macro::sample(arg="hello") }}"#;
+    line1
+    {{ test_shortcode(arg="hello") }} line2
+    line3"#;
 
-    let default_template = r#"
-    {% import "test_macro.tera" as test_macro %}
-    {{ content | safe }}
-    "#;
-
-    let test_macro = r#"
-    {% macro sample(arg) %}
-        {{ arg }}
-    {% endmacro sample %}"#;
+    let test_shortcode = r#"shortcode: {{ arg }}"#;
 
     let tree = temptree! {
         "rules.rhai": "",
@@ -74,8 +68,10 @@ fn renders_macros_in_markdown() {
             "sample.md": sample_md,
         },
         templates: {
-            "default.tera": default_template,
-            "test_macro.tera": test_macro,
+            shortcodes: {
+                "test_shortcode.tera": test_shortcode,
+            },
+            "default.tera": "{{ content | safe }}"
         },
         target: {},
         syntax_themes: {}
@@ -85,5 +81,6 @@ fn renders_macros_in_markdown() {
     let engine = Engine::new(engine_paths).unwrap();
     engine.build_site().unwrap();
 
-    assert_content(tree.path().join("target/sample.html"), "hello");
+    let expected = "<p>line1\nshortcode: hello line2\nline3</p>\n";
+    assert_content(tree.path().join("target/sample.html"), expected);
 }
