@@ -74,6 +74,17 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 }
             }
 
+            // macros from markdown
+            {
+                let re = crate::util::static_regex!(r#"\{\{.+\}\}"#);
+                for mat in re.find_iter(page.raw_markdown.as_ref()) {
+                    let shortcode = mat.as_str();
+                    let rendered = engine.renderers().tera().one_off(shortcode, &tera_ctx)?;
+                    dbg!(rendered);
+                    panic!();
+                }
+            }
+
             // the actual markdown content (rendered)
             {
                 let rendered_markdown = engine
@@ -242,6 +253,7 @@ mod test {
     use super::*;
     use crate::core::page::page::test::{doc::MINIMAL, new_page, new_page_with_tree};
     use crate::core::PageStore;
+    use crate::render::highlight::SyntectHighlighter;
     use crate::test::{abs, rel};
     use std::result::Result;
     use temptree::temptree;
