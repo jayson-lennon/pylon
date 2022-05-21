@@ -154,7 +154,7 @@ impl Engine {
     }
 
     pub fn new(paths: Arc<EnginePaths>) -> Result<Engine> {
-        let renderers = Renderers::new(&paths.absolute_template_dir()).wrap_err_with(|| {
+        let renderers = Renderers::new(paths.clone()).wrap_err_with(|| {
             format!(
                 "failed initializing renderers using template root '{}'",
                 paths.absolute_template_dir().display()
