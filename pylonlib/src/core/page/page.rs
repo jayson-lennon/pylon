@@ -104,6 +104,10 @@ impl Page {
         &self.path
     }
 
+    pub fn raw_markdown(&self) -> &RawMarkdown {
+        &self.raw_markdown
+    }
+
     pub fn target(&self) -> SysPath {
         self.path()
             .as_sys_path()
