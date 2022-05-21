@@ -1,4 +1,4 @@
-use pylonlib::core::engine::{Engine, EnginePaths};
+use pylonlib::core::engine::{step, Engine, EnginePaths};
 use std::path::Path;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -83,4 +83,370 @@ fn renders_shortcodes() {
 
     let expected = "<p>line1\nshortcode: hello line2\nline3</p>\n";
     assert_content(tree.path().join("target/sample.html"), expected);
+}
+
+#[test]
+fn builds_site_no_lint_errors() {
+    let doc1 = r#"+++
+            template_name = "empty.tera"
+            +++
+        "#;
+
+    let doc2 = r#"+++
+            template_name = "test.tera"
+            [meta]
+            author = "test"
+            +++
+        "#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": r#"<img src="blank.png">"#,
+          "empty.tera": "",
+          "default.tera": "",
+      },
+      target: {},
+      src: {
+          "doc1.md": doc1,
+          "doc2.md": doc2,
+          "blank.png": "test",
+      },
+      syntax_themes: {}
+    };
+
+    let rules = r#"
+            rules.add_lint(WARN, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+            rules.add_pipeline(".", "**/*.png", ["[COPY]"]);
+            "#;
+
+    let rule_script = tree.path().join("rules.rhai");
+    std::fs::write(&rule_script, &rules).unwrap();
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+    engine.build_site().expect("failed to build site");
+
+    let target_doc1 = tree.path().join("target").join("doc1.html");
+
+    let target_doc2 = tree.path().join("target").join("doc2.html");
+
+    let target_img = tree.path().join("target").join("blank.png");
+
+    assert!(target_doc1.exists());
+    assert!(target_doc2.exists());
+    assert!(target_img.exists());
+}
+#[test]
+fn aborts_site_build_with_deny_lint_error() {
+    let rules = r#"
+            rules.add_lint(DENY, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+            rules.add_pipeline("base", "**/*.png", ["[COPY]"]);
+        "#;
+
+    let doc1 = r#"+++
+            template_name = "empty.tera"
+            +++
+        "#;
+
+    let doc2 = r#"+++
+            template_name = "test.tera"
+            [meta]
+            author = "test"
+            +++
+        "#;
+
+    let tree = temptree! {
+      "rules.rhai": rules,
+      templates: {
+          "test.tera": r#"<img src="blank.png">"#,
+          "empty.tera": ""
+      },
+      target: {},
+      src: {
+          "doc1.md": doc1,
+          "doc2.md": doc2,
+          "blank.png": "",
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+    assert!(engine.build_site().is_err());
+}
+
+#[test]
+fn copies_mounts() {
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {},
+      target: {},
+      src: {},
+      wwwroot: {
+          "file_1": "data",
+          inner: {
+              "file_2": "data"
+          }
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let rules = r#"
+                rules.mount("wwwroot");
+            "#;
+
+    let rule_script = tree.path().join("rules.rhai");
+    std::fs::write(&rule_script, rules).unwrap();
+
+    let engine = Engine::new(paths).unwrap();
+    engine.build_site().expect("failed to build site");
+
+    {
+        let mut wwwroot = tree.path().join("target");
+        wwwroot.push("wwwroot");
+        assert!(!wwwroot.exists());
+
+        let mut file_1 = tree.path().join("target");
+        file_1.push("file_1");
+        assert!(file_1.exists());
+
+        let mut file_2 = tree.path().join("target");
+        file_2.push("inner");
+        file_2.push("file_2");
+        assert!(file_2.exists());
+    }
+}
+
+#[test]
+fn copies_mounts_inner() {
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {},
+      target: {},
+      src: {},
+      wwwroot: {
+          "file_1": "data",
+          inner: {
+              "file_2": "data"
+          }
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let rules = r#"
+                rules.mount("wwwroot", "inner");
+            "#;
+
+    let rule_script = tree.path().join("rules.rhai");
+    std::fs::write(&rule_script, rules).unwrap();
+
+    let engine = Engine::new(paths).unwrap();
+    engine.build_site().expect("failed to build site");
+
+    {
+        let mut wwwroot = tree.path().join("target/inner");
+        wwwroot.push("wwwroot");
+        assert!(!wwwroot.exists());
+
+        let mut file_1 = tree.path().join("target/inner");
+        file_1.push("file_1");
+        assert!(file_1.exists());
+
+        let mut file_2 = tree.path().join("target/inner");
+        file_2.push("inner");
+        file_2.push("file_2");
+        assert!(file_2.exists());
+    }
+}
+#[test]
+fn doesnt_reprocess_existing_assets() {
+    let doc = r#"+++
+            template_name = "test.tera"
+            +++"#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": r#"<img src="/found_it.png">"#,
+      },
+      target: {},
+      src: {
+          "doc.md": doc,
+      },
+      wwwroot: {
+          "found_it.png": "",
+      },
+      syntax_themes: {}
+    };
+
+    let rules = r#"
+                rules.mount("wwwroot", "target");
+                rules.add_pipeline(".", "**/*.png", ["[COPY]"]);"#;
+
+    let rule_script = tree.path().join("rules.rhai");
+    std::fs::write(&rule_script, rules).unwrap();
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    // Here we go through the site building process manually in order to arrive
+    // at the point where the pipelines are being processed. If the pipeline
+    // processing returns an empty `LinkedAssets` structure, then this test
+    // was successful. Since the file under test was copied via `mount`, the
+    // pipeline should skip processing. If the pipeline returns the asset,
+    // then this indicates a test failure because the asset should have been
+    // located before running the pipeline.
+    {
+        let pages = engine.page_store().iter().map(|(_, page)| page);
+        step::render(&engine, pages).expect("failed to render");
+
+        step::mount_directories(engine.rules().mounts()).expect("failed to process mounts");
+
+        let html_assets =
+            pylonlib::discover::html_asset::find_all(engine.paths(), engine.paths().output_dir())
+                .expect("failed to discover html assets");
+
+        let unhandled_assets =
+            step::run_pipelines(&engine, &html_assets).expect("failed to run pipelines");
+
+        assert!(unhandled_assets.is_empty());
+    }
+}
+
+#[test]
+fn renders_properly_when_assets_are_available() {
+    let doc = r#"+++
+            template_name = "test.tera"
+            +++"#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": r#"<img src="found_it.png">"#,
+      },
+      target: {},
+      src: {
+          "doc.md": doc,
+          "found_it.png": "",
+      },
+      syntax_themes: {}
+    };
+
+    let rules = r#"rules.add_pipeline(".", "**/*.png", ["[COPY]"]);"#;
+
+    let rule_script = tree.path().join("rules.rhai");
+    std::fs::write(&rule_script, rules).unwrap();
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    engine.build_site().expect("failed to build site");
+}
+
+#[test]
+fn aborts_render_when_assets_are_missing() {
+    let doc = r#"+++
+            template_name = "test.tera"
+            +++"#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": r#"<img src="missing.png">"#,
+      },
+      target: {},
+      src: {
+          "doc.md": doc,
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    assert!(engine.build_site().is_err());
+}
+
+#[test]
+fn does_render() {
+    let doc1 = r#"+++
+            template_name = "test.tera"
+            +++
+doc1"#;
+
+    let doc2 = r#"+++
+            template_name = "test.tera"
+            +++
+doc2"#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": "content: {{content}}"
+      },
+      target: {},
+      src: {
+          "doc1.md": doc1,
+          "doc2.md": doc2,
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    let rendered = step::render(&engine, engine.page_store().iter().map(|(_, page)| page))
+        .expect("failed to render pages");
+
+    assert_eq!(rendered.iter().count(), 2);
+}
+
+#[test]
+fn does_lint() {
+    let rules = r#"
+            rules.add_lint(WARN, "Missing author", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+            rules.add_lint(WARN, "Missing author 2", "**", |page| {
+                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            });
+        "#;
+
+    let doc = r#"+++
+            template_name = "empty.tera"
+            +++
+        "#;
+
+    let tree = temptree! {
+      "rules.rhai": rules,
+      templates: {},
+      target: {},
+      src: {
+          "sample.md": doc,
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    let lints = step::run_lints(&engine, engine.page_store().iter().map(|(_, page)| page))
+        .expect("linting failed");
+    assert_eq!(lints.into_iter().count(), 2);
 }
