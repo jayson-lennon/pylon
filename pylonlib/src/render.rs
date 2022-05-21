@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{core::engine::GlobalEnginePaths, Result};
 use eyre::WrapErr;
 use std::path::Path;
 
@@ -12,15 +12,15 @@ pub struct Renderers {
     tera: template::TeraRenderer,
     markdown: markup::MarkdownRenderer,
     highlight: highlight::SyntectHighlighter,
+    engine_paths: GlobalEnginePaths,
 }
 
 impl Renderers {
-    pub fn new<P: AsRef<Path>>(template_root: P) -> Result<Self> {
-        let template_root = template_root.as_ref();
-        let tera = template::TeraRenderer::new(template_root).wrap_err_with(|| {
+    pub fn new(engine_paths: GlobalEnginePaths) -> Result<Self> {
+        let tera = template::TeraRenderer::new(engine_paths.clone()).wrap_err_with(|| {
             format!(
                 "Failed to initialize Tera with template root of '{}'",
-                template_root.display()
+                engine_paths.absolute_template_dir().display()
             )
         })?;
         let markdown = markup::MarkdownRenderer::new();
@@ -30,6 +30,7 @@ impl Renderers {
             tera,
             markdown,
             highlight,
+            engine_paths,
         })
     }
 

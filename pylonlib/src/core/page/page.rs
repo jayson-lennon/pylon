@@ -294,8 +294,7 @@ pub mod test {
     pub fn new_page_with_tree(tree: &TempDir, file_path: &Path, content: &str) -> Result<Page> {
         let paths = crate::test::default_test_paths(&tree);
 
-        let renderers =
-            Renderers::new(tree.path().join("templates")).expect("Failed to create renderers");
+        let renderers = Renderers::new(paths.clone()).expect("Failed to create renderers");
 
         std::fs::write(&file_path, content).expect("failed to write doc");
 
@@ -320,8 +319,7 @@ pub mod test {
 
     pub fn new_page(doc: &str, file_name: &str) -> Result<Page> {
         let (paths, tree) = crate::test::simple_init();
-        let renderers =
-            Renderers::new(tree.path().join("templates")).expect("Failed to create renderers");
+        let renderers = Renderers::new(paths.clone()).expect("Failed to create renderers");
 
         let doc_path = tree.path().join("src").join(file_name);
         std::fs::write(&doc_path, doc).expect("failed to write doc");
