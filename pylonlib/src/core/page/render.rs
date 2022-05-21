@@ -7,7 +7,7 @@ use tracing::{error, instrument, trace};
 use crate::{
     core::{
         engine::Engine,
-        page::{ContextItem, PageKey},
+        page::{ContextItem, PageKey, RawMarkdown},
         rules::{ContextKey, GlobStore, RuleProcessor},
         Page,
     },
@@ -74,23 +74,36 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 }
             }
 
-            // macros from markdown
-            {
-                let re = crate::util::static_regex!(r#"\{\{.+\}\}"#);
-                for mat in re.find_iter(page.raw_markdown.as_ref()) {
-                    let shortcode = mat.as_str();
-                    let rendered = engine.renderers().tera().one_off(shortcode, &tera_ctx)?;
-                    dbg!(rendered);
-                    panic!();
+            // shortcodes
+            let raw_markdown = {
+                let mut raw_markdown = page.raw_markdown().as_ref().to_string();
+                let shortcodes = crate::render::shortcode::get_shortcodes(&page.raw_markdown);
+                for code in shortcodes {
+                    let template_name = format!("shortcodes/{}.tera", code.name());
+                    let mut context = tera::Context::new();
+                    for (k, v) in code.contexts() {
+                        context.insert(k, v);
+                    }
+                    let rendered_shortcode = engine
+                        .renderers()
+                        .tera()
+                        .render(&template_name.into(), &context)?;
+                    raw_markdown.replace_range(code.range(), &rendered_shortcode);
                 }
-            }
+                RawMarkdown::from_raw(raw_markdown)
+            };
 
             // the actual markdown content (rendered)
             {
                 let rendered_markdown = engine
                     .renderers()
                     .markdown()
-                    .render(page, engine.page_store(), engine.renderers().highlight())
+                    .render(
+                        page,
+                        engine.page_store(),
+                        engine.renderers().highlight(),
+                        &raw_markdown,
+                    )
                     .wrap_err("Failed rendering Markdown")?;
                 tera_ctx.insert("content", &rendered_markdown);
             }
