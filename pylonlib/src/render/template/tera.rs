@@ -59,8 +59,8 @@ fn register_builtin_functions(engine_paths: GlobalEnginePaths, tera: &mut Tera) 
     #[allow(clippy::wildcard_imports)]
     use functions::*;
 
-    let inline_file = InlineFile::new(engine_paths);
-    tera.register_function(InlineFile::name(), inline_file);
+    let include_file = IncludeFile::new(engine_paths);
+    tera.register_function(IncludeFile::NAME, include_file);
 }
 
 mod functions {
@@ -76,26 +76,24 @@ mod functions {
         }};
     }
 
-    pub struct InlineFile {
+    pub struct IncludeFile {
         engine_paths: GlobalEnginePaths,
     }
 
-    impl InlineFile {
+    impl IncludeFile {
+        pub const NAME: &'static str = "include_file";
+
         pub fn new(engine_paths: GlobalEnginePaths) -> Self {
             Self { engine_paths }
         }
-
-        pub fn name() -> &'static str {
-            "inline_file"
-        }
     }
 
-    impl tera::Function for InlineFile {
+    impl tera::Function for IncludeFile {
         fn call(&self, args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
             let path = {
                 let path: &str = args
                     .get("path")
-                    .ok_or_else(|| tera::Error::msg("`path` required to load file inline"))?
+                    .ok_or_else(|| tera::Error::msg("`path` required to include file in template"))?
                     .as_str()
                     .ok_or_else(|| {
                         format!(
@@ -140,7 +138,7 @@ mod functions {
         use tera::Function;
 
         #[test]
-        fn inline_file_happy_path() {
+        fn include_file_happy_path() {
             let tree = temptree! {
                 src: {
                     "file.ext": "content",
@@ -149,82 +147,82 @@ mod functions {
 
             let engine_paths = crate::test::default_test_paths(&tree);
 
-            let inline_file = InlineFile::new(engine_paths);
+            let include_file = IncludeFile::new(engine_paths);
 
             let mut args = HashMap::new();
             args.insert("path".to_owned(), json!("/src/file.ext"));
 
-            let result = inline_file.call(&args).expect("call should be successful");
+            let result = include_file.call(&args).expect("call should be successful");
             assert_eq!(result, "content");
         }
 
         #[test]
-        fn inline_file_fails_with_relative_path() {
+        fn include_file_fails_with_relative_path() {
             let tree = temptree! {};
 
             let engine_paths = crate::test::default_test_paths(&tree);
 
-            let inline_file = InlineFile::new(engine_paths);
+            let include_file = IncludeFile::new(engine_paths);
 
             let mut args = HashMap::new();
             args.insert("path".to_owned(), json!("src/file.ext"));
 
-            let result = inline_file.call(&args);
+            let result = include_file.call(&args);
             assert!(result.is_err());
         }
 
         #[test]
-        fn inline_file_fails_when_missing_file() {
+        fn include_file_fails_when_missing_file() {
             let tree = temptree! {};
 
             let engine_paths = crate::test::default_test_paths(&tree);
 
-            let inline_file = InlineFile::new(engine_paths);
+            let include_file = IncludeFile::new(engine_paths);
 
             let mut args = HashMap::new();
             args.insert("path".to_owned(), json!("/src/missing.ext"));
 
-            let result = inline_file.call(&args);
+            let result = include_file.call(&args);
             assert!(result.is_err());
         }
 
         #[test]
-        fn inline_file_fails_when_targeting_directory() {
+        fn include_file_fails_when_targeting_directory() {
             let tree = temptree! {
                 src: {}
             };
 
             let engine_paths = crate::test::default_test_paths(&tree);
 
-            let inline_file = InlineFile::new(engine_paths);
+            let include_file = IncludeFile::new(engine_paths);
 
             let mut args = HashMap::new();
             args.insert("path".to_owned(), json!("/src"));
 
-            let result = inline_file.call(&args);
+            let result = include_file.call(&args);
             assert!(result.is_err());
         }
 
         #[test]
-        fn inline_file_fails_when_path_is_not_a_string() {
+        fn include_file_fails_when_path_is_not_a_string() {
             let tree = temptree! {
                 src: {}
             };
 
             let engine_paths = crate::test::default_test_paths(&tree);
 
-            let inline_file = InlineFile::new(engine_paths);
+            let include_file = IncludeFile::new(engine_paths);
 
             let mut args = HashMap::new();
             args.insert("path".to_owned(), json!(1));
 
-            let result = inline_file.call(&args);
+            let result = include_file.call(&args);
             assert!(result.is_err());
         }
 
         #[test]
         fn name() {
-            assert_eq!(InlineFile::name(), "inline_file");
+            assert_eq!(IncludeFile::NAME, "include_file");
         }
     }
 }
