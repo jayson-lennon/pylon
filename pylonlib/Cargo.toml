@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 typed_path = { path = "../crates/typed_path" }
 typed_uri = { path = "../crates/typed_uri" }
+shortcode_processor = { path = "../crates/shortcode_processor" }
+
 tempfile = "3.3"
 pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"] }
 pulldown-cmark-toc = "0.1"
@@ -45,7 +47,6 @@ derivative = "2.2"
 ansi-to-html = "0.1"
 tap = "1.0"
 fancy-regex = "0.10"
-nom = "7.1"
 
 [dev-dependencies]
 temptree = "0.2.0"

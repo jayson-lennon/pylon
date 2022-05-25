@@ -2112,7 +2112,6 @@ dependencies = [
  "itertools",
  "mime",
  "mime_guess",
- "nom",
  "once_cell",
  "parcel_css",
  "parking_lot 0.12.0",
@@ -2124,6 +2123,7 @@ dependencies = [
  "scraper",
  "serde",
  "serde_json",
+ "shortcode_processor",
  "slotmap",
  "syntect",
  "tap",
@@ -2626,6 +2626,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "900fba806f70c630b0a382d0d825e17a0f19fcd059a2ade1ff237bcddf446b31"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "shortcode_processor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "color-eyre",
+ "eyre",
+ "fancy-regex",
+ "nom",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "temptree",
+ "tracing",
 ]
 
 [[package]]
