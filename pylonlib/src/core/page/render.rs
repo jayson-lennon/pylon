@@ -77,18 +77,25 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             // shortcodes
             let raw_markdown = {
                 let mut raw_markdown = page.raw_markdown().as_ref().to_string();
-                let shortcodes = crate::render::shortcode::get_shortcodes(&page.raw_markdown);
-                for code in shortcodes {
+                while let Some(code) = crate::discover::shortcode::find_next(&raw_markdown)
+                    .wrap_err_with(|| {
+                        format!(
+                            "Failed locating shortcodes when rendering page {}",
+                            page.uri()
+                        )
+                    })?
+                {
                     let template_name = format!("shortcodes/{}.tera", code.name());
                     let mut context = tera::Context::new();
-                    for (k, v) in code.contexts() {
+                    for (k, v) in code.context() {
                         context.insert(k, v);
                     }
                     let rendered_shortcode = engine
                         .renderers()
                         .tera()
                         .render(&template_name.into(), &context)?;
-                    raw_markdown.replace_range(code.range(), &rendered_shortcode);
+                    raw_markdown
+                        .replace_range(code.range().start..code.range().end, &rendered_shortcode);
                 }
                 RawMarkdown::from_raw(raw_markdown)
             };
