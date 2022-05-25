@@ -26,6 +26,7 @@ serial_test = "0.6.0"
 
 [workspace]
 members = [
+    "crates/shortcode_processor",
     "crates/typed_path",
     "crates/typed_uri",
     "pylonlib",

@@ -1,7 +1,10 @@
 // pub mod css_asset;
 pub mod asset;
 pub mod html_asset;
-pub mod shortcode;
+
+pub mod shortcode {
+    pub use shortcode_processor::*;
+}
 
 pub use asset::AssetPath;
 
@@ -12,7 +15,6 @@ use std::fs;
 use std::path::Path;
 
 use serde::Serialize;
-
 
 use crate::AbsPath;
 

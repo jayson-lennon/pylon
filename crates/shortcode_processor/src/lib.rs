@@ -1,9 +1,19 @@
-use crate::Result;
 use eyre::eyre;
 
 use std::ops::Range;
 
-use crate::static_regex;
+#[macro_export]
+macro_rules! static_regex {
+    ($re:literal $(,)?) => {{
+        static RE: once_cell::sync::OnceCell<fancy_regex::Regex> = once_cell::sync::OnceCell::new();
+        RE.get_or_init(|| {
+            fancy_regex::Regex::new($re)
+                .expect(&format!("Malformed regex '{}'. This is a bug.", $re))
+        })
+    }};
+}
+
+pub type Result<T> = eyre::Result<T>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShortcodeKind {
