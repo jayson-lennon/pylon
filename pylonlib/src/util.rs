@@ -12,9 +12,10 @@ pub const TMP_ARTIFACT_PREFIX: &str = "pylon-artifact_";
 #[macro_export]
 macro_rules! static_regex {
     ($re:literal $(,)?) => {{
-        static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
+        static RE: once_cell::sync::OnceCell<fancy_regex::Regex> = once_cell::sync::OnceCell::new();
         RE.get_or_init(|| {
-            regex::Regex::new($re).expect(&format!("Malformed regex '{}'. This is a bug.", $re))
+            fancy_regex::Regex::new($re)
+                .expect(&format!("Malformed regex '{}'. This is a bug.", $re))
         })
     }};
 }

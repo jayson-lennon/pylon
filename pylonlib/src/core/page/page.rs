@@ -200,7 +200,10 @@ fn split_document(raw: &str) -> Result<(&str, &str)> {
     let re = crate::util::static_regex!(
         r#"^[[:space:]]*\+\+\+[[:space:]]*\n?((?s).*)\n[[:space:]]*\+\+\+[[:space:]]*((?s).*)"#
     );
-    match re.captures(raw) {
+    match re
+        .captures(raw)
+        .wrap_err("Failed generating captures when splitting document")?
+    {
         Some(captures) => {
             let frontmatter = captures
                 .get(1)
