@@ -1,13 +1,12 @@
 use super::Page;
 use crate::core::{
-    pagestore::SearchKey,
     rules::{Matcher, RuleProcessor},
 };
 use eyre::{eyre, WrapErr};
 
 use slotmap::SlotMap;
 use std::str::FromStr;
-use tracing::{instrument, trace};
+use tracing::{trace};
 use typed_path::{pathmarker, CheckedFilePath};
 
 pub const LINT_LEVEL_DENY: &str = "DENY";

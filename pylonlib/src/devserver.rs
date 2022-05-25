@@ -11,7 +11,7 @@ pub use responders::{error_page_with_msg, html_with_live_reload_script, page_not
 use poem::EndpointExt;
 use std::net::SocketAddr;
 use std::thread::JoinHandle;
-use tracing::{instrument, trace};
+use tracing::{trace};
 
 use crate::Result;
 

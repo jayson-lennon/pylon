@@ -1,9 +1,9 @@
 use pylonlib::{
     core::engine::{Engine, EnginePaths},
-    devserver::broker::{EngineMsg, RenderBehavior},
+    devserver::broker::{RenderBehavior},
 };
 use serial_test::serial;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{SocketAddr, SocketAddrV4};
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -91,7 +91,7 @@ fn sample() {
     let addr = SocketAddrV4::from_str("127.0.0.1:38383").unwrap();
     let addr: SocketAddr = addr.into();
 
-    let (handle, broker) =
+    let (_handle, _broker) =
         Engine::with_broker(engine_paths, addr, 0, RenderBehavior::Write).unwrap();
 
     std::thread::sleep(std::time::Duration::from_millis(500));

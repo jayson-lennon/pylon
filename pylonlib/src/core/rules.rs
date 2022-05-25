@@ -163,7 +163,7 @@ pub mod script {
         use crate::core::rules::{Matcher, Rules};
         use crate::pipeline::BaseDir;
         use rhai::FnPtr;
-        use tracing::{instrument, trace};
+        use tracing::{trace};
         use typed_path::{AbsPath, RelPath};
 
         #[rhai_fn(name = "add_pipeline", return_raw)]

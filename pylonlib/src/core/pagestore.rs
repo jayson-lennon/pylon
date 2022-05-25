@@ -2,7 +2,7 @@ use crate::core::page::{Page, PageKey};
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::fmt;
-use tracing::{instrument, trace};
+use tracing::{trace};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SearchKey(String);

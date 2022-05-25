@@ -6,7 +6,7 @@ use eyre::{eyre, WrapErr};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::str::FromStr;
-use tracing::{error, info_span, instrument, trace, trace_span};
+use tracing::{info_span, trace, trace_span};
 use typed_path::{AbsPath, RelPath};
 use typed_uri::BasedUri;
 

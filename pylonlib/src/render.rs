@@ -1,6 +1,6 @@
 use crate::{core::engine::GlobalEnginePaths, Result};
 use eyre::WrapErr;
-use std::path::Path;
+
 
 pub mod highlight;
 pub mod markup;
