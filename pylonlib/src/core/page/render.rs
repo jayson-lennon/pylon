@@ -77,6 +77,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             // shortcodes
             let raw_markdown = {
                 let mut raw_markdown = page.raw_markdown().as_ref().to_string();
+
                 while let Some(code) = crate::discover::shortcode::find_next(&raw_markdown)
                     .wrap_err_with(|| {
                         format!(
@@ -88,15 +89,19 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                     let template_name = format!("shortcodes/{}.tera", code.name());
                     let mut context = tera::Context::new();
                     for (k, v) in code.context() {
-                        context.insert(k, v);
+                        context.insert(*k, v);
                     }
                     let rendered_shortcode = engine
                         .renderers()
                         .tera()
                         .render(&template_name.into(), &context)?;
-                    raw_markdown
-                        .replace_range(code.range().start..code.range().end, &rendered_shortcode);
+
+                    // required for https://github.com/rust-lang/rust/issues/59159
+                    let range = code.range().clone();
+
+                    raw_markdown.replace_range(range, &rendered_shortcode);
                 }
+
                 RawMarkdown::from_raw(raw_markdown)
             };
 

@@ -14,17 +14,17 @@ pub enum ShortcodeKind {
 }
 
 #[derive(Clone, Debug)]
-pub struct Shortcode {
-    name: String,
+pub struct Shortcode<'a> {
+    name: &'a str,
     range: Range<usize>,
-    context: Vec<(String, serde_json::Value)>,
-    raw: String,
+    context: Vec<(&'a str, serde_json::Value)>,
+    raw: &'a str,
 }
 
-impl Shortcode {
+impl<'a> Shortcode<'a> {
     #[must_use]
     pub fn name(&self) -> &str {
-        self.name.as_str()
+        self.name
     }
 
     #[must_use]
@@ -33,13 +33,13 @@ impl Shortcode {
     }
 
     #[must_use]
-    pub fn context(&self) -> &[(String, serde_json::Value)] {
-        self.context.as_slice()
+    pub fn context(&self) -> &[(&str, serde_json::Value)] {
+        self.context.as_ref()
     }
 
     #[must_use]
     pub fn raw(&self) -> &str {
-        self.raw.as_str()
+        self.raw
     }
 }
 
@@ -52,7 +52,7 @@ pub fn find_next<'a>(in_text: &'a str) -> Result<Option<Shortcode>> {
     }
 }
 
-pub fn find_one<'a>(kind: ShortcodeKind, in_text: &'a str) -> Result<Option<Shortcode>> {
+pub fn find_one<'a>(kind: ShortcodeKind, in_text: &'a str) -> Result<Option<Shortcode<'a>>> {
     let re = match kind {
         ShortcodeKind::Inline => static_regex!(r#"\{\{.*?(?=\}\})\}\}"#),
         ShortcodeKind::WithBody => {
@@ -68,14 +68,10 @@ pub fn find_one<'a>(kind: ShortcodeKind, in_text: &'a str) -> Result<Option<Shor
         .map_err(|e| eyre!("{}", e.to_string()))?
         .1;
         Ok(Some(Shortcode {
-            name: parsed.name().to_string(),
-            range: mat.range().clone(),
-            context: parsed
-                .args()
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.clone()))
-                .collect(),
-            raw: mat.as_str().to_string(),
+            name: parsed.name(),
+            range: mat.range(),
+            context: parsed.args_clone(),
+            raw: mat.as_str(),
         }))
     } else {
         Ok(None)
@@ -173,7 +169,7 @@ mod parse {
 
     impl<'a> ParsedShortcode<'a> {
         #[must_use]
-        pub(super) fn name(&self) -> &str {
+        pub(super) fn name(&self) -> &'a str {
             self.name
         }
 
