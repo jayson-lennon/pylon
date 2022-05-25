@@ -1,6 +1,7 @@
 // pub mod css_asset;
 pub mod asset;
 pub mod html_asset;
+pub mod shortcode;
 
 pub use asset::AssetPath;
 
