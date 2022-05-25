@@ -3,8 +3,6 @@ use eyre::eyre;
 
 use std::ops::Range;
 
-
-
 use crate::static_regex;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,12 +147,10 @@ mod test {
 mod parse {
     use nom::{
         bytes::complete::{tag, take_until, take_while},
-        character::{
-            complete::{multispace0},
-        },
+        character::complete::multispace0,
         combinator::{map, map_res},
         error::ParseError,
-        multi::{separated_list0},
+        multi::separated_list0,
         sequence::{delimited, separated_pair, tuple},
         IResult,
     };
@@ -199,8 +195,12 @@ mod parse {
         ch == '_' || ch.is_alphanumeric()
     }
 
+    fn shortcode_name_char(ch: char) -> bool {
+        ch == '-' || ch == '_' || ch.is_alphanumeric()
+    }
+
     fn shortcode_name(s: &str) -> IResult<&str, &str> {
-        take_while(key_char)(s)
+        take_while(shortcode_name_char)(s)
     }
 
     fn key(s: &str) -> IResult<&str, &str> {
@@ -276,6 +276,7 @@ mod parse {
                 Ok(("", "with_underscores"))
             );
             assert_eq!(shortcode_name("123"), Ok(("", "123")));
+            assert_eq!(shortcode_name("dash-dash"), Ok(("", "dash-dash")));
         }
 
         #[test]
