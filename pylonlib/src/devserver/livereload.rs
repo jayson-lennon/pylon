@@ -12,7 +12,7 @@ use serde::Serialize;
 use slotmap::DenseSlotMap;
 use std::sync::Arc;
 use std::thread;
-use tracing::{error, instrument, trace};
+use tracing::{error, trace};
 
 #[derive(Clone, Debug)]
 pub struct LiveReloadReceiver(pub DevServerReceiver);

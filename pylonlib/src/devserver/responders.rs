@@ -7,7 +7,7 @@ use poem::{
     Response,
 };
 use std::path::PathBuf;
-use tracing::{instrument, trace};
+use tracing::{trace};
 
 use super::EngineBroker;
 

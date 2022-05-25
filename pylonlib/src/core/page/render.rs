@@ -2,7 +2,7 @@ use eyre::{eyre, WrapErr};
 use itertools::Itertools;
 use std::collections::HashSet;
 
-use tracing::{error, instrument, trace};
+use tracing::{error, trace};
 
 use crate::{
     core::{

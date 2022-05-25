@@ -1,5 +1,5 @@
 use slotmap::SlotMap;
-use tracing::{instrument, trace};
+use tracing::{trace};
 
 use super::Matcher;
 

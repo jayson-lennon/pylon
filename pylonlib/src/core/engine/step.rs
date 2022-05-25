@@ -1,14 +1,14 @@
 use std::{
     collections::HashSet,
     ffi::OsStr,
-    path::{Path, PathBuf},
+    path::{Path},
     sync::Arc,
 };
 
 use eyre::WrapErr;
 use itertools::Itertools;
-use tracing::{error, trace, warn};
-use typed_path::{pathmarker, AbsPath, CheckedFile, CheckedFilePath, RelPath, SysPath};
+use tracing::{trace};
+use typed_path::{pathmarker, CheckedFile, CheckedFilePath, SysPath};
 
 use crate::{
     core::{
@@ -21,7 +21,7 @@ use crate::{
     Renderers, Result,
 };
 
-use super::{Engine, EnginePaths, PipelineBehavior};
+use super::{Engine, EnginePaths};
 
 pub mod report {
     use std::collections::HashSet;

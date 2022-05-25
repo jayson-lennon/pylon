@@ -60,7 +60,7 @@ pub mod script {
     pub mod rhai_module {
         use crate::core::page::{ContextItem, FrontMatter, Page};
 
-        use tracing::instrument;
+        
 
         #[rhai_fn(name = "uri")]
         pub fn uri(page: &mut Page) -> String {

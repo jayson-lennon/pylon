@@ -5,7 +5,7 @@ use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use tracing::error;
-use tracing::{instrument, trace};
+use tracing::{trace};
 
 use crate::devserver::broker::EngineMsg;
 use crate::{AbsPath, Result};

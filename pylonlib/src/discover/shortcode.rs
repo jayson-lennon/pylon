@@ -1,9 +1,9 @@
 use crate::Result;
 use eyre::eyre;
-use itertools::Itertools;
+
 use std::ops::Range;
 
-use fancy_regex::Regex;
+
 
 use crate::static_regex;
 
@@ -148,16 +148,14 @@ mod test {
 
 mod parse {
     use nom::{
-        branch::alt,
-        bytes::complete::{is_not, tag, take_until, take_while},
+        bytes::complete::{tag, take_until, take_while},
         character::{
-            complete::{alphanumeric1, anychar, multispace0, not_line_ending, one_of},
-            is_alphabetic, is_alphanumeric,
+            complete::{multispace0},
         },
-        combinator::{map, map_res, not, rest},
+        combinator::{map, map_res},
         error::ParseError,
-        multi::{many0, many1, separated_list0},
-        sequence::{delimited, preceded, separated_pair, tuple},
+        multi::{separated_list0},
+        sequence::{delimited, separated_pair, tuple},
         IResult,
     };
 

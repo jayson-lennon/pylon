@@ -14,7 +14,7 @@ use typed_path::RelPath;
 use typed_uri::Uri;
 
 use std::{collections::HashSet, path::PathBuf};
-use tracing::{instrument, trace_span};
+use tracing::{trace_span};
 
 use super::FrontMatter;
 use super::{PageKey, RawMarkdown};

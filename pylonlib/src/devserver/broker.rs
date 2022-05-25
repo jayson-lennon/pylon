@@ -6,7 +6,7 @@ use crate::core::engine::{Engine, EnginePaths};
 use crate::core::page::RenderedPage;
 use crate::core::pagestore::SearchKey;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
-use crate::{RelPath, Result};
+use crate::{Result};
 
 use tokio::runtime::Handle;
 use tracing::{error, trace, warn};
@@ -242,19 +242,18 @@ mod handle_msg {
     use std::{collections::HashSet, ffi::OsStr};
 
     use eyre::{eyre, WrapErr};
-    use tap::Pipe;
-    use tracing::{error, instrument, trace};
+    
+    use tracing::{trace};
     use typed_uri::Uri;
 
     use crate::{
         core::{
-            engine::{step, Engine, PipelineBehavior},
+            engine::{step, Engine},
             page::RenderedPage,
             Page,
         },
         devserver::broker::RenderBehavior,
-        discover::html_asset::{HtmlAssets, MissingAssetsError},
-        AbsPath, CheckedFile, RelPath, Result, SysPath,
+        discover::html_asset::{HtmlAssets, MissingAssetsError}, CheckedFile, Result, SysPath,
     };
 
     use super::FilesystemUpdateEvents;

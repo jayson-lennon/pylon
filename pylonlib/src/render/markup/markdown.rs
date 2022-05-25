@@ -160,11 +160,11 @@ fn render(
                         format!("<pre><code>{content}</code></pre>").into(),
                     ));
                 }
-                Event::Start(Tag::Heading(level, id, classes)) => {
+                Event::Start(Tag::Heading(level, _id, _classes)) => {
                     heading_level = Some(level);
                     // events.push(Event::Start(Tag::Heading(level, id, classes)));
                 }
-                Event::End(Tag::Heading(level, id, classes)) => {
+                Event::End(Tag::Heading(_level, _id, _classes)) => {
                     heading_level = None;
                     // events.push(Event::End(Tag::Heading(level, id, classes)));
                 }

@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 use thiserror::Error;
-use tracing::instrument;
+
 
 use crate::core::engine::EnginePaths;
 use crate::{discover, pathmarker, CheckedFile, CheckedFilePath, RelPath, Result, SysPath};

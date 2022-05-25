@@ -1,6 +1,6 @@
-use eyre::{eyre, WrapErr};
+use eyre::{WrapErr};
 use parking_lot::Mutex;
-use std::path::{Path, PathBuf};
+
 use std::sync::Arc;
 use tera::Tera;
 use typed_path::RelPath;
@@ -66,7 +66,7 @@ fn register_builtin_functions(engine_paths: GlobalEnginePaths, tera: &mut Tera) 
 mod functions {
     use std::collections::HashMap;
 
-    use typed_path::{AbsPath, RelPath};
+    use typed_path::{AbsPath};
 
     use crate::core::engine::GlobalEnginePaths;
 
@@ -128,12 +128,12 @@ mod functions {
 
     #[cfg(test)]
     mod test {
-        use crate::core::engine::EnginePaths;
+        
 
         use super::*;
         use serde_json::json;
-        use std::sync::Arc;
-        use tempfile::TempDir;
+        
+        
         use temptree::temptree;
         use tera::Function;
 
