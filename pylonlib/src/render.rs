@@ -4,7 +4,6 @@ use std::path::Path;
 
 pub mod highlight;
 pub mod markup;
-pub mod shortcode;
 pub mod template;
 
 #[derive(Debug)]

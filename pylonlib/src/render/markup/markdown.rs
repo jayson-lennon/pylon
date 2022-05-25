@@ -220,7 +220,7 @@ mod test {
         },
         render::highlight::{syntect_highlighter::THEME_CLASS_PREFIX, SyntectHighlighter},
     };
-    use regex::Regex;
+    use fancy_regex::Regex;
 
     use super::MarkdownRenderer;
 
@@ -246,7 +246,8 @@ mod test {
         let capture = re
             .captures_iter(&rendered)
             .next()
-            .expect("missing href attribute on link");
+            .expect("missing href attribute on link")
+            .unwrap();
         capture[1].to_string()
     }
 
