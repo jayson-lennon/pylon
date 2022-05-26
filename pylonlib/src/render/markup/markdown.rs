@@ -30,7 +30,7 @@ impl MarkdownRenderer {
     pub fn render_toc(&self, page: &Page) -> String {
         use pulldown_cmark_toc::TableOfContents;
 
-        let toc_options = pulldown_cmark_toc::Options::default().indent(0);
+        let toc_options = pulldown_cmark_toc::Options::default();
         let md_toc = TableOfContents::new(&page.raw_markdown).to_cmark_with_options(toc_options);
 
         let parser = pulldown_cmark::Parser::new(&md_toc);
