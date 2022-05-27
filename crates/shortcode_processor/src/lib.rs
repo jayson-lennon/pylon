@@ -30,22 +30,18 @@ pub struct Shortcode<'a> {
 }
 
 impl<'a> Shortcode<'a> {
-    #[must_use]
     pub fn name(&self) -> &str {
         self.name
     }
 
-    #[must_use]
     pub fn range(&self) -> &Range<usize> {
         &self.range
     }
 
-    #[must_use]
     pub fn context(&self) -> &[(&str, serde_json::Value)] {
         self.context.as_ref()
     }
 
-    #[must_use]
     pub fn raw(&self) -> &str {
         self.raw
     }
@@ -172,17 +168,14 @@ mod parse {
     }
 
     impl<'a> ParsedShortcode<'a> {
-        #[must_use]
         pub(super) fn name(&self) -> &'a str {
             self.name
         }
 
-        #[must_use]
         pub(super) fn args(&self) -> &[(&str, serde_json::Value)] {
             self.args.as_ref()
         }
 
-        #[must_use]
         pub(super) fn args_clone(&self) -> Vec<(&'a str, serde_json::Value)> {
             self.args.clone()
         }
