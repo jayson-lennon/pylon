@@ -41,7 +41,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 inner.insert("template_name", page.template_name().as_str());
                 inner.insert("meta", &page.frontmatter.meta);
 
-                tera_ctx.insert("PAGE", &inner.into_json());
+                tera_ctx.insert("page", &inner.into_json());
             }
 
             // global context provided by user script
