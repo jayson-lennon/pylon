@@ -41,6 +41,9 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 inner.insert("template_name", page.template_name().as_str());
                 inner.insert("meta", &page.frontmatter.meta);
 
+                let toc = engine.renderers().markdown().render_toc(page);
+                inner.insert("toc", &toc);
+
                 tera_ctx.insert("page", &inner.into_json());
             }
 
@@ -122,12 +125,6 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                     )
                     .wrap_err("Failed rendering Markdown")?;
                 tera_ctx.insert("content", &rendered_markdown);
-            }
-
-            // table of contents
-            {
-                let toc = engine.renderers().markdown().render_toc(page);
-                tera_ctx.insert("toc", &toc);
             }
 
             // render the template with the context
