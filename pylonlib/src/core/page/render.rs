@@ -1,6 +1,6 @@
 use eyre::{eyre, WrapErr};
 use itertools::Itertools;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use tracing::{error, trace};
 
@@ -33,16 +33,20 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 &engine.page_store().iter().collect::<Vec<_>>()
             });
 
+            // current page info
+            {
+                let mut inner = tera::Context::new();
+                inner.insert("path", &page.path().to_string());
+                inner.insert("uri", &page.uri().to_string());
+                inner.insert("template_name", page.template_name().as_str());
+                inner.insert("meta", &page.frontmatter.meta);
+
+                tera_ctx.insert("PAGE", &inner.into_json());
+            }
+
             // global context provided by user script
             if let Some(global) = engine.rules().global_context() {
                 tera_ctx.insert("global", global);
-            }
-
-            // the [meta] section where users can define anything they want
-            {
-                // let meta_ctx = tera::Context::from_serialize(&page.frontmatter.meta)
-                //     .expect("failed converting page metadata into tera context");
-                tera_ctx.insert("meta", &page.frontmatter.meta);
             }
 
             // page-specific context items provided by user script
