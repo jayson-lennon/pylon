@@ -1,24 +1,18 @@
-use eyre::{WrapErr};
+use eyre::WrapErr;
 use itertools::Itertools;
 use serde::Serialize;
-use std::{
-    net::SocketAddr,
-    sync::Arc,
-    thread::JoinHandle,
-};
-use tracing::{trace};
+use std::{net::SocketAddr, sync::Arc, thread::JoinHandle};
+use tracing::trace;
 
 use crate::{
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::{PageStore},
+    core::PageStore,
     devserver::{broker::RenderBehavior, DevServer, EngineBroker},
-    discover::html_asset::{HtmlAssets},
+    discover::html_asset::HtmlAssets,
     render::Renderers,
     AbsPath, RelPath, Result,
 };
-
-
 
 pub mod step;
 
@@ -307,18 +301,11 @@ impl Engine {
 
 #[cfg(test)]
 pub mod test {
-
     #![allow(warnings, unused)]
-
     use crate::devserver::broker::EngineMsg;
-    use tracing_test::traced_test;
-
     use temptree::temptree;
 
     use super::*;
-
-    // this makes traced_test happy
-    use std::result::Result;
 
     #[test]
     fn makes_new_engine() {
