@@ -1,6 +1,3 @@
-use crate::core::engine::GlobalEnginePaths;
-use crate::util::Glob;
-use crate::Result;
 use color_eyre::{Section, SectionExt};
 use eyre::{eyre, WrapErr};
 use std::path::{Path, PathBuf};
@@ -9,6 +6,10 @@ use std::str::FromStr;
 use tracing::{info_span, trace, trace_span};
 use typed_path::{AbsPath, RelPath};
 use typed_uri::BasedUri;
+
+const TMP_ARTIFACT_PREFIX: &str = "pipeworks_artifact_";
+
+pub type Result<T> = eyre::Result<T>;
 
 #[derive(Clone, Debug)]
 pub struct ShellCommand(String);
@@ -57,65 +58,60 @@ impl BaseDir {
 }
 
 #[derive(Debug, Clone)]
+pub struct Paths {
+    root: AbsPath,
+    output_dir: RelPath,
+    src_dir: RelPath,
+}
+
+impl Paths {
+    pub fn new(root: &AbsPath, output_dir: &RelPath, src_dir: &RelPath) -> Self {
+        Self {
+            root: root.clone(),
+            output_dir: output_dir.clone(),
+            src_dir: src_dir.clone(),
+        }
+    }
+
+    pub fn root(&self) -> &AbsPath {
+        &self.root
+    }
+
+    pub fn output_dir(&self) -> &RelPath {
+        &self.output_dir
+    }
+
+    pub fn src_dir(&self) -> &RelPath {
+        &self.src_dir
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Pipeline {
-    pub target_glob: Glob,
     ops: Vec<Operation>,
     base_dir: BaseDir,
-    engine_paths: GlobalEnginePaths,
+    paths: Paths,
 }
 
 impl Pipeline {
-    pub fn new<G>(
-        engine_paths: GlobalEnginePaths,
-        base_dir: &BaseDir,
-        target_glob: G,
-    ) -> Result<Self>
-    where
-        G: TryInto<Glob, Error = globset::Error>,
-    {
-        let target_glob = target_glob.try_into().wrap_err("Failed to parse glob")?;
-
-        trace!("make new pipeline using glob target {}", target_glob.glob());
-
+    pub fn new(paths: Paths, base_dir: &BaseDir) -> Result<Self> {
         Ok(Self {
-            target_glob,
             ops: vec![],
             base_dir: base_dir.clone(),
-            engine_paths,
+            paths,
         })
     }
 
-    pub fn with_ops<G>(
-        engine_paths: GlobalEnginePaths,
-        base_dir: &BaseDir,
-        target_glob: G,
-        ops: &[Operation],
-    ) -> Result<Self>
-    where
-        G: TryInto<Glob, Error = globset::Error>,
-    {
-        let target_glob = target_glob.try_into().wrap_err("Failed to parse glob")?;
-
-        trace!("make new pipeline using glob target {}", target_glob.glob());
-
+    pub fn with_ops(paths: Paths, base_dir: &BaseDir, ops: &[Operation]) -> Result<Self> {
         Ok(Self {
-            target_glob,
             ops: ops.into(),
             base_dir: base_dir.clone(),
-            engine_paths,
+            paths,
         })
-    }
-
-    pub fn engine_paths(&self) -> GlobalEnginePaths {
-        self.engine_paths.clone()
     }
 
     pub fn push_op(&mut self, op: Operation) {
         self.ops.push(op);
-    }
-
-    pub fn is_match<P: AsRef<Path>>(&self, asset: P) -> bool {
-        self.target_glob.is_match(asset)
     }
 
     pub fn run(&self, asset_uri: &BasedUri) -> Result<()> {
@@ -134,10 +130,8 @@ impl Pipeline {
 
         let mut autocopy = false;
 
-        let epaths = self.engine_paths();
-
         let target_path = asset_uri
-            .to_target_sys_path(epaths.project_root(), epaths.output_dir())
+            .to_target_sys_path(self.paths.root(), self.paths.output_dir())
             .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?;
 
         for op in &self.ops {
@@ -163,7 +157,7 @@ impl Pipeline {
                         BaseDir::RelativeToDoc(relative) => {
                             target_path
                                 // Change the base directory from output to source (where the markdown files are located)
-                                .with_base(epaths.src_dir())
+                                .with_base(self.paths.src_dir())
                                 // Remove the target file name so we have the parent directory to work with
                                 .pop()
                                 // Push the supplied relative path onto the existing path
@@ -194,7 +188,7 @@ impl Pipeline {
                             let relative_base = base.strip_prefix("/").wrap_err_with(||format!("Failed to strip root prefix(/) from '{}' during pipline processing", base.display()))?;
                             let asset_uri_without_root = &asset_uri.as_str()[1..];
 
-                            let working_dir = epaths.project_root().clone();
+                            let working_dir = self.paths.root().clone();
                             let relative_asset_path =
                                 relative_base.join(&asset_uri_without_root.try_into().wrap_err("Failed to create relative path from root base directory during pipeline processing")?);
 
@@ -211,7 +205,7 @@ impl Pipeline {
                                 // convert to sys_path
                                 .as_sys_path()
                                 // change base to the source base directory
-                                .with_base(epaths.src_dir())
+                                .with_base(self.paths.src_dir())
                                 // remove file name
                                 .pop()
                                 // change to absolute path so we can change directory
@@ -229,13 +223,13 @@ impl Pipeline {
 
                     let command = {
                         let target = asset_uri
-                            .to_target_sys_path(epaths.project_root(), epaths.output_dir())
+                            .to_target_sys_path(self.paths.root(), self.paths.output_dir())
                             .wrap_err(
                                 "Failed to convert asset URI to SysPath during pipeline processing",
                             )?
                             .to_absolute_path();
 
-                        crate::util::make_parent_dirs(&target.pop()).wrap_err_with(|| {
+                        std::fs::create_dir_all(&target.pop()).wrap_err_with(|| {
                             format!(
                                 "Failed to make parent directories for asset target '{}'",
                                 &target.pop()
@@ -300,7 +294,11 @@ impl Pipeline {
 }
 
 fn new_scratch_file(files: &mut Vec<PathBuf>, content: &[u8]) -> Result<PathBuf> {
-    let tmp = crate::util::gen_temp_file()
+    let tmp = tempfile::Builder::new()
+        .prefix(TMP_ARTIFACT_PREFIX)
+        .rand_bytes(12)
+        .tempfile()
+        .with_context(|| "failed creating temporary file for shell processing".to_string())
         .wrap_err("Failed to generate temp file for pipeline shell operation")?
         .path()
         .to_path_buf();
@@ -328,9 +326,7 @@ mod test {
 
     #![allow(warnings, unused)]
 
-    use crate::{pipeline::BaseDir, util::TMP_ARTIFACT_PREFIX};
-
-    use super::{Operation, Pipeline, ShellCommand};
+    use super::*;
     use std::fs;
     use tempfile::TempDir;
     use temptree::temptree;
@@ -347,6 +343,14 @@ mod test {
         path.try_into().expect("failed to make checked path")
     }
 
+    fn make_paths(tree: &TempDir) -> Paths {
+        Paths {
+            output_dir: RelPath::from_relative("target"),
+            root: AbsPath::from_absolute(tree.path()),
+            src_dir: RelPath::from_relative("src"),
+        }
+    }
+
     #[test]
     fn new_with_ops() {
         let tree = temptree! {
@@ -356,30 +360,12 @@ mod test {
             src: {},
             syntax_themes: {},
         };
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
         let ops = vec![Operation::Copy];
 
-        let pipeline = Pipeline::with_ops(paths, &BaseDir::new("/"), "*.txt", ops.as_slice());
+        let pipeline = Pipeline::with_ops(paths, &BaseDir::new("/"), ops.as_slice());
         assert!(pipeline.is_ok());
-    }
-
-    #[test]
-    fn is_match() {
-        let tree = temptree! {
-            "rules.rhai": "",
-            templates: {},
-            target: {},
-            src: {},
-            syntax_themes: {},
-        };
-        let paths = crate::test::default_test_paths(&tree);
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/"), "*.txt").unwrap();
-        pipeline.push_op(Operation::Copy);
-
-        assert_eq!(pipeline.is_match("test.txt"), true);
-
-        assert_eq!(pipeline.is_match("test.md"), false);
     }
 
     #[test]
@@ -396,9 +382,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/src"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/src")).unwrap();
 
         pipeline.push_op(Operation::Copy);
 
@@ -424,9 +410,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/")).unwrap();
 
         pipeline.push_op(Operation::Copy);
 
@@ -451,9 +437,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/")).unwrap();
 
         pipeline.push_op(Operation::Copy);
 
@@ -476,9 +462,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/src"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/src")).unwrap();
 
         pipeline.push_op(Operation::Copy);
 
@@ -503,9 +489,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("."), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new(".")).unwrap();
 
         pipeline.push_op(Operation::Copy);
 
@@ -536,9 +522,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("."), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new(".")).unwrap();
 
         pipeline.push_op(Operation::Copy);
 
@@ -573,9 +559,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("./colocated"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("./colocated")).unwrap();
 
         pipeline.push_op(Operation::Copy);
 
@@ -603,9 +589,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/")).unwrap();
 
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             "sed 's/old/new/g' $SOURCE > $TARGET",
@@ -633,9 +619,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/")).unwrap();
 
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             "sed 's/old/new/g' $SOURCE > $NEW_SCRATCH",
@@ -663,9 +649,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/")).unwrap();
 
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             "sed 's/old/new/g' $SOURCE > $NEW_SCRATCH",
@@ -700,9 +686,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("."), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new(".")).unwrap();
 
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             "sed 's/old/new/g' $SOURCE > $NEW_SCRATCH",
@@ -741,9 +727,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("./asset"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("./asset")).unwrap();
 
         pipeline.push_op(Operation::Shell(ShellCommand::new(
             "sed 's/old/new/g' $SOURCE > $NEW_SCRATCH",
@@ -775,10 +761,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline =
-            Pipeline::new(paths, &BaseDir::new("/"), "/static/styles/site.css").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/")).unwrap();
 
         pipeline.push_op(Operation::Shell(ShellCommand::new("echo test > $TARGET")));
 
@@ -829,9 +814,9 @@ mod test {
             syntax_themes: {},
         };
 
-        let paths = crate::test::default_test_paths(&tree);
+        let paths = make_paths(&tree);
 
-        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/"), "*.txt").unwrap();
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/")).unwrap();
 
         pipeline.push_op(Operation::Shell(ShellCommand::new("CMD_NOT_FOUND")));
 

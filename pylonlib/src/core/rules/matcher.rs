@@ -1,10 +1,10 @@
 use tracing::trace;
 
-use crate::util::{Glob, GlobCandidate};
+use crate::util::{GlobCandidate, PylonGlob};
 
 #[derive(Debug, Clone)]
 pub enum Matcher {
-    Glob(Vec<Glob>),
+    Glob(Vec<PylonGlob>),
 }
 
 impl Matcher {
@@ -32,12 +32,12 @@ pub mod test {
 
     #![allow(warnings, unused)]
     use super::*;
-    use crate::util::Glob;
+    use crate::util::PylonGlob;
 
     pub fn make_matcher(globs: &[&str]) -> Matcher {
         let mut matcher_globs = vec![];
         for glob in globs {
-            matcher_globs.push(Glob::try_from(*glob).unwrap());
+            matcher_globs.push(PylonGlob::try_from(*glob).unwrap());
         }
         Matcher::Glob(matcher_globs)
     }

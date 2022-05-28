@@ -1,12 +1,8 @@
-// mod asset;
 mod checked;
 mod unchecked;
-// mod uri;
 
-// pub use asset::AssetPath;
 pub use checked::*;
 pub use unchecked::*;
-// pub use uri::{CheckedUri, Uri};
 
 pub type Result<T> = eyre::Result<T>;
 
