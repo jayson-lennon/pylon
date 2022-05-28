@@ -37,7 +37,7 @@ impl FromStr for Operation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BaseDir {
     RelativeToDoc(RelPath),
     RelativeToRoot(AbsPath),
@@ -53,7 +53,18 @@ impl BaseDir {
             return Self::RelativeToDoc(base);
         }
 
-        panic!("base dir should always be constructable. this is a bug")
+        unreachable!(
+            "base dir should always be constructable. this is a bug. base: '{base}'",
+            base = base.display()
+        );
+    }
+
+    #[must_use]
+    pub fn join(&self, target: &RelPath) -> BaseDir {
+        match self {
+            Self::RelativeToDoc(rel) => BaseDir::new(rel.join(target)),
+            Self::RelativeToRoot(abs) => BaseDir::new(abs.join(target)),
+        }
     }
 }
 
@@ -254,33 +265,9 @@ impl Pipeline {
                     let command =
                         command.replace("$NEW_SCRATCH", scratch_path.to_string_lossy().as_ref());
 
-                    trace!("command= {:?}", command);
-                    {
-                        let cmd = format!(
-                            "cd {} && {}",
-                            working_dir.as_path().to_string_lossy(),
-                            &command
-                        );
-                        trace!("cmd= {:?}", cmd);
-
-                        let output = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(&cmd)
-                            .stdout(Stdio::piped())
-                            .stderr(Stdio::piped())
-                            .output()
-                            .wrap_err_with(|| {
-                                format!("Failed running shell pipeline command: '{command}'")
-                            })?;
-                        if !output.status.success() {
-                            let stdout = String::from_utf8_lossy(&output.stdout);
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            return Err(eyre!("Pipeline processing failure"))
-                                .with_section(move || command.header("Command:"))
-                                .with_section(move || stdout.trim().to_string().header("Stdout:"))
-                                .with_section(move || stderr.trim().to_string().header("Stderr:"));
-                        }
-                    }
+                    // Output is ignored in pipeline processing and should always be captured
+                    // using a command token.
+                    let _command_output = run_command(command, &working_dir)?;
                 }
             }
         }
@@ -290,6 +277,37 @@ impl Pipeline {
         }
 
         Ok(())
+    }
+}
+
+pub fn run_command<S: AsRef<str>>(command: S, working_dir: &AbsPath) -> Result<String> {
+    let command = command.as_ref();
+    trace!("command= {:?}", command);
+    {
+        let cmd = format!(
+            "cd {} && {}",
+            working_dir.as_path().to_string_lossy(),
+            &command
+        );
+        trace!("cmd= {:?}", cmd);
+
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&cmd)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .wrap_err_with(|| format!("Failed running shell command: '{command}'"))?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+        } else {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(eyre!("Shell command failed to run"))
+                .with_section(move || command.to_owned().header("Command:"))
+                .with_section(move || stdout.trim().to_string().header("Stdout:"))
+                .with_section(move || stderr.trim().to_string().header("Stderr:"))
+        }
     }
 }
 
@@ -825,5 +843,21 @@ mod test {
 
         let result = pipeline.run(&asset_uri);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn basedir_joins_when_relative_to_doc() {
+        let basedir = BaseDir::new("a");
+
+        let joined = basedir.join(&RelPath::from_relative("b"));
+        assert_eq!(joined, BaseDir::new("a/b"));
+    }
+
+    #[test]
+    fn basedir_joins_when_relative_to_root() {
+        let basedir = BaseDir::new("/a");
+
+        let joined = basedir.join(&RelPath::from_relative("b"));
+        assert_eq!(joined, BaseDir::new("/a/b"));
     }
 }
