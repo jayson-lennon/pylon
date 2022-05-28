@@ -64,12 +64,12 @@ impl<'a> GlobCandidate<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Glob {
+pub struct PylonGlob {
     glob: globset::Glob,
     matcher: globset::GlobMatcher,
 }
 
-impl Glob {
+impl PylonGlob {
     pub fn is_match<P: AsRef<Path>>(&self, path: P) -> bool {
         self.matcher.is_match(path)
     }
@@ -82,18 +82,18 @@ impl Glob {
     }
 }
 
-impl TryFrom<String> for Glob {
+impl TryFrom<String> for PylonGlob {
     type Error = globset::Error;
 
-    fn try_from(s: String) -> std::result::Result<Glob, Self::Error> {
+    fn try_from(s: String) -> std::result::Result<PylonGlob, Self::Error> {
         s.as_str().try_into()
     }
 }
 
-impl TryFrom<&str> for Glob {
+impl TryFrom<&str> for PylonGlob {
     type Error = globset::Error;
 
-    fn try_from(s: &str) -> std::result::Result<Glob, Self::Error> {
+    fn try_from(s: &str) -> std::result::Result<PylonGlob, Self::Error> {
         let glob = globset::GlobBuilder::new(s)
             .literal_separator(true)
             .build()?;
@@ -112,29 +112,29 @@ mod test {
 
     #[test]
     fn glob_try_into_str() {
-        let glob = Glob::try_from("/*.*");
+        let glob = PylonGlob::try_from("/*.*");
         assert!(glob.is_ok());
 
-        let glob = Glob::try_from("/*.*".to_owned());
+        let glob = PylonGlob::try_from("/*.*".to_owned());
         assert!(glob.is_ok());
     }
 
     #[test]
     fn glob_try_into_string() {
-        let glob = Glob::try_from("/*.*".to_owned());
+        let glob = PylonGlob::try_from("/*.*".to_owned());
         assert!(glob.is_ok());
     }
 
     #[test]
     fn glob_is_match() {
-        let glob = Glob::try_from("*.txt".to_owned()).unwrap();
+        let glob = PylonGlob::try_from("*.txt".to_owned()).unwrap();
         assert_eq!(glob.is_match("test.txt"), true);
         assert_eq!(glob.is_match("test.md"), false);
     }
 
     #[test]
     fn glob_is_match_candidate() {
-        let glob = Glob::try_from("*.txt".to_owned()).unwrap();
+        let glob = PylonGlob::try_from("*.txt".to_owned()).unwrap();
 
         let candidate_ok = GlobCandidate::new("test.txt");
         let candidate_err = GlobCandidate::new("test.md");
@@ -145,7 +145,7 @@ mod test {
 
     #[test]
     fn glob_get_as_str() {
-        let glob = Glob::try_from("*.txt".to_owned()).unwrap();
+        let glob = PylonGlob::try_from("*.txt".to_owned()).unwrap();
 
         assert_eq!(glob.glob(), "*.txt");
     }

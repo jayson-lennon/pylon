@@ -1,11 +1,14 @@
 pub mod fn_pointers;
 pub mod matcher;
 
+use std::path::Path;
+
 use eyre::WrapErr;
 pub use fn_pointers::GlobStore;
 pub use matcher::Matcher;
+use typed_uri::BasedUri;
 
-use crate::{pipeline::Pipeline, AbsPath, RelPath};
+use crate::{AbsPath, RelPath};
 use serde::Serialize;
 
 use super::{
@@ -45,8 +48,32 @@ impl Mount {
 }
 
 #[derive(Debug, Clone)]
+pub struct PylonPipeline {
+    pipeline: pipeworks::Pipeline,
+    target_glob: crate::util::PylonGlob,
+}
+
+impl PylonPipeline {
+    pub fn new(pipeline: pipeworks::Pipeline, target_glob: crate::util::PylonGlob) -> Self {
+        Self {
+            pipeline,
+            target_glob,
+        }
+    }
+    pub fn is_match<P: AsRef<Path>>(&self, asset: P) -> bool {
+        self.target_glob.is_match(asset)
+    }
+    pub fn run(&self, asset_uri: &BasedUri) -> crate::Result<()> {
+        // let target_path = asset_uri
+        //     .to_target_sys_path(self.paths.root(), self.paths.output_dir())
+        //     .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?;
+        self.pipeline.run(&asset_uri)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Rules {
-    pipelines: Vec<Pipeline>,
+    pipelines: Vec<PylonPipeline>,
     global_context: Option<serde_json::Value>,
     page_contexts: GlobStore<ContextKey, rhai::FnPtr>,
     lints: LintCollection,
@@ -94,11 +121,11 @@ impl Rules {
         &self.page_contexts
     }
 
-    pub fn add_pipeline(&mut self, pipeline: Pipeline) {
+    pub fn add_pipeline(&mut self, pipeline: PylonPipeline) {
         self.pipelines.push(pipeline);
     }
 
-    pub fn pipelines(&self) -> impl Iterator<Item = &Pipeline> {
+    pub fn pipelines(&self) -> impl Iterator<Item = &PylonPipeline> {
         self.pipelines.iter()
     }
 
@@ -161,9 +188,9 @@ pub mod script {
     #[rhai::export_module]
     pub mod rhai_module {
         use crate::core::rules::{Matcher, Rules};
-        use crate::pipeline::BaseDir;
+        use pipeworks::BaseDir;
         use rhai::FnPtr;
-        use tracing::{trace};
+        use tracing::trace;
         use typed_path::{AbsPath, RelPath};
 
         #[rhai_fn(name = "add_pipeline", return_raw)]
@@ -173,13 +200,14 @@ pub mod script {
             target_glob: &str,
             ops: rhai::Array,
         ) -> Result<(), Box<EvalAltResult>> {
-            use crate::pipeline::{Operation, Pipeline};
+            use crate::core::rules::PylonPipeline;
+            use crate::util::PylonGlob;
             use std::str::FromStr;
 
             let mut parsed_ops = vec![];
             for op in ops {
                 let op: String = op.into_string()?;
-                let op = Operation::from_str(&op)?;
+                let op = pipeworks::Operation::from_str(&op)?;
                 parsed_ops.push(op);
             }
 
@@ -189,13 +217,29 @@ pub mod script {
                 BaseDir::RelativeToDoc(RelPath::from_relative(base_dir))
             };
 
-            let pipeline =
-                Pipeline::with_ops(rules.engine_paths(), &base_dir, target_glob, &parsed_ops)
-                    .map_err(|e| {
-                        EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
-                    })?;
+            let pylon_pipeline = {
+                let glob: PylonGlob = {
+                    let glob: Result<PylonGlob, _> = target_glob.try_into();
+                    glob.map_err(|e| {
+                        EvalAltResult::ErrorSystem("failed to parse pipeline glob".into(), e.into())
+                    })?
+                };
 
-            rules.add_pipeline(pipeline);
+                let pipeline = {
+                    let paths = rules.engine_paths();
+                    let paths = pipeworks::Paths::new(
+                        paths.project_root(),
+                        paths.output_dir(),
+                        paths.src_dir(),
+                    );
+                    pipeworks::Pipeline::with_ops(paths, &base_dir, &parsed_ops).map_err(|e| {
+                        EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())
+                    })?
+                };
+                PylonPipeline::new(pipeline, glob)
+            };
+
+            rules.add_pipeline(pylon_pipeline);
 
             Ok(())
         }
@@ -208,7 +252,7 @@ pub mod script {
             matcher: &str,
             ctx_fn: FnPtr,
         ) -> Result<(), Box<EvalAltResult>> {
-            let matcher = crate::util::Glob::try_from(matcher).map_err(|e| {
+            let matcher = crate::util::PylonGlob::try_from(matcher).map_err(|e| {
                 EvalAltResult::ErrorSystem("failed processing glob".into(), e.into())
             })?;
             let matcher = Matcher::Glob(vec![matcher]);
@@ -243,7 +287,7 @@ pub mod script {
             use crate::core::page::lint::{Lint, LintLevel};
             use std::str::FromStr;
 
-            let matcher = crate::util::Glob::try_from(matcher).map_err(|e| {
+            let matcher = crate::util::PylonGlob::try_from(matcher).map_err(|e| {
                 EvalAltResult::ErrorSystem("failed processing glob".into(), e.into())
             })?;
 
