@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use tap::Pipe;
 
-use pipeworks::ShellCommand;
+
 use typed_path::{AbsPath, RelPath};
 
 use crate::core::engine::GlobalEnginePaths;
@@ -199,7 +199,7 @@ mod test {
 
         let include_cmd = IncludeCmd::new(engine_paths);
 
-        let mut args = HashMap::new();
+        let args = HashMap::new();
 
         let result = include_cmd.call(&args);
         assert!(result.is_err());
