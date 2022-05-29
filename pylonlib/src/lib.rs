@@ -92,7 +92,7 @@ pub(crate) mod test {
             &RelPath::new("src").unwrap(),
         )
         .expect("failed to make syspath for md file");
-        path.confirmed(pathmarker::MdFile)
+        path.confirm(pathmarker::MdFile)
             .expect("failed to make confirmed path")
     }
 }

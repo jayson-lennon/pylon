@@ -63,7 +63,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .confirmed(pathmarker::HtmlFile)
+            .confirm(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"<img src="asset.png">"#;
         let assets = crate::discover::html_asset::find(paths, &html_path, html)

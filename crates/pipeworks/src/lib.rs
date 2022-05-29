@@ -358,7 +358,7 @@ mod test {
             &RelPath::new("target").unwrap(),
         )
         .expect("failed to make syspath for html file");
-        path.confirmed(pathmarker::HtmlFile)
+        path.confirm(pathmarker::HtmlFile)
             .expect("failed to make confirmed path")
     }
 
