@@ -1,16 +1,9 @@
 use std::collections::HashMap;
 use tap::Pipe;
 
-
 use typed_path::{AbsPath, RelPath};
 
 use crate::core::engine::GlobalEnginePaths;
-
-macro_rules! tera_error {
-    ($msg:expr) => {{
-        |_| tera::Error::msg($msg)
-    }};
-}
 
 #[derive(Clone, Debug)]
 pub struct IncludeCmd {
@@ -66,8 +59,35 @@ impl tera::Function for IncludeCmd {
                 })?
         };
 
-        let content = pipeworks::run_command(command, &working_dir)
-            .map_err(|e| tera::Error::msg(format!("failed to run command '{command}': {e}")))?;
+        let content = {
+            if command.contains("$SCRATCH") {
+                let scratch_path = tempfile::Builder::new()
+                    .prefix(pipeworks::TMP_ARTIFACT_PREFIX)
+                    .rand_bytes(12)
+                    .tempfile()
+                    .map_err(|e| {
+                        tera::Error::msg(format!("failed to create temp file for include_cmd: {e}"))
+                    })?;
+                let scratch_path = scratch_path.path();
+
+                let command = command.replace("$SCRATCH", &scratch_path.to_string_lossy());
+
+                let _ignore_content =
+                    pipeworks::run_command(&command, &working_dir).map_err(|e| {
+                        tera::Error::msg(format!("failed to run command '{command}': {e}"))
+                    })?;
+
+                std::fs::read_to_string(scratch_path).map_err(|e| {
+                    tera::Error::msg(format!(
+                        "failed to read scratch file after running include_cmd: {e}"
+                    ))
+                })?
+            } else {
+                pipeworks::run_command(command, &working_dir).map_err(|e| {
+                    tera::Error::msg(format!("failed to run command '{command}': {e}"))
+                })?
+            }
+        };
 
         Ok(tera::Value::String(content))
     }
@@ -100,6 +120,41 @@ mod test {
 
         let result = include_cmd.call(&args).expect("call should be successful");
         assert_eq!(result, "hello\n");
+    }
+
+    #[test]
+    fn include_cmd_happy_path_with_scratch() {
+        let tree = temptree! {};
+
+        let engine_paths = crate::test::default_test_paths(&tree);
+
+        let include_cmd = IncludeCmd::new(engine_paths);
+
+        let mut args = HashMap::new();
+        args.insert("cwd".to_owned(), json!(format!("{}", "/")));
+        args.insert("cmd".to_owned(), json!("echo hello > $SCRATCH"));
+
+        let result = include_cmd.call(&args).expect("call should be successful");
+        assert_eq!(result, "hello\n");
+    }
+
+    #[test]
+    fn include_cmd_composite_with_scratch() {
+        let tree = temptree! {};
+
+        let engine_paths = crate::test::default_test_paths(&tree);
+
+        let include_cmd = IncludeCmd::new(engine_paths);
+
+        let mut args = HashMap::new();
+        args.insert("cwd".to_owned(), json!(format!("{}", "/")));
+        args.insert(
+            "cmd".to_owned(),
+            json!("echo a > $SCRATCH && echo b >> $SCRATCH"),
+        );
+
+        let result = include_cmd.call(&args).expect("call should be successful");
+        assert_eq!(result, "a\nb\n");
     }
 
     #[test]
@@ -171,6 +226,22 @@ mod test {
 
         let mut args = HashMap::new();
         args.insert("cwd".to_owned(), json!(format!("{}", "/")));
+
+        let result = include_cmd.call(&args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn include_cmd_fails_with_nonexistent_cwd() {
+        let tree = temptree! {};
+
+        let engine_paths = crate::test::default_test_paths(&tree);
+
+        let include_cmd = IncludeCmd::new(engine_paths);
+
+        let mut args = HashMap::new();
+        args.insert("cwd".to_owned(), json!(format!("{}", "/no_exist")));
+        args.insert("cmd".to_owned(), json!("echo test"));
 
         let result = include_cmd.call(&args);
         assert!(result.is_err());

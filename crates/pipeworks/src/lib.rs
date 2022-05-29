@@ -7,7 +7,7 @@ use tracing::{info_span, trace, trace_span};
 use typed_path::{AbsPath, RelPath};
 use typed_uri::BasedUri;
 
-const TMP_ARTIFACT_PREFIX: &str = "pipeworks_artifact_";
+pub const TMP_ARTIFACT_PREFIX: &str = "pipeworks_artifact_";
 
 pub type Result<T> = eyre::Result<T>;
 
