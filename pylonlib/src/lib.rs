@@ -34,7 +34,7 @@ pub(crate) mod test {
     use std::sync::Arc;
     use tempfile::TempDir;
     use temptree::temptree;
-    use typed_path::{pathmarker, CheckedFilePath, SysPath};
+    use typed_path::{ConfirmedPath, SysPath};
 
     use crate::{core::engine::EnginePaths, AbsPath, RelPath};
 
@@ -85,13 +85,14 @@ pub(crate) mod test {
         (paths, tree)
     }
 
-    pub fn checked_md_path(tree: &TempDir, path: &str) -> CheckedFilePath<pathmarker::Md> {
+    pub fn checked_md_path(tree: &TempDir, path: &str) -> ConfirmedPath<pathmarker::MdFile> {
         let path = SysPath::from_abs_path(
             &AbsPath::new(tree.path().join(path)).unwrap(),
             &AbsPath::new(tree.path()).unwrap(),
             &RelPath::new("src").unwrap(),
         )
         .expect("failed to make syspath for md file");
-        path.try_into().expect("failed to make checked path")
+        path.to_confirmed_path(pathmarker::MdFile)
+            .expect("failed to make checked path")
     }
 }

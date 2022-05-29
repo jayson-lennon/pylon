@@ -5,7 +5,7 @@ use std::process::Stdio;
 use std::str::FromStr;
 use tracing::{info_span, trace, trace_span};
 use typed_path::{AbsPath, RelPath};
-use typed_uri::BasedUri;
+use typed_uri::AssetUri;
 
 pub const TMP_ARTIFACT_PREFIX: &str = "pipeworks_artifact_";
 
@@ -125,7 +125,7 @@ impl Pipeline {
         self.ops.push(op);
     }
 
-    pub fn run(&self, asset_uri: &BasedUri) -> Result<()> {
+    pub fn run(&self, asset_uri: &AssetUri) -> Result<()> {
         let mut scratch_files = vec![];
         let result = self.do_run(&mut scratch_files, asset_uri);
 
@@ -135,7 +135,7 @@ impl Pipeline {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn do_run(&self, scratch_files: &mut Vec<PathBuf>, asset_uri: &BasedUri) -> Result<()> {
+    fn do_run(&self, scratch_files: &mut Vec<PathBuf>, asset_uri: &AssetUri) -> Result<()> {
         let mut scratch_path = new_scratch_file(scratch_files, &[])
             .wrap_err("Failed to created new scratch file for pipeline processing")?;
 
@@ -348,17 +348,18 @@ mod test {
     use std::fs;
     use tempfile::TempDir;
     use temptree::temptree;
-    use typed_path::{pathmarker, AbsPath, CheckedFilePath, RelPath, SysPath};
+    use typed_path::{AbsPath, ConfirmedPath, RelPath, SysPath};
     use typed_uri::Uri;
 
-    fn checked_html_path(tree: &TempDir, path: &str) -> CheckedFilePath<pathmarker::Html> {
+    fn confirmed_html_path(tree: &TempDir, path: &str) -> ConfirmedPath<pathmarker::HtmlFile> {
         let path = SysPath::from_abs_path(
             &AbsPath::new(tree.path().join(path)).unwrap(),
             &AbsPath::new(tree.path()).unwrap(),
             &RelPath::new("target").unwrap(),
         )
         .expect("failed to make syspath for html file");
-        path.try_into().expect("failed to make checked path")
+        path.to_confirmed_path(pathmarker::HtmlFile)
+            .expect("failed to make checked path")
     }
 
     fn make_paths(tree: &TempDir) -> Paths {
@@ -406,7 +407,7 @@ mod test {
 
         pipeline.push_op(Operation::Copy);
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
@@ -434,7 +435,7 @@ mod test {
 
         pipeline.push_op(Operation::Copy);
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
@@ -461,7 +462,7 @@ mod test {
 
         pipeline.push_op(Operation::Copy);
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         let status = pipeline.run(&asset_uri);
@@ -486,7 +487,7 @@ mod test {
 
         pipeline.push_op(Operation::Copy);
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         let status = pipeline.run(&asset_uri);
@@ -513,7 +514,7 @@ mod test {
 
         pipeline.push_op(Operation::Copy);
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
@@ -546,7 +547,7 @@ mod test {
 
         pipeline.push_op(Operation::Copy);
 
-        let html_file = checked_html_path(&tree, "target/inner/output.html");
+        let html_file = confirmed_html_path(&tree, "target/inner/output.html");
         let asset_uri = Uri::new("/inner/test.txt")
             .unwrap()
             .to_based_uri(&html_file);
@@ -583,7 +584,7 @@ mod test {
 
         pipeline.push_op(Operation::Copy);
 
-        let html_file = checked_html_path(&tree, "target/inner/output.html");
+        let html_file = confirmed_html_path(&tree, "target/inner/output.html");
         let asset_uri = Uri::new("/inner/test.txt")
             .unwrap()
             .to_based_uri(&html_file);
@@ -615,7 +616,7 @@ mod test {
             "sed 's/old/new/g' $SOURCE > $TARGET",
         )));
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
@@ -645,7 +646,7 @@ mod test {
             "sed 's/old/new/g' $SOURCE > $NEW_SCRATCH",
         )));
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
@@ -677,7 +678,7 @@ mod test {
 
         pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
@@ -714,7 +715,7 @@ mod test {
 
         pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
 
-        let html_file = checked_html_path(&tree, "target/inner/output.html");
+        let html_file = confirmed_html_path(&tree, "target/inner/output.html");
         let asset_uri = Uri::new("/inner/test.txt")
             .unwrap()
             .to_based_uri(&html_file);
@@ -755,7 +756,7 @@ mod test {
 
         pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
 
-        let html_file = checked_html_path(&tree, "target/inner/output.html");
+        let html_file = confirmed_html_path(&tree, "target/inner/output.html");
         let asset_uri = Uri::new("/inner/test.txt")
             .unwrap()
             .to_based_uri(&html_file);
@@ -785,7 +786,7 @@ mod test {
 
         pipeline.push_op(Operation::Shell(ShellCommand::new("echo test > $TARGET")));
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/static/styles/site.css")
             .unwrap()
             .to_based_uri(&html_file);
@@ -838,7 +839,7 @@ mod test {
 
         pipeline.push_op(Operation::Shell(ShellCommand::new("CMD_NOT_FOUND")));
 
-        let html_file = checked_html_path(&tree, "target/output.html");
+        let html_file = confirmed_html_path(&tree, "target/output.html");
         let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
 
         let result = pipeline.run(&asset_uri);

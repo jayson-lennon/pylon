@@ -1,6 +1,6 @@
 use eyre::WrapErr;
-use typed_path::{CheckedFilePath, SysPath};
-use typed_uri::{BasedUri, Uri};
+use typed_path::SysPath;
+use typed_uri::{AssetUri, Uri};
 
 use crate::{AbsPath, Result};
 use std::path::Path;
@@ -37,21 +37,23 @@ pub fn make_parent_dirs(dir: &AbsPath) -> Result<()> {
         .wrap_err_with(|| format!("Failed to create parent directories from '{}'", dir))
 }
 
-pub fn based_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Result<BasedUri> {
+pub fn based_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Result<AssetUri> {
     let uri = uri.into();
-    let checked_html = CheckedFilePath::try_from(path).wrap_err_with(|| {
-        format!(
-            "Failed to create CheckedFilePath from '{}' when creating SysPath from Uri",
-            path
-        )
-    })?;
+    let checked_html = path
+        .to_confirmed_path(pathmarker::HtmlFile)
+        .wrap_err_with(|| {
+            format!(
+                "Failed to create CheckedFilePath from '{}' when creating SysPath from Uri",
+                path
+            )
+        })?;
     let uri = Uri::new(&uri).wrap_err_with(|| {
         format!(
             "Failed to create URI from '{}' when creating SysPath from Uri",
             uri
         )
     })?;
-    Ok(BasedUri::new(&checked_html, &uri))
+    Ok(AssetUri::new(&checked_html, &uri))
 }
 
 #[derive(Debug)]
@@ -154,11 +156,11 @@ mod test {
     fn gets_based_uri_from_sys_path() {
         let tree = temptree! {
             dir: {
-                "test.ext": "",
+                "test.html": "",
             }
         };
         let root = AbsPath::new(tree.path()).unwrap();
-        let sys_path = SysPath::new(&root, rel!("dir"), rel!("test.ext"));
+        let sys_path = SysPath::new(&root, rel!("dir"), rel!("test.html"));
         based_uri_from_sys_path(&sys_path, "/test.href")
             .expect("failed to create checked Uri from sys path");
     }
