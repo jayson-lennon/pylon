@@ -4,12 +4,6 @@ use typed_path::AbsPath;
 
 use crate::core::engine::GlobalEnginePaths;
 
-macro_rules! tera_error {
-    ($msg:expr) => {{
-        |_| tera::Error::msg($msg)
-    }};
-}
-
 pub struct IncludeFile {
     engine_paths: GlobalEnginePaths,
 }
@@ -37,9 +31,9 @@ impl tera::Function for IncludeFile {
                 })?;
 
             let relative_to_project_root = AbsPath::new(path)
-                .map_err(tera_error!(
-                    "'path' must be absolute (starting from project directory)"
-                ))?
+                .map_err(|_| {
+                    tera::Error::msg("'path' must be absolute (starting from project directory)")
+                })?
                 .strip_prefix("/")
                 .expect("absolute path must start with a '/'");
 
