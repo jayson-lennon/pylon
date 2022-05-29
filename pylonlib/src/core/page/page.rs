@@ -310,7 +310,7 @@ pub mod test {
         );
 
         let checked_path = sys_path
-            .confirmed(pathmarker::MdFile)
+            .confirm(pathmarker::MdFile)
             .expect("failed to confirm path");
 
         Page::from_file(paths, checked_path, &renderers)
@@ -325,7 +325,7 @@ pub mod test {
 
         let sys_path = SysPath::new(paths.project_root(), paths.src_dir(), rel!(file_name));
         let checked_path = sys_path
-            .confirmed(pathmarker::MdFile)
+            .confirm(pathmarker::MdFile)
             .expect("failed to confirm path");
 
         Page::from_file(paths, checked_path, &renderers)

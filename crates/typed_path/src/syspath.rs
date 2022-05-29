@@ -157,7 +157,7 @@ impl SysPath {
         TypedPath::new(self, marker)
     }
 
-    pub fn confirmed<T: PathMarker>(&self, marker: T) -> Result<ConfirmedPath<T>> {
+    pub fn confirm<T: PathMarker>(&self, marker: T) -> Result<ConfirmedPath<T>> {
         self.typed(marker).confirm()
     }
 }
@@ -176,6 +176,26 @@ mod test {
     use super::*;
     use crate::test::{abs, rel};
     use temptree::temptree;
+
+    #[test]
+    fn typed() {
+        let tree = temptree! {
+            "test": "",
+        };
+        let root = AbsPath::new(tree.path()).unwrap();
+        SysPath::new(&root, rel!(""), rel!("test")).typed(crate::marker::File);
+    }
+
+    #[test]
+    fn confirmed() {
+        let tree = temptree! {
+            "test": "",
+        };
+        let root = AbsPath::new(tree.path()).unwrap();
+        SysPath::new(&root, rel!(""), rel!("test"))
+            .confirm(crate::marker::File)
+            .expect("should be able to create confirmed path");
+    }
 
     #[test]
     fn makes_new() {
