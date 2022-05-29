@@ -39,14 +39,12 @@ pub fn make_parent_dirs(dir: &AbsPath) -> Result<()> {
 
 pub fn based_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Result<AssetUri> {
     let uri = uri.into();
-    let checked_html = path
-        .to_confirmed_path(pathmarker::HtmlFile)
-        .wrap_err_with(|| {
-            format!(
-                "Failed to create CheckedFilePath from '{}' when creating SysPath from Uri",
-                path
-            )
-        })?;
+    let checked_html = path.confirmed(pathmarker::HtmlFile).wrap_err_with(|| {
+        format!(
+            "Failed to confirmed path from '{}' when creating SysPath from Uri",
+            path
+        )
+    })?;
     let uri = Uri::new(&uri).wrap_err_with(|| {
         format!(
             "Failed to create URI from '{}' when creating SysPath from Uri",

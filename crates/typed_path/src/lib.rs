@@ -10,7 +10,6 @@ pub use absolute::AbsPath;
 pub use relative::RelPath;
 pub use syspath::SysPath;
 
-// pub use checked::*;
 use eyre::eyre;
 pub use marker::PathMarker;
 use serde::Serialize;
