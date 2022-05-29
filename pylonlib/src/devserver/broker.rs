@@ -6,7 +6,7 @@ use crate::core::engine::{Engine, EnginePaths};
 use crate::core::page::RenderedPage;
 use crate::core::pagestore::SearchKey;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
-use crate::{Result};
+use crate::Result;
 
 use tokio::runtime::Handle;
 use tracing::{error, trace, warn};
@@ -242,8 +242,8 @@ mod handle_msg {
     use std::{collections::HashSet, ffi::OsStr};
 
     use eyre::{eyre, WrapErr};
-    
-    use tracing::{trace};
+
+    use tracing::trace;
     use typed_uri::Uri;
 
     use crate::{
@@ -253,7 +253,8 @@ mod handle_msg {
             Page,
         },
         devserver::broker::RenderBehavior,
-        discover::html_asset::{HtmlAssets, MissingAssetsError}, CheckedFile, Result, SysPath,
+        discover::html_asset::{HtmlAssets, MissingAssetsError},
+        Result, SysPath,
     };
 
     use super::FilesystemUpdateEvents;
@@ -267,7 +268,7 @@ mod handle_msg {
             .to_sys_path(engine.paths().project_root(), engine.paths().output_dir())
             .wrap_err_with(|| format!("Failed to generate SysPath from {}", uri))?;
 
-        let html_path = sys_path.to_checked_file()?;
+        let html_path = sys_path.to_confirmed_path(pathmarker::HtmlFile)?;
 
         let missing_assets = step::build_required_asset_list(engine, std::iter::once(&html_path))
             .map(|mut assets| {
@@ -319,7 +320,7 @@ mod handle_msg {
                 }
 
                 let rendered_page = rendered_collection.into_iter().next().unwrap();
-                let html_path = page.target().to_checked_file()?;
+                let html_path = page.target().to_confirmed_path(pathmarker::HtmlFile)?;
 
                 let missing_assets =
                     step::build_required_asset_list(engine, std::iter::once(&html_path))
@@ -371,7 +372,7 @@ mod handle_msg {
                         engine.paths().src_dir(),
                         &rel,
                     )
-                    .to_checked_file()
+                    .to_confirmed_path(pathmarker::MdFile)
                     .wrap_err_with(|| {
                         format!(
                             "Failed to create checked file on fsevent for path '{}'",

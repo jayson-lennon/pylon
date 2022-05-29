@@ -1,20 +1,18 @@
 use crate::core::engine::GlobalEnginePaths;
 use crate::core::pagestore::SearchKey;
 use crate::render::template::TemplateName;
-use crate::CheckedFilePath;
-
-use crate::pathmarker;
 use crate::Renderers;
 use crate::Result;
 use crate::SysPath;
 use eyre::{eyre, WrapErr};
 use serde::Serialize;
 use typed_path::AbsPath;
+use typed_path::ConfirmedPath;
 use typed_path::RelPath;
 use typed_uri::Uri;
 
 use std::{collections::HashSet, path::PathBuf};
-use tracing::{trace_span};
+use tracing::trace_span;
 
 use super::FrontMatter;
 use super::{PageKey, RawMarkdown};
@@ -26,7 +24,7 @@ pub struct Page {
     #[serde(skip)]
     pub engine_paths: GlobalEnginePaths,
 
-    pub path: CheckedFilePath<pathmarker::Md>,
+    pub path: ConfirmedPath<pathmarker::MdFile>,
 
     pub raw_doc: String,
     pub page_key: PageKey,
@@ -38,7 +36,7 @@ pub struct Page {
 impl Page {
     pub fn from_file(
         engine_paths: GlobalEnginePaths,
-        file_path: CheckedFilePath<pathmarker::Md>,
+        file_path: ConfirmedPath<pathmarker::MdFile>,
         renderers: &Renderers,
     ) -> Result<Self> {
         let mut file = std::fs::File::open(file_path.as_sys_path().to_absolute_path())
@@ -49,7 +47,7 @@ impl Page {
 
     pub fn from_reader<R>(
         engine_paths: GlobalEnginePaths,
-        file_path: CheckedFilePath<pathmarker::Md>,
+        file_path: ConfirmedPath<pathmarker::MdFile>,
         reader: &mut R,
         renderers: &Renderers,
     ) -> Result<Self>
@@ -59,14 +57,11 @@ impl Page {
         let mut raw_doc = String::new();
 
         reader.read_to_string(&mut raw_doc).wrap_err_with(|| {
-            format!(
-                "error reading document into string for path {}",
-                file_path.display()
-            )
+            format!("error reading document into string for path {}", file_path)
         })?;
 
         let (mut frontmatter, raw_markdown) = split_raw_doc(&raw_doc)
-            .wrap_err_with(|| format!("failed parsing raw document for {}", file_path.display()))?;
+            .wrap_err_with(|| format!("failed parsing raw document for {}", file_path))?;
 
         if frontmatter.template_name.is_none() {
             let all_templates = renderers
@@ -100,7 +95,7 @@ impl Page {
         self.engine_paths.clone()
     }
 
-    pub fn path(&self) -> &CheckedFilePath<pathmarker::Md> {
+    pub fn path(&self) -> &ConfirmedPath<pathmarker::MdFile> {
         &self.path
     }
 
@@ -161,7 +156,7 @@ fn split_raw_doc<S: AsRef<str>>(raw: S) -> Result<(FrontMatter, RawMarkdown)> {
 
 fn find_default_template(
     all_templates: &HashSet<String>,
-    path: &CheckedFilePath<pathmarker::Md>,
+    path: &ConfirmedPath<pathmarker::MdFile>,
 ) -> Result<TemplateName> {
     let _span = trace_span!("no template specified").entered();
     match get_default_template_name(all_templates, path) {
@@ -177,7 +172,7 @@ fn find_default_template(
 
 fn get_default_template_name(
     default_template_names: &HashSet<String>,
-    path: &CheckedFilePath<pathmarker::Md>,
+    path: &ConfirmedPath<pathmarker::MdFile>,
 ) -> Option<TemplateName> {
     let mut path = path.as_sys_path().target().to_path_buf();
 
@@ -229,7 +224,7 @@ pub mod test {
 
     use crate::core::pagestore::SearchKey;
     use crate::test::{default_test_paths, rel};
-    use crate::{CheckedFilePath, SysPath};
+    use crate::SysPath;
     use tempfile::TempDir;
     use temptree::temptree;
 
@@ -314,8 +309,9 @@ pub mod test {
             rel!(relative_target_path),
         );
 
-        let checked_path =
-            CheckedFilePath::try_from(&sys_path).expect("failed to create checked file path");
+        let checked_path = sys_path
+            .to_confirmed_path(pathmarker::MdFile)
+            .expect("failed to create checked file path");
 
         Page::from_file(paths, checked_path, &renderers)
     }
@@ -328,8 +324,9 @@ pub mod test {
         std::fs::write(&doc_path, doc).expect("failed to write doc");
 
         let sys_path = SysPath::new(paths.project_root(), paths.src_dir(), rel!(file_name));
-        let checked_path =
-            CheckedFilePath::try_from(&sys_path).expect("failed to create checked file path");
+        let checked_path = sys_path
+            .to_confirmed_path(pathmarker::MdFile)
+            .expect("failed to create checked file path");
 
         Page::from_file(paths, checked_path, &renderers)
     }

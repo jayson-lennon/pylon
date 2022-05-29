@@ -1,9 +1,10 @@
 use derivative::Derivative;
-use typed_uri::BasedUri;
+use typed_path::ConfirmedPath;
+use typed_uri::AssetUri;
 
 use crate::core::engine::GlobalEnginePaths;
-use crate::{pathmarker, Result};
-use crate::{AbsPath, CheckedFilePath, RelPath};
+use crate::Result;
+use crate::{AbsPath, RelPath};
 
 use serde::Serialize;
 
@@ -11,11 +12,11 @@ use serde::Serialize;
 #[derivative(Debug, Clone, Hash, PartialEq)]
 pub struct AssetPath {
     target: AbsPath,
-    uri: BasedUri,
+    uri: AssetUri,
 }
 
 impl AssetPath {
-    pub fn new(engine_paths: GlobalEnginePaths, uri: &BasedUri) -> Result<Self> {
+    pub fn new(engine_paths: GlobalEnginePaths, uri: &AssetUri) -> Result<Self> {
         let target = RelPath::new(&uri.as_str()[1..])?;
         let target = engine_paths.absolute_output_dir().join(&target);
 
@@ -25,11 +26,11 @@ impl AssetPath {
         })
     }
 
-    pub fn html_src_file(&self) -> &CheckedFilePath<pathmarker::Html> {
+    pub fn html_src_file(&self) -> &ConfirmedPath<pathmarker::HtmlFile> {
         self.uri.html_src()
     }
 
-    pub fn uri(&self) -> &BasedUri {
+    pub fn uri(&self) -> &AssetUri {
         &self.uri
     }
 
@@ -62,7 +63,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"<img src="asset.png">"#;
         let assets = crate::discover::html_asset::find(paths, &html_path, html)

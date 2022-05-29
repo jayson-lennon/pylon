@@ -1,13 +1,11 @@
 use super::Page;
-use crate::core::{
-    rules::{Matcher, RuleProcessor},
-};
+use crate::core::rules::{Matcher, RuleProcessor};
 use eyre::{eyre, WrapErr};
 
 use slotmap::SlotMap;
 use std::str::FromStr;
-use tracing::{trace};
-use typed_path::{pathmarker, CheckedFilePath};
+use tracing::trace;
+use typed_path::ConfirmedPath;
 
 pub const LINT_LEVEL_DENY: &str = "DENY";
 pub const LINT_LEVEL_WARN: &str = "WARN";
@@ -99,14 +97,14 @@ impl Default for LintCollection {
 pub struct LintResult {
     pub level: LintLevel,
     pub msg: String,
-    pub md_file: CheckedFilePath<pathmarker::Md>,
+    pub md_file: ConfirmedPath<pathmarker::MdFile>,
 }
 
 impl LintResult {
     pub fn new<S: Into<String>>(
         level: LintLevel,
         msg: S,
-        md_file: &CheckedFilePath<pathmarker::Md>,
+        md_file: &ConfirmedPath<pathmarker::MdFile>,
     ) -> Self {
         Self {
             level,

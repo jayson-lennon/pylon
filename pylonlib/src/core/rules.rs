@@ -6,7 +6,7 @@ use std::path::Path;
 use eyre::WrapErr;
 pub use fn_pointers::GlobStore;
 pub use matcher::Matcher;
-use typed_uri::BasedUri;
+use typed_uri::AssetUri;
 
 use crate::{AbsPath, RelPath};
 use serde::Serialize;
@@ -63,7 +63,7 @@ impl PylonPipeline {
     pub fn is_match<P: AsRef<Path>>(&self, asset: P) -> bool {
         self.target_glob.is_match(asset)
     }
-    pub fn run(&self, asset_uri: &BasedUri) -> crate::Result<()> {
+    pub fn run(&self, asset_uri: &AssetUri) -> crate::Result<()> {
         // let target_path = asset_uri
         //     .to_target_sys_path(self.paths.root(), self.paths.output_dir())
         //     .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?;

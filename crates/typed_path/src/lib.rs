@@ -1,10 +1,13 @@
-mod checked;
+use std::fmt;
+
+// mod checked;
 pub mod marker;
 mod unchecked;
 
-pub use checked::*;
+// pub use checked::*;
 use eyre::eyre;
 pub use marker::PathMarker;
+use serde::Serialize;
 pub use unchecked::*;
 
 pub type Result<T> = eyre::Result<T>;
@@ -59,15 +62,18 @@ mod test {
     pub(in crate) use rel;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Hash, PartialEq)]
 pub struct TypedPath<T: PathMarker> {
     inner: SysPath,
     marker: T,
 }
 
 impl<T: PathMarker> TypedPath<T> {
-    pub fn new(inner: SysPath, marker: T) -> TypedPath<T> {
-        Self { inner, marker }
+    pub fn new(inner: &SysPath, marker: T) -> TypedPath<T> {
+        Self {
+            inner: inner.clone(),
+            marker,
+        }
     }
 
     pub fn confirm(&self) -> Result<ConfirmedPath<T>> {
@@ -81,12 +87,22 @@ impl<T: PathMarker> TypedPath<T> {
         }
     }
 
-    pub fn inner(&self) -> &SysPath {
+    pub fn as_sys_path(&self) -> &SysPath {
         &self.inner
+    }
+
+    pub fn marker(&self) -> &T {
+        &self.marker
     }
 }
 
-#[derive(Debug, Clone)]
+impl<T: PathMarker + fmt::Display> fmt::Display for TypedPath<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TypedPath<{}>({})", self.marker(), self.inner)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Hash, PartialEq)]
 pub struct ConfirmedPath<T: PathMarker> {
     inner: TypedPath<T>,
 }
@@ -94,5 +110,17 @@ pub struct ConfirmedPath<T: PathMarker> {
 impl<T: PathMarker> ConfirmedPath<T> {
     pub fn as_typed_path(&self) -> &TypedPath<T> {
         &self.inner
+    }
+    pub fn as_sys_path(&self) -> &SysPath {
+        self.inner.as_sys_path()
+    }
+    pub fn marker(&self) -> &T {
+        self.inner.marker()
+    }
+}
+
+impl<T: PathMarker + fmt::Display> fmt::Display for ConfirmedPath<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ConfirmedPath<{}>({})", self.marker(), self.inner)
     }
 }

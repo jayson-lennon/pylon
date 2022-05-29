@@ -2,16 +2,16 @@ use derivative::Derivative;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use typed_uri::{BasedUri, Uri};
+use typed_path::ConfirmedPath;
+use typed_uri::{AssetUri, Uri};
 
 use std::sync::Arc;
 
 use serde::Serialize;
 use thiserror::Error;
 
-
 use crate::core::engine::EnginePaths;
-use crate::{discover, pathmarker, CheckedFile, CheckedFilePath, RelPath, Result, SysPath};
+use crate::{discover, RelPath, Result, SysPath};
 
 use crate::discover::AssetPath;
 
@@ -49,7 +49,7 @@ pub struct HtmlAsset {
     target: AssetPath,
     tag: String,
     url_type: UrlType,
-    html_src_file: CheckedFilePath<pathmarker::Html>,
+    html_src_file: ConfirmedPath<pathmarker::HtmlFile>,
 }
 
 impl HtmlAsset {
@@ -57,7 +57,7 @@ impl HtmlAsset {
         target: &AssetPath,
         tag: S,
         url_type: &UrlType,
-        html_src_file: &CheckedFilePath<pathmarker::Html>,
+        html_src_file: &ConfirmedPath<pathmarker::HtmlFile>,
     ) -> Self {
         Self {
             target: target.clone(),
@@ -75,11 +75,11 @@ impl HtmlAsset {
         self.tag == tag.as_ref()
     }
 
-    pub fn uri(&self) -> &BasedUri {
+    pub fn uri(&self) -> &AssetUri {
         self.target.uri()
     }
 
-    pub fn html_src_file(&self) -> &CheckedFilePath<pathmarker::Html> {
+    pub fn html_src_file(&self) -> &ConfirmedPath<pathmarker::HtmlFile> {
         &self.target.html_src_file()
     }
 
@@ -205,7 +205,7 @@ pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<
             engine_paths.project_root(),
             engine_paths.output_dir(),
         )?
-        .to_checked_file()?;
+        .to_confirmed_path(pathmarker::HtmlFile)?;
         let assets = find(engine_paths.clone(), &html_path, &raw_html)?;
         all_assets.extend(assets);
     }
@@ -215,7 +215,7 @@ pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<
 
 pub fn find<S>(
     engine_paths: Arc<EnginePaths>,
-    html_path: &CheckedFilePath<pathmarker::Html>,
+    html_path: &ConfirmedPath<pathmarker::HtmlFile>,
     html: S,
 ) -> Result<HtmlAssets>
 where
@@ -250,7 +250,7 @@ where
                 match discover::get_url_type(url) {
                     UrlType::Absolute => {
                         let uri = Uri::new(url)?;
-                        let uri = BasedUri::new(html_path, &uri);
+                        let uri = AssetUri::new(html_path, &uri);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
                         let html_asset =
                             HtmlAsset::new(&asset_path, tag, &UrlType::Absolute, html_path);
@@ -278,9 +278,9 @@ where
 }
 
 fn raw_relative_uri_to_based_uri<S: AsRef<str>>(
-    html_path: &CheckedFilePath<pathmarker::Html>,
+    html_path: &ConfirmedPath<pathmarker::HtmlFile>,
     relative_uri: S,
-) -> BasedUri {
+) -> AssetUri {
     let relative_uri = relative_uri.as_ref();
 
     let mut abs_uri = PathBuf::new();
@@ -300,7 +300,7 @@ fn raw_relative_uri_to_based_uri<S: AsRef<str>>(
     }
 
     let uri = Uri::new(abs_uri.to_string_lossy().to_string()).unwrap();
-    BasedUri::new(html_path, &uri)
+    AssetUri::new(html_path, &uri)
 }
 
 #[cfg(test)]
@@ -349,7 +349,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"
             <a href="/a.file"></a>
@@ -383,7 +383,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"<img src="/asset.png">"#;
         let assets = super::find(paths, &html_path, html).expect("failed to find assets");
@@ -409,7 +409,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"<img src="asset.png">"#;
         let assets = super::find(paths, &html_path, html).expect("failed to find assets");
@@ -437,7 +437,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"<img src="img/asset.png">"#;
         let assets = super::find(paths, &html_path, html).expect("failed to find assets");
@@ -465,7 +465,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"<img src="/img/asset.png">"#;
         let assets = super::find(paths, &html_path, html).expect("failed to find assets");
@@ -490,7 +490,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"<img src="http://example.com/asset.png">"#;
         let assets = super::find(paths, &html_path, html).expect("failed to find assets");
@@ -512,7 +512,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let html = r#"<img src="@/whoops.md">"#;
         super::find(paths, &html_path, html);
@@ -532,7 +532,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let relative_uri = "test.txt";
         let uri = super::raw_relative_uri_to_based_uri(&html_path, relative_uri);
@@ -554,7 +554,7 @@ mod test {
         };
         let paths = crate::test::default_test_paths(&tree);
         let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("test.html"))
-            .try_into()
+            .to_confirmed_path(pathmarker::HtmlFile)
             .unwrap();
         let relative_uri = "/test.txt";
         super::raw_relative_uri_to_based_uri(&html_path, relative_uri);

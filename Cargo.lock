@@ -1723,6 +1723,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pathmarker"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "eyre",
+ "serde",
+ "tempfile",
+ "temptree",
+ "typed_path",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1899,6 +1911,7 @@ dependencies = [
  "anyhow",
  "color-eyre",
  "eyre",
+ "pathmarker",
  "serde",
  "serde_json",
  "tempfile",
@@ -2131,6 +2144,7 @@ dependencies = [
  "once_cell",
  "parcel_css",
  "parking_lot 0.12.0",
+ "pathmarker",
  "percent-encoding",
  "pipeworks",
  "poem",
@@ -3169,6 +3183,7 @@ dependencies = [
  "color-eyre",
  "derivative",
  "eyre",
+ "pathmarker",
  "serde",
  "tempfile",
  "temptree",

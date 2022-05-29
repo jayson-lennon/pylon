@@ -1,19 +1,16 @@
 [package]
-name = "typed_uri"
+name = "pathmarker"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "typed_uri"
+name = "pathmarker"
 path = "src/lib.rs"
 
 [dependencies]
 typed_path = { path = "../typed_path" }
-pathmarker = { path = "../pathmarker" }
-derivative = "2.2"
 serde = { version = "1.0", features = ["derive"] }
 eyre = "0.6"
-tracing = "0.1"
 color-eyre = "0.6"
 
 [dev-dependencies]

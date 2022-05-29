@@ -1,14 +1,9 @@
-use std::{
-    collections::HashSet,
-    ffi::OsStr,
-    path::{Path},
-    sync::Arc,
-};
+use std::{collections::HashSet, ffi::OsStr, path::Path, sync::Arc};
 
 use eyre::WrapErr;
 use itertools::Itertools;
-use tracing::{trace};
-use typed_path::{pathmarker, CheckedFile, CheckedFilePath, SysPath};
+use tracing::trace;
+use typed_path::{ConfirmedPath, SysPath};
 
 use crate::{
     core::{
@@ -207,7 +202,7 @@ pub fn build_page_store(
                 .strip_prefix(root.join(base))
                 .wrap_err("Failed to strip root+base from abs path while building page store")?;
             let checked_file_path = SysPath::new(root, base, &target)
-                .to_checked_file()
+                .to_confirmed_path(pathmarker::MdFile)
                 .wrap_err("Failed to make CheckedFile while building page store")?;
             Page::from_file(engine_paths.clone(), checked_file_path, renderers)
         })
@@ -220,7 +215,10 @@ pub fn build_page_store(
     Ok(page_store)
 }
 
-pub fn build_required_asset_list<'a, F: Iterator<Item = &'a CheckedFilePath<pathmarker::Html>>>(
+pub fn build_required_asset_list<
+    'a,
+    F: Iterator<Item = &'a ConfirmedPath<pathmarker::HtmlFile>>,
+>(
     engine: &Engine,
     files: F,
 ) -> Result<HtmlAssets> {
@@ -248,7 +246,7 @@ pub fn build_required_asset_list<'a, F: Iterator<Item = &'a CheckedFilePath<path
 
 pub fn get_all_html_output_files(
     engine: &Engine,
-) -> Result<Vec<CheckedFilePath<pathmarker::Html>>> {
+) -> Result<Vec<ConfirmedPath<pathmarker::HtmlFile>>> {
     crate::discover::get_all_paths(engine.paths().absolute_output_dir(), &|path| {
         path.extension() == Some(OsStr::new("html"))
     })
@@ -265,7 +263,7 @@ pub fn get_all_html_output_files(
             engine.paths().project_root(),
             engine.paths().output_dir(),
         )
-        .and_then(|sys_path| sys_path.to_checked_file())
+        .and_then(|sys_path| sys_path.to_confirmed_path(pathmarker::HtmlFile))
     })
     .collect::<Result<Vec<_>>>()
 }
