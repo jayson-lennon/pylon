@@ -1,7 +1,10 @@
 mod checked;
+pub mod marker;
 mod unchecked;
 
 pub use checked::*;
+use eyre::eyre;
+pub use marker::PathMarker;
 pub use unchecked::*;
 
 pub type Result<T> = eyre::Result<T>;
@@ -50,6 +53,46 @@ mod test {
         }};
     }
 
+    use std::ffi::OsStr;
+
     pub(in crate) use abs;
     pub(in crate) use rel;
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedPath<T: PathMarker> {
+    inner: SysPath,
+    marker: T,
+}
+
+impl<T: PathMarker> TypedPath<T> {
+    pub fn new(inner: SysPath, marker: T) -> TypedPath<T> {
+        Self { inner, marker }
+    }
+
+    pub fn confirm(&self) -> Result<ConfirmedPath<T>> {
+        dbg!(&self.inner);
+        match self.marker.confirm(self) {
+            Ok(true) => Ok(ConfirmedPath {
+                inner: (self.clone()),
+            }),
+            Ok(false) => Err(eyre!("failed to confirm path")),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn inner(&self) -> &SysPath {
+        &self.inner
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfirmedPath<T: PathMarker> {
+    inner: TypedPath<T>,
+}
+
+impl<T: PathMarker> ConfirmedPath<T> {
+    pub fn as_typed_path(&self) -> &TypedPath<T> {
+        &self.inner
+    }
 }
