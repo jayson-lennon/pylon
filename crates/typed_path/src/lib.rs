@@ -1,14 +1,19 @@
 use std::fmt;
 
-// mod checked;
+mod absolute;
+mod relative;
+mod syspath;
+
 pub mod marker;
-mod unchecked;
+
+pub use absolute::AbsPath;
+pub use relative::RelPath;
+pub use syspath::SysPath;
 
 // pub use checked::*;
 use eyre::eyre;
 pub use marker::PathMarker;
 use serde::Serialize;
-pub use unchecked::*;
 
 pub type Result<T> = eyre::Result<T>;
 
