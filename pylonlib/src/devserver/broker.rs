@@ -268,7 +268,7 @@ mod handle_msg {
             .to_sys_path(engine.paths().project_root(), engine.paths().output_dir())
             .wrap_err_with(|| format!("Failed to generate SysPath from {}", uri))?;
 
-        let html_path = sys_path.to_confirmed_path(pathmarker::HtmlFile)?;
+        let html_path = sys_path.confirmed(pathmarker::HtmlFile)?;
 
         let missing_assets = step::build_required_asset_list(engine, std::iter::once(&html_path))
             .map(|mut assets| {
@@ -320,7 +320,7 @@ mod handle_msg {
                 }
 
                 let rendered_page = rendered_collection.into_iter().next().unwrap();
-                let html_path = page.target().to_confirmed_path(pathmarker::HtmlFile)?;
+                let html_path = page.target().confirmed(pathmarker::HtmlFile)?;
 
                 let missing_assets =
                     step::build_required_asset_list(engine, std::iter::once(&html_path))
@@ -372,12 +372,9 @@ mod handle_msg {
                         engine.paths().src_dir(),
                         &rel,
                     )
-                    .to_confirmed_path(pathmarker::MdFile)
+                    .confirmed(pathmarker::MdFile)
                     .wrap_err_with(|| {
-                        format!(
-                            "Failed to create checked file on fsevent for path '{}'",
-                            path
-                        )
+                        format!("Failed to confirm path on fsevent for path '{}'", path)
                     })?
                 };
                 let page = Page::from_file(engine.paths(), checked_path, engine.renderers())

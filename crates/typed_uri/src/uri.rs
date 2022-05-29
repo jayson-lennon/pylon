@@ -141,8 +141,8 @@ mod test {
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path
-            .to_confirmed_path(pathmarker::HtmlFile)
-            .expect("failed to make checked file path");
+            .confirmed(pathmarker::HtmlFile)
+            .expect("failed to confirm path");
         let based_uri = AssetUri::new(&checked_path, &uri);
         assert_eq!(based_uri.as_str(), "/page.html");
     }
@@ -155,8 +155,8 @@ mod test {
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path
-            .to_confirmed_path(pathmarker::HtmlFile)
-            .expect("failed to make checked file path");
+            .confirmed(pathmarker::HtmlFile)
+            .expect("failed to confirm path");
         let based_uri = AssetUri::new(&checked_path, &uri);
         assert_eq!(based_uri.into_boxed_str(), "/page.html".into());
     }
@@ -169,8 +169,8 @@ mod test {
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path
-            .to_confirmed_path(pathmarker::HtmlFile)
-            .expect("failed to make checked file path");
+            .confirmed(pathmarker::HtmlFile)
+            .expect("failed to confirm path");
         let based_uri = AssetUri::new(&checked_path, &uri);
         assert_eq!(based_uri.to_string(), "/page.html".to_owned());
     }
@@ -183,8 +183,8 @@ mod test {
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path
-            .to_confirmed_path(pathmarker::HtmlFile)
-            .expect("failed to make checked file path");
+            .confirmed(pathmarker::HtmlFile)
+            .expect("failed to confirm path");
         let based_uri = AssetUri::new(&checked_path, &uri);
         assert_eq!(based_uri.as_unchecked(), &uri);
     }
@@ -197,8 +197,8 @@ mod test {
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path
-            .to_confirmed_path(pathmarker::HtmlFile)
-            .expect("failed to make checked file path");
+            .confirmed(pathmarker::HtmlFile)
+            .expect("failed to confirm path");
         let based_uri = AssetUri::new(&checked_path, &uri);
         assert_eq!(based_uri.src_sys_path(), &path);
     }
@@ -211,8 +211,8 @@ mod test {
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
         let uri = Uri::new("/page.html").unwrap();
         let checked_path = path
-            .to_confirmed_path(pathmarker::HtmlFile)
-            .expect("failed to make checked file path");
+            .confirmed(pathmarker::HtmlFile)
+            .expect("failed to confirm path");
         let based_uri = AssetUri::new(&checked_path, &uri);
         let sys_path = based_uri
             .to_target_sys_path(abs!(tree.path()), rel!(""))

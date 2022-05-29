@@ -202,8 +202,8 @@ pub fn build_page_store(
                 .strip_prefix(root.join(base))
                 .wrap_err("Failed to strip root+base from abs path while building page store")?;
             let checked_file_path = SysPath::new(root, base, &target)
-                .to_confirmed_path(pathmarker::MdFile)
-                .wrap_err("Failed to make CheckedFile while building page store")?;
+                .confirmed(pathmarker::MdFile)
+                .wrap_err("Failed to confirm path while building page store")?;
             Page::from_file(engine_paths.clone(), checked_file_path, renderers)
         })
         .try_collect()
@@ -263,7 +263,7 @@ pub fn get_all_html_output_files(
             engine.paths().project_root(),
             engine.paths().output_dir(),
         )
-        .and_then(|sys_path| sys_path.to_confirmed_path(pathmarker::HtmlFile))
+        .and_then(|sys_path| sys_path.confirmed(pathmarker::HtmlFile))
     })
     .collect::<Result<Vec<_>>>()
 }

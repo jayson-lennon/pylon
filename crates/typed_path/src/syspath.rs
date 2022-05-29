@@ -153,12 +153,12 @@ impl SysPath {
         Ok(Self::new(root, base, &target))
     }
 
-    pub fn to_typed_path<T: PathMarker>(&self, marker: T) -> TypedPath<T> {
+    pub fn typed<T: PathMarker>(&self, marker: T) -> TypedPath<T> {
         TypedPath::new(self, marker)
     }
 
-    pub fn to_confirmed_path<T: PathMarker>(&self, marker: T) -> Result<ConfirmedPath<T>> {
-        self.to_typed_path(marker).confirm()
+    pub fn confirmed<T: PathMarker>(&self, marker: T) -> Result<ConfirmedPath<T>> {
+        self.typed(marker).confirm()
     }
 }
 

@@ -358,8 +358,8 @@ mod test {
             &RelPath::new("target").unwrap(),
         )
         .expect("failed to make syspath for html file");
-        path.to_confirmed_path(pathmarker::HtmlFile)
-            .expect("failed to make checked path")
+        path.confirmed(pathmarker::HtmlFile)
+            .expect("failed to make confirmed path")
     }
 
     fn make_paths(tree: &TempDir) -> Paths {
