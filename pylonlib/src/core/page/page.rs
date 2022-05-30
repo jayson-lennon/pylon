@@ -1,5 +1,5 @@
 use crate::core::engine::GlobalEnginePaths;
-use crate::core::pagestore::SearchKey;
+use crate::core::library::SearchKey;
 use crate::render::template::TemplateName;
 use crate::Renderers;
 use crate::Result;
@@ -222,7 +222,7 @@ pub mod test {
     use std::io;
     use std::path::Path;
 
-    use crate::core::pagestore::SearchKey;
+    use crate::core::library::SearchKey;
     use crate::test::{default_test_paths, rel};
     use crate::SysPath;
     use tempfile::TempDir;

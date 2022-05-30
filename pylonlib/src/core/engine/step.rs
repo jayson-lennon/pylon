@@ -10,7 +10,7 @@ use crate::{
         page::{lint::LintResults, LintResult, RenderedPage, RenderedPageCollection},
         rules::{Mount, RuleProcessor, Rules},
         script_engine::{ScriptEngine, ScriptEngineConfig},
-        Page, PageStore,
+        Library, Page,
     },
     discover::html_asset::{HtmlAsset, HtmlAssets},
     Renderers, Result,
@@ -128,7 +128,7 @@ pub fn mount_directories<'a, M: Iterator<Item = &'a Mount>>(mounts: M) -> Result
 
 pub fn load_rules(
     engine_paths: Arc<EnginePaths>,
-    page_store: &PageStore,
+    library: &Library,
 ) -> Result<(ScriptEngine, RuleProcessor, Rules)> {
     let script_engine_config = ScriptEngineConfig::new();
     let script_engine = ScriptEngine::new(&script_engine_config.modules());
@@ -144,7 +144,7 @@ pub fn load_rules(
         })?;
 
     let (rule_processor, rules) = script_engine
-        .build_rules(engine_paths, page_store, rule_script)
+        .build_rules(engine_paths, library, rule_script)
         .wrap_err("failed to build Rules structure")?;
 
     Ok((script_engine, rule_processor, rules))
@@ -185,10 +185,7 @@ pub fn run_pipelines<'a>(
     Ok(unhandled_assets)
 }
 
-pub fn build_page_store(
-    engine_paths: Arc<EnginePaths>,
-    renderers: &Renderers,
-) -> Result<PageStore> {
+pub fn build_library(engine_paths: Arc<EnginePaths>, renderers: &Renderers) -> Result<Library> {
     let pages: Vec<_> =
         crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {
             path.extension() == Some(OsStr::new("md"))
@@ -209,10 +206,10 @@ pub fn build_page_store(
         .try_collect()
         .wrap_err("Failed building page collection while building page store")?;
 
-    let mut page_store = PageStore::new();
-    page_store.insert_batch(pages);
+    let mut library = Library::new();
+    library.insert_batch(pages);
 
-    Ok(page_store)
+    Ok(library)
 }
 
 pub fn build_required_asset_list<

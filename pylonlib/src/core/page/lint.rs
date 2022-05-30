@@ -244,7 +244,7 @@ mod test {
         let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
 
-        let page = engine.page_store().get(&"/test.md".into()).unwrap();
+        let page = engine.library().get(&"/test.md".into()).unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
@@ -290,7 +290,7 @@ mod test {
         let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
 
-        let page = engine.page_store().get(&"/test.md".into()).unwrap();
+        let page = engine.library().get(&"/test.md".into()).unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
