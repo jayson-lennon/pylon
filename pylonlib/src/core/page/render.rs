@@ -258,7 +258,7 @@ impl<'a> IntoIterator for &'a RenderedPageCollection {
 }
 
 fn get_overwritten_identifiers(contexts: &[ContextItem]) -> HashSet<String> {
-    let reserved = ["site", "content", "library", "global", "toc", "meta"];
+    let reserved = ["site", "content", "library", "global", "page"];
     let mut overwritten_ids = HashSet::new();
 
     for ctx in contexts.iter() {
@@ -363,8 +363,7 @@ mod test {
             ContextItem::new("content", serde_json::from_str("{}").unwrap()),
             ContextItem::new("library", serde_json::from_str("{}").unwrap()),
             ContextItem::new("global", serde_json::from_str("{}").unwrap()),
-            ContextItem::new("toc", serde_json::from_str("{}").unwrap()),
-            ContextItem::new("meta", serde_json::from_str("{}").unwrap()),
+            ContextItem::new("page", serde_json::from_str("{}").unwrap()),
         ];
         let ids = get_overwritten_identifiers(&contexts);
         assert_eq!(ids.len(), 6);
