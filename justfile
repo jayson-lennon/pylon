@@ -6,3 +6,6 @@ build: clean
 
 coverage:
   cargo tarpaulin --all --out Html
+
+test:
+  cargo nextest run --all
