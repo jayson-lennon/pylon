@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
 use crate::core::engine::{Engine, EnginePaths};
+use crate::core::library::SearchKey;
 use crate::core::page::RenderedPage;
-use crate::core::pagestore::SearchKey;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
 use crate::Result;
 
@@ -303,7 +303,7 @@ mod handle_msg {
     ) -> Result<Option<RenderedPage>> {
         trace!(search_key = ?search_key, "receive render page message");
 
-        if let Some(page) = engine.page_store().get(&search_key.as_ref().into()) {
+        if let Some(page) = engine.library().get(&search_key.as_ref().into()) {
             let lints = step::run_lints(engine, std::iter::once(page))
                 .wrap_err_with(|| format!("Failed to run lints for page '{}'", page.uri()))?;
             let _cli_report = step::report::lints(&lints);
@@ -385,7 +385,7 @@ mod handle_msg {
                         )
                     })?;
                 // update will automatically insert the page if it doesn't exist
-                let _ = engine.page_store_mut().update(page);
+                let _ = engine.library_mut().update(page);
             }
 
             // reload templates

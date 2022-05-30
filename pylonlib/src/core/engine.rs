@@ -7,7 +7,7 @@ use tracing::trace;
 use crate::{
     core::rules::{RuleProcessor, Rules},
     core::script_engine::ScriptEngine,
-    core::PageStore,
+    core::Library,
     devserver::{broker::RenderBehavior, DevServer, EngineBroker},
     discover::html_asset::HtmlAssets,
     render::Renderers,
@@ -87,7 +87,7 @@ pub struct Engine {
 
     // Contains all the site pages. Will be updated when needed
     // if running in devserver mode.
-    page_store: PageStore,
+    library: Library,
 }
 
 impl Engine {
@@ -98,12 +98,12 @@ impl Engine {
         &self.rules
     }
 
-    pub fn page_store(&self) -> &PageStore {
-        &self.page_store
+    pub fn library(&self) -> &Library {
+        &self.library
     }
 
-    pub fn page_store_mut(&mut self) -> &mut PageStore {
-        &mut self.page_store
+    pub fn library_mut(&mut self) -> &mut Library {
+        &mut self.library
     }
 
     pub fn rule_processor(&self) -> &RuleProcessor {
@@ -149,20 +149,20 @@ impl Engine {
             )
         })?;
 
-        let page_store = step::build_page_store(paths.clone(), &renderers).wrap_err_with(|| {
+        let library = step::build_library(paths.clone(), &renderers).wrap_err_with(|| {
             format!(
                 "failed building page store when initializing engine with engine paths '{:?}'",
                 paths
             )
         })?;
 
-        let (script_engine, rule_processor, rules) = step::load_rules(paths.clone(), &page_store)
+        let (script_engine, rule_processor, rules) = step::load_rules(paths.clone(), &library)
             .wrap_err_with(|| {
-            format!(
-                "failed loading rule script when initializing engine with paths '{:?}'",
-                paths
-            )
-        })?;
+                format!(
+                    "failed loading rule script when initializing engine with paths '{:?}'",
+                    paths
+                )
+            })?;
 
         Ok(Self {
             paths,
@@ -172,13 +172,13 @@ impl Engine {
             rules,
             rule_processor,
 
-            page_store,
+            library,
         })
     }
 
     pub fn reload_rules(&mut self) -> Result<()> {
         let (script_engine, rule_processor, rules) =
-            step::load_rules(self.paths(), &self.page_store).wrap_err("failed to reload rules")?;
+            step::load_rules(self.paths(), &self.library).wrap_err("failed to reload rules")?;
         self.script_engine = script_engine;
         self.rule_processor = rule_processor;
         self.rules = rules;
@@ -190,9 +190,9 @@ impl Engine {
         Ok(())
     }
 
-    pub fn rebuild_page_store(&mut self) -> Result<()> {
+    pub fn rebuild_library(&mut self) -> Result<()> {
         trace!("rebuilding the page store");
-        self.page_store = step::build_page_store(self.paths(), &self.renderers)
+        self.library = step::build_library(self.paths(), &self.renderers)
             .wrap_err("Failed to rebuild the page store")?;
         Ok(())
     }
@@ -201,7 +201,7 @@ impl Engine {
         trace!("rebuilding everything");
         self.reload_template_engines()
             .wrap_err("Failed to reload template engines during re-init")?;
-        self.rebuild_page_store()
+        self.rebuild_library()
             .wrap_err("Failed to rebuild the page store during re-init")?;
         self.reload_rules()
             .wrap_err("Failed to reload site rules during re-init")?;
@@ -213,7 +213,7 @@ impl Engine {
         trace!("running build");
 
         let pages = self
-            .page_store()
+            .library()
             .iter()
             .map(|(_, page)| page)
             .collect::<Vec<_>>();
@@ -345,10 +345,10 @@ pub mod test {
     }
 
     #[test]
-    fn gets_mutable_page_store() {
+    fn gets_mutable_library() {
         let (paths, tree) = crate::test::simple_init();
         let mut engine = Engine::new(paths).unwrap();
-        assert!(std::ptr::eq(engine.page_store_mut(), &engine.page_store));
+        assert!(std::ptr::eq(engine.library_mut(), &engine.library));
     }
 
     #[test]
@@ -420,7 +420,7 @@ pub mod test {
     }
 
     #[test]
-    fn rebuilds_page_store() {
+    fn rebuilds_library() {
         let doc1 = r#"+++
             template_name = "empty.tera"
             +++
@@ -447,16 +447,16 @@ pub mod test {
 
         let mut engine = Engine::new(paths).unwrap();
 
-        let page_store = engine.page_store();
-        assert_eq!(page_store.iter().count(), 1);
+        let library = engine.library();
+        assert_eq!(library.iter().count(), 1);
 
         std::fs::write(tree.path().join("src/doc2.md"), doc2).expect("failed to write new doc");
 
         engine
-            .rebuild_page_store()
+            .rebuild_library()
             .expect("failed to rebuild page store");
-        let page_store = engine.page_store();
-        assert_eq!(page_store.iter().count(), 2);
+        let library = engine.library();
+        assert_eq!(library.iter().count(), 2);
     }
 
     #[test]

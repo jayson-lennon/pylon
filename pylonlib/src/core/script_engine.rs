@@ -1,11 +1,11 @@
-use eyre::{WrapErr};
+use eyre::WrapErr;
 use rhai::packages::{Package, StandardPackage};
 #[allow(clippy::wildcard_imports)]
 use rhai::plugin::*;
 use rhai::{def_package, Scope};
 
 use crate::core::rules::{RuleProcessor, Rules};
-use crate::core::PageStore;
+use crate::core::Library;
 use crate::Result;
 
 use super::engine::GlobalEnginePaths;
@@ -65,7 +65,7 @@ impl ScriptEngine {
     }
 
     fn register_types(engine: &mut rhai::Engine) {
-        crate::core::pagestore::script::register_type(engine);
+        crate::core::library::script::register_type(engine);
     }
 
     fn new_engine(packages: &[rhai::Shared<Module>]) -> rhai::Engine {
@@ -97,11 +97,11 @@ impl ScriptEngine {
         RuleProcessor::new(engine, script.as_ref())
     }
 
-    fn new_scope(engine_paths: GlobalEnginePaths, page_store: &PageStore) -> Scope<'static> {
+    fn new_scope(engine_paths: GlobalEnginePaths, library: &Library) -> Scope<'static> {
         use crate::core::page::lint::{LINT_LEVEL_DENY, LINT_LEVEL_WARN};
         let mut scope = Scope::new();
         scope.push("rules", Rules::new(engine_paths));
-        scope.push("PAGES", page_store.clone());
+        scope.push("PAGES", library.clone());
         scope.push("DENY", LINT_LEVEL_DENY);
         scope.push("WARN", LINT_LEVEL_WARN);
         scope
@@ -110,7 +110,7 @@ impl ScriptEngine {
     pub fn build_rules<S: AsRef<str>>(
         &self,
         engine_paths: GlobalEnginePaths,
-        page_store: &PageStore,
+        library: &Library,
         script: S,
     ) -> Result<(RuleProcessor, Rules)> {
         let script = script.as_ref();
@@ -119,7 +119,7 @@ impl ScriptEngine {
             .compile(script)
             .wrap_err("Failed to compile AST while building rules")?;
 
-        let mut scope = Self::new_scope(engine_paths, page_store);
+        let mut scope = Self::new_scope(engine_paths, library);
 
         self.engine
             .run_ast_with_scope(&mut scope, &ast)
@@ -150,7 +150,7 @@ mod test {
 
     #[test]
     fn scope_contains_proper_items() {
-        let store = PageStore::default();
+        let store = Library::default();
         let (paths, tree) = crate::test::simple_init();
         let scope = ScriptEngine::new_scope(paths, &store);
         let required_items = &["rules", "PAGES", "DENY", "WARN"];

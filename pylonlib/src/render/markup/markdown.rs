@@ -1,5 +1,5 @@
 use crate::{
-    core::{page::RawMarkdown, Page, PageStore},
+    core::{page::RawMarkdown, Library, Page},
     discover,
     render::highlight::SyntectHighlighter,
     Result,
@@ -19,11 +19,11 @@ impl MarkdownRenderer {
     pub fn render(
         &self,
         page: &Page,
-        page_store: &PageStore,
+        library: &Library,
         highlighter: &SyntectHighlighter,
         raw_markdown: &RawMarkdown,
     ) -> Result<String> {
-        render(page, page_store, highlighter, raw_markdown)
+        render(page, library, highlighter, raw_markdown)
     }
 
     #[allow(clippy::unused_self)]
@@ -50,7 +50,7 @@ impl Default for MarkdownRenderer {
 #[allow(clippy::too_many_lines)]
 fn render(
     page: &Page,
-    page_store: &PageStore,
+    library: &Library,
     highlighter: &SyntectHighlighter,
     raw_markdown: &RawMarkdown,
 ) -> Result<String> {
@@ -78,7 +78,7 @@ fn render(
                     match discover::get_url_type(&href) {
                         // internal doc links get converted into target Uri
                         UrlType::InternalDoc(ref target) => {
-                            let page = page_store.get(&target.into()).ok_or_else(|| {
+                            let page = library.get(&target.into()).ok_or_else(|| {
                                 eyre!(
                                     "unable to find internal link '{}' on page '{}'",
                                     &target,
@@ -216,7 +216,7 @@ mod test {
     use crate::{
         core::{
             page::page::test::{new_page, new_page_with_tree},
-            Page, PageStore,
+            Library, Page,
         },
         render::highlight::{syntect_highlighter::THEME_CLASS_PREFIX, SyntectHighlighter},
     };
@@ -225,7 +225,7 @@ mod test {
     use super::MarkdownRenderer;
 
     fn internal_doc_link_render(test_page: Page, linked_page: Page) -> String {
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key = store.insert(test_page);
         store.insert(linked_page);
 
@@ -329,7 +329,7 @@ code sample here
         )
         .unwrap();
 
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key = store.insert(page);
 
         let page = store
@@ -354,7 +354,7 @@ code sample here
         )
         .unwrap();
 
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key = store.insert(page);
 
         let page = store
@@ -385,7 +385,7 @@ let x = 1;
         )
         .unwrap();
 
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key = store.insert(page);
 
         let page = store
@@ -416,7 +416,7 @@ let x = 1;
         )
         .unwrap();
 
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key = store.insert(page);
 
         let page = store
@@ -448,7 +448,7 @@ let x = 1;
         )
         .unwrap();
 
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key = store.insert(page);
 
         let page = store

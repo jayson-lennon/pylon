@@ -7,7 +7,7 @@ use poem::{
     Response,
 };
 use std::path::PathBuf;
-use tracing::{trace};
+use tracing::trace;
 
 use super::EngineBroker;
 
@@ -126,7 +126,7 @@ pub async fn try_rendered_file<S: AsRef<str>>(
     broker: &EngineBroker,
     path: S,
 ) -> Result<Option<RenderedPage>> {
-    use crate::core::pagestore::SearchKey;
+    use crate::core::library::SearchKey;
     use crate::devserver::broker::EngineMsg;
     use crate::devserver::broker::EngineRequest;
 
