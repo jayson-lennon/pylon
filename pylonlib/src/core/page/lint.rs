@@ -1,12 +1,10 @@
 use super::Page;
-use crate::core::{
-    rules::{Matcher, RuleProcessor},
-};
+use crate::core::rules::{Matcher, RuleProcessor};
 use eyre::{eyre, WrapErr};
 
 use slotmap::SlotMap;
 use std::str::FromStr;
-use tracing::{trace};
+use tracing::trace;
 use typed_path::{pathmarker, CheckedFilePath};
 
 pub const LINT_LEVEL_DENY: &str = "DENY";
@@ -246,7 +244,7 @@ mod test {
         let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
 
-        let page = engine.page_store().get(&"/test.md".into()).unwrap();
+        let page = engine.library().get(&"/test.md".into()).unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);
@@ -292,7 +290,7 @@ mod test {
         let paths = crate::test::default_test_paths(&tree);
         let engine = Engine::new(paths).unwrap();
 
-        let page = engine.page_store().get(&"/test.md".into()).unwrap();
+        let page = engine.library().get(&"/test.md".into()).unwrap();
 
         let lints = super::lint(engine.rule_processor(), engine.rules().lints(), &page).unwrap();
         assert_eq!(lints[0].level, LintLevel::Deny);

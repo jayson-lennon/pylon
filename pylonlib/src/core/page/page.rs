@@ -1,5 +1,5 @@
 use crate::core::engine::GlobalEnginePaths;
-use crate::core::pagestore::SearchKey;
+use crate::core::library::SearchKey;
 use crate::render::template::TemplateName;
 use crate::CheckedFilePath;
 
@@ -14,7 +14,7 @@ use typed_path::RelPath;
 use typed_uri::Uri;
 
 use std::{collections::HashSet, path::PathBuf};
-use tracing::{trace_span};
+use tracing::trace_span;
 
 use super::FrontMatter;
 use super::{PageKey, RawMarkdown};
@@ -227,7 +227,7 @@ pub mod test {
     use std::io;
     use std::path::Path;
 
-    use crate::core::pagestore::SearchKey;
+    use crate::core::library::SearchKey;
     use crate::test::{default_test_paths, rel};
     use crate::{CheckedFilePath, SysPath};
     use tempfile::TempDir;

@@ -1,6 +1,6 @@
 use eyre::{eyre, WrapErr};
 use itertools::Itertools;
-use std::collections::{HashSet};
+use std::collections::HashSet;
 
 use tracing::{error, trace};
 
@@ -29,9 +29,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
 
             // entire page store
             // TODO: Come up with some better way to manage this / delete it
-            tera_ctx.insert("page_store", {
-                &engine.page_store().iter().collect::<Vec<_>>()
-            });
+            tera_ctx.insert("library", { &engine.library().iter().collect::<Vec<_>>() });
 
             // current page info
             {
@@ -119,7 +117,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                     .markdown()
                     .render(
                         page,
-                        engine.page_store(),
+                        engine.library(),
                         engine.renderers().highlight(),
                         &raw_markdown,
                     )
@@ -260,7 +258,7 @@ impl<'a> IntoIterator for &'a RenderedPageCollection {
 }
 
 fn get_overwritten_identifiers(contexts: &[ContextItem]) -> HashSet<String> {
-    let reserved = ["site", "content", "page_store", "global", "toc", "meta"];
+    let reserved = ["site", "content", "library", "global", "toc", "meta"];
     let mut overwritten_ids = HashSet::new();
 
     for ctx in contexts.iter() {
@@ -278,7 +276,7 @@ mod test {
 
     use super::*;
     use crate::core::page::page::test::{doc::MINIMAL, new_page, new_page_with_tree};
-    use crate::core::PageStore;
+    use crate::core::Library;
     use crate::render::highlight::SyntectHighlighter;
     use crate::test::{abs, rel};
     use std::result::Result;
@@ -306,7 +304,7 @@ mod test {
 
         let page1 = new_page_with_tree(&tree, &tree.path().join("src/test.md"), MINIMAL).unwrap();
 
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key1 = store.insert(page1);
 
         let sys_path = SysPath::new(abs!("/root"), rel!(""), rel!("test.html"));
@@ -363,7 +361,7 @@ mod test {
         let contexts = vec![
             ContextItem::new("site", serde_json::from_str("{}").unwrap()),
             ContextItem::new("content", serde_json::from_str("{}").unwrap()),
-            ContextItem::new("page_store", serde_json::from_str("{}").unwrap()),
+            ContextItem::new("library", serde_json::from_str("{}").unwrap()),
             ContextItem::new("global", serde_json::from_str("{}").unwrap()),
             ContextItem::new("toc", serde_json::from_str("{}").unwrap()),
             ContextItem::new("meta", serde_json::from_str("{}").unwrap()),

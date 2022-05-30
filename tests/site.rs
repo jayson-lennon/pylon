@@ -309,7 +309,7 @@ fn doesnt_reprocess_existing_assets() {
     // then this indicates a test failure because the asset should have been
     // located before running the pipeline.
     {
-        let pages = engine.page_store().iter().map(|(_, page)| page);
+        let pages = engine.library().iter().map(|(_, page)| page);
         step::render(&engine, pages).expect("failed to render");
 
         step::mount_directories(engine.rules().mounts()).expect("failed to process mounts");
@@ -410,7 +410,7 @@ doc2"#;
 
     let engine = Engine::new(paths).unwrap();
 
-    let rendered = step::render(&engine, engine.page_store().iter().map(|(_, page)| page))
+    let rendered = step::render(&engine, engine.library().iter().map(|(_, page)| page))
         .expect("failed to render pages");
 
     assert_eq!(rendered.iter().count(), 2);
@@ -446,7 +446,7 @@ fn does_lint() {
 
     let engine = Engine::new(paths).unwrap();
 
-    let lints = step::run_lints(&engine, engine.page_store().iter().map(|(_, page)| page))
+    let lints = step::run_lints(&engine, engine.library().iter().map(|(_, page)| page))
         .expect("linting failed");
     assert_eq!(lints.into_iter().count(), 2);
 }
