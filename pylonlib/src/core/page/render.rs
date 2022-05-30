@@ -366,6 +366,6 @@ mod test {
             ContextItem::new("page", serde_json::from_str("{}").unwrap()),
         ];
         let ids = get_overwritten_identifiers(&contexts);
-        assert_eq!(ids.len(), 6);
+        assert_eq!(ids.len(), 5);
     }
 }
