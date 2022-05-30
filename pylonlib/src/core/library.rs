@@ -2,7 +2,7 @@ use crate::core::page::{Page, PageKey};
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::fmt;
-use tracing::{trace};
+use tracing::trace;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SearchKey(String);
@@ -49,12 +49,12 @@ impl fmt::Display for SearchKey {
 }
 
 #[derive(Debug, Clone)]
-pub struct PageStore {
+pub struct Library {
     pages: SlotMap<PageKey, Page>,
     key_map: HashMap<SearchKey, PageKey>,
 }
 
-impl PageStore {
+impl Library {
     pub fn new() -> Self {
         Self {
             pages: SlotMap::with_key(),
@@ -122,13 +122,13 @@ impl PageStore {
     }
 }
 
-impl Default for PageStore {
+impl Default for Library {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl IntoIterator for PageStore {
+impl IntoIterator for Library {
     type Item = Page;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -142,7 +142,7 @@ impl IntoIterator for PageStore {
     }
 }
 
-impl<'a> IntoIterator for &'a PageStore {
+impl<'a> IntoIterator for &'a Library {
     type Item = (PageKey, &'a Page);
     type IntoIter = slotmap::basic::Iter<'a, PageKey, Page>;
 
@@ -153,12 +153,12 @@ impl<'a> IntoIterator for &'a PageStore {
 
 pub mod script {
 
-    use super::{PageStore, SearchKey};
+    use super::{Library, SearchKey};
 
     #[allow(clippy::wildcard_imports)]
     use rhai::plugin::*;
 
-    impl PageStore {
+    impl Library {
         /// Returns the page at the given `path`. Returns `()` if the page was not found.
         fn _script_get(&mut self, search_key: &str) -> rhai::Dynamic {
             self.get(&SearchKey::from(search_key))
@@ -169,9 +169,9 @@ pub mod script {
 
     pub fn register_type(engine: &mut rhai::Engine) {
         engine
-            .register_type::<PageStore>()
-            .register_fn("get", PageStore::_script_get)
-            .register_iterator::<PageStore>();
+            .register_type::<Library>()
+            .register_fn("get", Library::_script_get)
+            .register_iterator::<Library>();
     }
 }
 
@@ -180,7 +180,7 @@ mod test {
 
     #![allow(warnings, unused)]
 
-    use super::PageStore;
+    use super::Library;
     use crate::core::page::page::test::{doc::MINIMAL, new_page, new_page_with_tree};
     use temptree::temptree;
 
@@ -207,7 +207,7 @@ mod test {
         let page1 = new_page_with_tree(&tree, &tree.path().join("src/1/page.md"), MINIMAL).unwrap();
         let page2 = new_page_with_tree(&tree, &tree.path().join("src/2/page.md"), MINIMAL).unwrap();
 
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key1 = store.insert(page1);
         let key2 = store.insert(page2);
 
@@ -242,7 +242,7 @@ mod test {
 
         let page = new_page_with_tree(&tree, &tree.path().join("src/1/page.md"), MINIMAL).unwrap();
 
-        let mut store = PageStore::new();
+        let mut store = Library::new();
         let key = store.insert(page);
 
         assert!(store.get_with_key(key).is_some());
