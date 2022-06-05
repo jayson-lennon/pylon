@@ -27,6 +27,7 @@ serial_test = "0.6.0"
 [workspace]
 members = [
     "crates/pathmarker",
+    "crates/pindexer",
     "crates/pipeworks",
     "crates/shortcode_processor",
     "crates/typed_path",

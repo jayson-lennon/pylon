@@ -45,10 +45,10 @@ impl fmt::Display for Dir {
 
 #[cfg(test)]
 mod test {
-    use std::ffi::OsStr;
+    
 
-    use crate::test::{abs, rel};
-    use crate::{AbsPath, Result, SysPath, TypedPath};
+    use crate::test::{rel};
+    use crate::{AbsPath, SysPath, TypedPath};
     use temptree::temptree;
 
     use super::*;
