@@ -29,7 +29,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
 
             // entire page store
             // TODO: Come up with some better way to manage this / delete it
-            tera_ctx.insert("library", { &engine.library().iter().collect::<Vec<_>>() });
+            tera_ctx.insert("library", &engine.library().iter().collect::<Vec<_>>());
 
             // current page info
             {

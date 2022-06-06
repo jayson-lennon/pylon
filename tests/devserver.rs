@@ -1,6 +1,6 @@
 use pylonlib::{
     core::engine::{Engine, EnginePaths},
-    devserver::broker::{RenderBehavior},
+    devserver::broker::RenderBehavior,
 };
 use serial_test::serial;
 use std::net::{SocketAddr, SocketAddrV4};
