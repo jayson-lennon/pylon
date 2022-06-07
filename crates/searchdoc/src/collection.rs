@@ -1,18 +1,18 @@
-use crate::IndexEntry;
+use crate::SearchDoc;
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(transparent)]
-pub struct Index {
-    inner: Vec<IndexEntry>,
+pub struct SearchDocs {
+    inner: Vec<SearchDoc>,
 }
 
-impl Index {
+impl SearchDocs {
     pub fn new() -> Self {
         Self { inner: vec![] }
     }
 
-    pub fn push(&mut self, value: IndexEntry) {
+    pub fn push(&mut self, value: SearchDoc) {
         let id = self.inner.len();
 
         let mut value = value;
@@ -22,24 +22,24 @@ impl Index {
     }
 }
 
-impl From<Vec<IndexEntry>> for Index {
-    fn from(entries: Vec<IndexEntry>) -> Self {
-        let mut index = Self::new();
+impl From<Vec<SearchDoc>> for SearchDocs {
+    fn from(entries: Vec<SearchDoc>) -> Self {
+        let mut docs = Self::new();
         for entry in entries {
-            index.push(entry);
+            docs.push(entry);
         }
-        index
+        docs
     }
 }
 
-impl Default for Index {
+impl Default for SearchDocs {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl IntoIterator for Index {
-    type Item = IndexEntry;
+impl IntoIterator for SearchDocs {
+    type Item = SearchDoc;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -47,9 +47,9 @@ impl IntoIterator for Index {
     }
 }
 
-impl<'a> IntoIterator for &'a Index {
-    type Item = &'a IndexEntry;
-    type IntoIter = std::slice::Iter<'a, IndexEntry>;
+impl<'a> IntoIterator for &'a SearchDocs {
+    type Item = &'a SearchDoc;
+    type IntoIter = std::slice::Iter<'a, SearchDoc>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter()
@@ -57,11 +57,11 @@ impl<'a> IntoIterator for &'a Index {
 }
 
 #[cfg(test)]
-mod test_index {
-    use crate::{index::Index, IndexEntry};
+mod test_search_docs {
+    use crate::{collection::SearchDocs, SearchDoc};
 
-    fn new_entry(pairs: &[(&str, serde_json::Value)]) -> IndexEntry {
-        let mut entry = IndexEntry::new();
+    fn new_entry(pairs: &[(&str, serde_json::Value)]) -> SearchDoc {
+        let mut entry = SearchDoc::new();
         for pair in pairs {
             entry.insert(pair.0, pair.1.clone());
         }
@@ -77,13 +77,13 @@ mod test_index {
         let entry_1 = new_entry(&[("1", str_val("one")), ("test1", str_val("entry1"))]);
         let entry_2 = new_entry(&[("2", str_val("two")), ("test2", str_val("entry2"))]);
 
-        let mut index = Index::default();
-        assert!(index.inner.is_empty());
+        let mut docs = SearchDocs::default();
+        assert!(docs.inner.is_empty());
 
-        index.push(entry_1);
-        index.push(entry_2);
+        docs.push(entry_1);
+        docs.push(entry_2);
 
-        assert_eq!(index.inner.len(), 2);
+        assert_eq!(docs.inner.len(), 2);
     }
 
     #[test]
@@ -91,14 +91,14 @@ mod test_index {
         let entry_1 = new_entry(&[("1", str_val("one")), ("test1", str_val("entry1"))]);
         let entry_2 = new_entry(&[("2", str_val("two")), ("test2", str_val("entry2"))]);
 
-        let mut index = Index::default();
-        index.push(entry_1);
-        index.push(entry_2);
+        let mut docs = SearchDocs::default();
+        docs.push(entry_1);
+        docs.push(entry_2);
 
-        let serialized = serde_json::to_string(&index).expect("failed to serialize index");
+        let serialized = serde_json::to_string(&docs).expect("failed to serialize docs");
         assert_eq!(
             serialized,
-            include_str!("test/index_serialize_format.expected")
+            include_str!("test/collection-serialize_format.expected")
         );
     }
 }

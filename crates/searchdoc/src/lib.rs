@@ -1,6 +1,6 @@
-pub mod index;
+pub mod collection;
 
-pub use index::Index;
+pub use collection::SearchDocs;
 
 use enumflags2::{bitflags, BitFlags};
 use serde::Serialize;
@@ -10,11 +10,11 @@ pub type Result<T> = eyre::Result<T>;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(transparent)]
-pub struct IndexEntry {
+pub struct SearchDoc {
     inner: BTreeMap<String, serde_json::Value>,
 }
 
-impl IndexEntry {
+impl SearchDoc {
     pub fn new() -> Self {
         Self {
             inner: BTreeMap::new(),
@@ -38,7 +38,7 @@ impl IndexEntry {
     }
 }
 
-impl Default for IndexEntry {
+impl Default for SearchDoc {
     fn default() -> Self {
         Self::new()
     }
@@ -47,12 +47,12 @@ impl Default for IndexEntry {
 #[bitflags]
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum MarkdownIndexOptions {
+pub enum ContentOptions {
     Headers,
     Text,
 }
 
-impl MarkdownIndexOptions {
+impl ContentOptions {
     pub fn default() -> BitFlags<Self> {
         Self::Text | Self::Headers
     }
@@ -68,19 +68,19 @@ struct MarkdownContent {
 }
 
 impl MarkdownContent {
-    pub fn to_entry(&self) -> Result<IndexEntry> {
-        let mut entry = IndexEntry::new();
+    pub fn to_doc(&self) -> Result<SearchDoc> {
+        let mut doc = SearchDoc::new();
         let paragraphs = self.paragraphs.join(" ");
-        entry.insert("headers", serde_json::to_value(&self.headers)?);
-        entry.insert("content", serde_json::to_value(paragraphs)?);
-        Ok(entry)
+        doc.insert("headers", serde_json::to_value(&self.headers)?);
+        doc.insert("content", serde_json::to_value(paragraphs)?);
+        Ok(doc)
     }
 }
 
 fn get_markdown_content<M, O>(raw_markdown: M, options: O) -> MarkdownContent
 where
     M: AsRef<str>,
-    O: Into<BitFlags<MarkdownIndexOptions>>,
+    O: Into<BitFlags<ContentOptions>>,
 {
     use pulldown_cmark::{Event, Parser, Tag};
 
@@ -104,10 +104,10 @@ where
             Event::End(Tag::Paragraph) => in_paragraph = false,
 
             Event::Text(text) => {
-                if options.contains(MarkdownIndexOptions::Text) && in_paragraph {
+                if options.contains(ContentOptions::Text) && in_paragraph {
                     paragraphs.push(text.to_string());
                 }
-                if options.contains(MarkdownIndexOptions::Headers) && in_heading {
+                if options.contains(ContentOptions::Headers) && in_heading {
                     headers.push(text.to_string());
                 }
             }
@@ -121,13 +121,13 @@ where
     }
 }
 
-pub fn index_entry_from_markdown<M, O>(raw_markdown: M, options: O) -> Result<IndexEntry>
+pub fn search_doc_from_markdown<M, O>(raw_markdown: M, options: O) -> Result<SearchDoc>
 where
     M: AsRef<str>,
-    O: Into<BitFlags<MarkdownIndexOptions>>,
+    O: Into<BitFlags<ContentOptions>>,
 {
     let markdown_content = get_markdown_content(raw_markdown, options);
-    markdown_content.to_entry()
+    markdown_content.to_doc()
 }
 
 #[cfg(test)]
@@ -136,7 +136,7 @@ mod test {
 
     #[test]
     fn extracts_markdown_paragraphs() {
-        let options = MarkdownIndexOptions::Text;
+        let options = ContentOptions::Text;
         let content = get_markdown_content(
             r#"
 # heading
@@ -170,7 +170,7 @@ after code block
 
     #[test]
     fn extracts_markdown_headers() {
-        let options = MarkdownIndexOptions::Headers;
+        let options = ContentOptions::Headers;
         let content = get_markdown_content(
             r#"
 # heading
@@ -204,7 +204,7 @@ after code block
 
     #[test]
     fn extracts_everything() {
-        let options = MarkdownIndexOptions::all();
+        let options = ContentOptions::all();
         let content = get_markdown_content(
             r#"
 # heading
@@ -238,8 +238,8 @@ after code block
 }
 
 #[cfg(test)]
-mod text_index_entry {
-    use crate::IndexEntry;
+mod text_doc {
+    use crate::SearchDoc;
 
     fn str_val(s: &str) -> serde_json::Value {
         serde_json::to_value(s).unwrap()
@@ -247,32 +247,32 @@ mod text_index_entry {
 
     #[test]
     fn inserts() {
-        let mut entry = IndexEntry::default();
-        assert!(entry.inner.is_empty());
+        let mut doc = SearchDoc::default();
+        assert!(doc.inner.is_empty());
 
-        entry.insert("key", str_val("value"));
-        assert_eq!(entry.inner.len(), 1);
+        doc.insert("key", str_val("value"));
+        assert_eq!(doc.inner.len(), 1);
     }
 
     #[test]
     fn into_value() {
         use serde_json::json;
 
-        let mut entry = IndexEntry::new();
-        entry.insert("key", str_val("value"));
-        entry.insert("abc", str_val("123"));
+        let mut doc = SearchDoc::new();
+        doc.insert("key", str_val("value"));
+        doc.insert("abc", str_val("123"));
 
-        let value = entry.into_value().unwrap();
+        let value = doc.into_value().unwrap();
         assert_eq!(value, json!({"key": "value", "abc": "123"}));
     }
 }
 
 #[cfg(test)]
 mod text_markdown_content {
-    use crate::{IndexEntry, MarkdownContent};
+    use crate::{MarkdownContent, SearchDoc};
 
     #[test]
-    fn converts_to_entry() {
+    fn converts_to_doc() {
         let headers = vec!["header1".into(), "header2".into()];
         let paragraphs = vec![
             "paragraph 1".into(),
@@ -288,15 +288,15 @@ mod text_markdown_content {
             paragraphs: paragraphs.clone(),
         };
 
-        let entry = mdcontent.to_entry().expect("failed to create IndexEntry");
+        let doc = mdcontent.to_doc().expect("failed to create doc");
 
-        let mut expected = IndexEntry::new();
+        let mut expected = SearchDoc::new();
         expected.insert("headers", serde_json::to_value(headers).unwrap());
         expected.insert(
             "content",
             serde_json::to_value(paragraphs.join(" ")).unwrap(),
         );
 
-        assert_eq!(entry, expected);
+        assert_eq!(doc, expected);
     }
 }

@@ -1925,23 +1925,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
-name = "pindexer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "color-eyre",
- "enumflags2",
- "eyre",
- "pulldown-cmark 0.9.1",
- "serde",
- "serde_json",
- "tempfile",
- "temptree",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "pipeworks"
 version = "0.1.0"
 dependencies = [
@@ -2185,13 +2168,13 @@ dependencies = [
  "parking_lot 0.12.0",
  "pathmarker",
  "percent-encoding",
- "pindexer",
  "pipeworks",
  "poem",
  "pulldown-cmark 0.9.1",
  "pulldown-cmark-toc",
  "rhai",
  "scraper",
+ "searchdoc",
  "serde",
  "serde_json",
  "shortcode_processor",
@@ -2540,6 +2523,23 @@ name = "seahash"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
+
+[[package]]
+name = "searchdoc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "color-eyre",
+ "enumflags2",
+ "eyre",
+ "pulldown-cmark 0.9.1",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "temptree",
+ "thiserror",
+ "tracing",
+]
 
 [[package]]
 name = "security-framework"
