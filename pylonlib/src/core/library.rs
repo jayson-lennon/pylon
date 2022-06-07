@@ -118,7 +118,7 @@ impl Library {
     }
 
     pub fn iter<'a>(&'a self) -> slotmap::basic::Iter<'a, PageKey, Page> {
-        self.pages.iter()
+        self.into_iter()
     }
 }
 
@@ -147,7 +147,7 @@ impl<'a> IntoIterator for &'a Library {
     type IntoIter = slotmap::basic::Iter<'a, PageKey, Page>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        self.pages.iter()
     }
 }
 
@@ -181,7 +181,7 @@ mod test {
     #![allow(warnings, unused)]
 
     use super::Library;
-    use crate::core::page::page::test::{doc::MINIMAL, new_page, new_page_with_tree};
+    use crate::core::page::test_page::{doc::MINIMAL, new_page, new_page_with_tree};
     use temptree::temptree;
 
     #[test]

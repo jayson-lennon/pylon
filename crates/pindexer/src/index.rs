@@ -1,6 +1,8 @@
 use crate::IndexEntry;
-use std::fmt;
+use serde::Serialize;
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(transparent)]
 pub struct Index {
     inner: Vec<IndexEntry>,
 }
@@ -9,24 +11,30 @@ impl Index {
     pub fn new() -> Self {
         Self { inner: vec![] }
     }
+
     pub fn push(&mut self, value: IndexEntry) {
+        let id = self.inner.len();
+
+        let mut value = value;
+        value.insert("id", serde_json::to_value(id).unwrap());
+
         self.inner.push(value)
+    }
+}
+
+impl From<Vec<IndexEntry>> for Index {
+    fn from(entries: Vec<IndexEntry>) -> Self {
+        let mut index = Self::new();
+        for entry in entries {
+            index.push(entry);
+        }
+        index
     }
 }
 
 impl Default for Index {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl fmt::Display for Index {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for entry in self {
-            let entry = entry.as_value().map_err(|_| std::fmt::Error)?;
-            writeln!(f, "{}", entry)?;
-        }
-        Ok(())
     }
 }
 
@@ -79,7 +87,7 @@ mod test_index {
     }
 
     #[test]
-    fn display() {
+    fn serialize_format() {
         let entry_1 = new_entry(&[("1", str_val("one")), ("test1", str_val("entry1"))]);
         let entry_2 = new_entry(&[("2", str_val("two")), ("test2", str_val("entry2"))]);
 
@@ -87,23 +95,10 @@ mod test_index {
         index.push(entry_1);
         index.push(entry_2);
 
-        let result = index.to_string();
-        assert_eq!(result, include_str!("test/index_display.expected"));
-    }
-
-    #[test]
-    fn display_with_list() {
-        let entry_1 = new_entry(&[("1", str_val("one")), ("test1", str_val("entry1"))]);
-        let entry_2 = new_entry(&[("list", serde_json::to_value(vec!["a", "b", "c"]).unwrap())]);
-
-        let mut index = Index::default();
-        index.push(entry_1);
-        index.push(entry_2);
-
-        let result = index.to_string();
+        let serialized = serde_json::to_string(&index).expect("failed to serialize index");
         assert_eq!(
-            result,
-            include_str!("test/index_display_with_list.expected")
+            serialized,
+            include_str!("test/index_serialize_format.expected")
         );
     }
 }

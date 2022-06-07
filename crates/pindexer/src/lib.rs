@@ -1,11 +1,15 @@
 pub mod index;
 
+pub use index::Index;
+
 use enumflags2::{bitflags, BitFlags};
+use serde::Serialize;
 use std::collections::BTreeMap;
 
 pub type Result<T> = eyre::Result<T>;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(transparent)]
 pub struct IndexEntry {
     inner: BTreeMap<String, serde_json::Value>,
 }
@@ -73,12 +77,14 @@ impl MarkdownContent {
     }
 }
 
-fn get_markdown_content<O: Into<BitFlags<MarkdownIndexOptions>>>(
-    raw_markdown: &str,
-    options: O,
-) -> MarkdownContent {
+fn get_markdown_content<M, O>(raw_markdown: M, options: O) -> MarkdownContent
+where
+    M: AsRef<str>,
+    O: Into<BitFlags<MarkdownIndexOptions>>,
+{
     use pulldown_cmark::{Event, Parser, Tag};
 
+    let raw_markdown = raw_markdown.as_ref();
     let options = options.into();
 
     let parser = Parser::new_ext(raw_markdown, pulldown_cmark::Options::all());
@@ -115,10 +121,11 @@ fn get_markdown_content<O: Into<BitFlags<MarkdownIndexOptions>>>(
     }
 }
 
-pub fn index_entry_from_markdown<O: Into<BitFlags<MarkdownIndexOptions>>>(
-    raw_markdown: &str,
-    options: O,
-) -> Result<IndexEntry> {
+pub fn index_entry_from_markdown<M, O>(raw_markdown: M, options: O) -> Result<IndexEntry>
+where
+    M: AsRef<str>,
+    O: Into<BitFlags<MarkdownIndexOptions>>,
+{
     let markdown_content = get_markdown_content(raw_markdown, options);
     markdown_content.to_entry()
 }

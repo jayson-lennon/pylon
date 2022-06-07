@@ -215,7 +215,7 @@ mod test {
 
     use crate::{
         core::{
-            page::page::test::{new_page, new_page_with_tree},
+            page::test_page::{new_page, new_page_with_tree},
             Library, Page,
         },
         render::highlight::{syntect_highlighter::THEME_CLASS_PREFIX, SyntectHighlighter},

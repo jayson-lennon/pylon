@@ -264,3 +264,15 @@ pub fn get_all_html_output_files(
     })
     .collect::<Result<Vec<_>>>()
 }
+
+pub fn generate_search_indexes<'a, P: Iterator<Item = &'a Page>>(
+    pages: P,
+) -> Result<pindexer::Index> {
+    use crate::core::page::search::gen_index;
+
+    Ok(pages
+        .into_iter()
+        .map(gen_index)
+        .collect::<Result<Vec<_>>>()?
+        .into())
+}

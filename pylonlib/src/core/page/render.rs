@@ -87,7 +87,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                     .wrap_err_with(|| {
                         format!(
                             "Failed locating shortcodes when rendering page {}",
-                            page.uri()
+                            page.path()
                         )
                     })?
                 {
@@ -275,7 +275,7 @@ mod test {
     #![allow(warnings, unused)]
 
     use super::*;
-    use crate::core::page::page::test::{doc::MINIMAL, new_page, new_page_with_tree};
+    use crate::core::page::test_page::{doc::MINIMAL, new_page, new_page_with_tree};
     use crate::core::Library;
     use crate::render::highlight::SyntectHighlighter;
     use crate::test::{abs, rel};

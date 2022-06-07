@@ -81,7 +81,6 @@ impl<T: PathMarker> TypedPath<T> {
     }
 
     pub fn confirm(&self) -> Result<ConfirmedPath<T>> {
-        dbg!(&self.inner);
         match self.marker.confirm(self) {
             Ok(true) => Ok(ConfirmedPath {
                 inner: (self.clone()),

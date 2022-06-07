@@ -9,6 +9,7 @@ use crate::render::template::TemplateName;
 #[serde(default)]
 pub struct FrontMatter {
     pub template_name: Option<TemplateName>,
+    pub keywords: Vec<String>,
 
     pub meta: HashMap<String, serde_json::Value>,
 }

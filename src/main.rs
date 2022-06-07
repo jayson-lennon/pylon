@@ -39,6 +39,8 @@ enum Command {
     Serve(ServeOptions),
     /// Generate CSS theme from thTheme file
     BuildSyntaxTheme { path: PathBuf },
+    /// Generate Meilisearch index
+    GenIndex,
 }
 
 #[derive(clap::Args, Debug)]
@@ -151,6 +153,14 @@ fn main() -> Result<(), eyre::Report> {
                 )
             })?;
             println!("{}", css_theme.css());
+        }
+        Command::GenIndex => {
+            use pylonlib::core::engine::step::generate_search_indexes;
+
+            let engine = Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
+            let index = generate_search_indexes(engine.library().iter().map(|(_, page)| page))?;
+            let index_json = serde_json::to_string(&index)?;
+            println!("{}", index_json);
         }
     }
 
