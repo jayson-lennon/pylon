@@ -36,6 +36,15 @@ pub fn gen_search_doc(page: &Page) -> Result<SearchDoc> {
         )
     })?;
     doc.insert("keywords", keywords);
+    doc.insert(
+        "uri",
+        serde_json::to_value(page.uri().to_string()).wrap_err_with(|| {
+            format!(
+                "Failed to convert page uri to JSON while generating search doc for page '{}'",
+                page.path()
+            )
+        })?,
+    );
 
     Ok(doc)
 }
@@ -67,6 +76,7 @@ document content"#,
             expected.insert("headers", serde_json::to_value(headers).unwrap());
             expected.insert("content", serde_json::to_value("document content").unwrap());
             expected.insert("keywords", serde_json::to_value(keywords).unwrap());
+            expected.insert("uri", serde_json::to_value("/doc.html").unwrap());
             expected
         };
 
@@ -97,6 +107,7 @@ two
             expected.insert("headers", serde_json::to_value(headers).unwrap());
             expected.insert("content", serde_json::to_value("one two three").unwrap());
             expected.insert("keywords", serde_json::to_value(keywords).unwrap());
+            expected.insert("uri", serde_json::to_value("/doc.html").unwrap());
             expected
         };
 
