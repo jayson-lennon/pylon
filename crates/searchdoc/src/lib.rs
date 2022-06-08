@@ -3,12 +3,12 @@ pub mod collection;
 pub use collection::SearchDocs;
 
 use enumflags2::{bitflags, BitFlags};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub type Result<T> = eyre::Result<T>;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SearchDoc {
     inner: BTreeMap<String, serde_json::Value>,

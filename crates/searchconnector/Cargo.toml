@@ -1,0 +1,19 @@
+[package]
+name = "searchconnector"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1.0", features = ["std"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+eyre = "0.6"
+color-eyre = "0.6"
+thiserror = "1.0"
+meilisearch-sdk = "0.17"
+futures = "0.3"
+
+[dev-dependencies]
+temptree = "0.2.0"
+tempfile = "3.3"

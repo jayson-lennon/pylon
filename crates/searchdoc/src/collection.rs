@@ -1,7 +1,9 @@
-use crate::SearchDoc;
-use serde::Serialize;
+use std::ops::Deref;
 
-#[derive(Clone, Debug, Serialize)]
+use crate::SearchDoc;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(transparent)]
 pub struct SearchDocs {
     inner: Vec<SearchDoc>,
@@ -19,6 +21,13 @@ impl SearchDocs {
         value.insert("id", serde_json::to_value(id).unwrap());
 
         self.inner.push(value)
+    }
+}
+
+impl Deref for SearchDocs {
+    type Target = Vec<SearchDoc>;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
@@ -100,5 +109,20 @@ mod test_search_docs {
             serialized,
             include_str!("test/collection-serialize_format.expected")
         );
+    }
+
+    #[test]
+    fn deserialize() {
+        let entry_1 = new_entry(&[("1", str_val("one")), ("test1", str_val("entry1"))]);
+        let entry_2 = new_entry(&[("2", str_val("two")), ("test2", str_val("entry2"))]);
+
+        let mut docs = SearchDocs::default();
+        docs.push(entry_1);
+        docs.push(entry_2);
+
+        let serialized = include_str!("test/collection-deserialize.expected");
+        let deserialized: SearchDocs =
+            serde_json::from_str(&serialized).expect("failed to deserialize docs");
+        assert_eq!(deserialized, docs);
     }
 }

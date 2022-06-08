@@ -9,9 +9,11 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+pub type Result<T> = eyre::Result<T>;
+
 #[derive(clap::Parser)]
 #[clap(author, version, about, long_about = None)]
-struct Args {
+struct Cli {
     #[clap(long, default_value = "site-rules.rhai", env = "PYLON_RULES")]
     rule_script: PathBuf,
 
@@ -28,38 +30,78 @@ struct Args {
     template_dir: PathBuf,
 
     #[clap(subcommand)]
-    command: Command,
+    command: SubCommand,
 }
 
-#[derive(clap::Subcommand, Debug)]
-enum Command {
+#[derive(Debug, clap::Subcommand)]
+enum SubCommand {
     /// Build site
     Build,
     /// Run dev server
-    Serve(ServeOptions),
+    Serve(CmdServe),
     /// Generate CSS theme from thTheme file
     BuildSyntaxTheme { path: PathBuf },
-    /// Generate Meilisearch index
-    GenIndex,
+    /// Build search indexes & populate index services
+    Index(CmdIndex),
 }
 
-#[derive(clap::Args, Debug)]
-struct ServeOptions {
-    #[clap(long, default_value = "100", env = "CMS_DEBOUNCE_MS")]
+#[derive(Debug, clap::Args)]
+struct CmdServe {
+    #[clap(long, default_value = "100", env = "PYLON_DEBOUNCE_MS")]
     debounce_ms: u64,
 
-    #[clap(long, default_value = "127.0.0.1:8000", env = "CMS_BIND_ADDR")]
+    #[clap(long, default_value = "127.0.0.1:8000", env = "PYLON_BIND_ADDR")]
     bind: SocketAddr,
 
-    #[clap(long, default_value = "write", env = "CMS_RENDER_BEHAVIOR")]
+    #[clap(long, default_value = "write", env = "PYLON_RENDER_BEHAVIOR")]
     render_behavior: RenderBehavior,
 }
 
-#[derive(clap::Subcommand, Debug)]
-enum SyntaxCommand {
-    /// Generates CSS from tmThemes
-    Generate,
+#[derive(Debug, clap::Args)]
+struct CmdIndex {
+    #[clap(subcommand)]
+    command: IndexSubCommand,
 }
+
+#[derive(Debug, clap::Subcommand)]
+enum IndexSubCommand {
+    /// Generate an index
+    Generate,
+    /// Publish index to Meilisearch
+    Meilisearch(MeilisearchOptions),
+}
+
+#[derive(Debug, clap::Args)]
+struct MeilisearchOptions {
+    /// Address for Meilisearch service
+    #[clap(env = "PYLON_MEILISEARCH_ADDR")]
+    address: String,
+
+    /// API key for connecting to Meilisearch
+    #[clap(env = "PYLON_MEILISEARCH_API_KEY")]
+    api_key: String,
+
+    /// Document fields to search
+    #[clap(short = 'a', long = "attributes", name = "ATTRIBUTES")]
+    search_attributes: Vec<String>,
+
+    /// Primary key to use for documents (will be inferred if not provided)
+    #[clap(long, name = "KEY")]
+    primary_key: Option<String>,
+
+    /// Name to use for index
+    #[clap(long, default_value = "pylon", name = "NAME")]
+    index_name: String,
+
+    /// Provide pre-generated JSON document
+    #[clap(long, name = "JSON-FILE")]
+    use_doc: Option<PathBuf>,
+
+    /// Add documents to index instead of rebuilding from scratch
+    #[clap(long)]
+    append: bool,
+}
+
 fn install_tracing() {
     use tracing_error::ErrorLayer;
     use tracing_subscriber::prelude::*;
@@ -77,7 +119,7 @@ fn install_tracing() {
         .init();
 }
 
-fn main() -> Result<(), eyre::Report> {
+fn main() -> Result<()> {
     install_tracing();
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
 
@@ -87,7 +129,7 @@ fn main() -> Result<(), eyre::Report> {
         tracing::error!("{}", panic_hook.panic_report(pi));
     }));
 
-    let args = Args::parse();
+    let args = Cli::parse();
 
     let paths = EnginePaths {
         rule_script: RelPath::new(&args.rule_script).wrap_err_with(|| {
@@ -131,7 +173,7 @@ fn main() -> Result<(), eyre::Report> {
         )?,
     };
     match args.command {
-        Command::Serve(opt) => {
+        SubCommand::Serve(opt) => {
             let (handle, _broker) = Engine::with_broker(
                 Arc::new(paths),
                 opt.bind,
@@ -141,11 +183,11 @@ fn main() -> Result<(), eyre::Report> {
             .wrap_err("Failed to initialize engine broker")?;
             let _ = handle.join().map_err(|e| eyre!("{:?}", e))?;
         }
-        Command::Build => {
+        SubCommand::Build => {
             let engine = Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
             engine.build_site().wrap_err("Failed to build site")?;
         }
-        Command::BuildSyntaxTheme { path } => {
+        SubCommand::BuildSyntaxTheme { path } => {
             let css_theme = SyntectHighlighter::generate_css_theme(&path).wrap_err_with(|| {
                 format!(
                     "Failed to generate CSS output from theme file {}",
@@ -154,15 +196,57 @@ fn main() -> Result<(), eyre::Report> {
             })?;
             println!("{}", css_theme.css());
         }
-        Command::GenIndex => {
-            use pylonlib::core::engine::step::generate_search_docs;
+        SubCommand::Index(CmdIndex { command }) => match command {
+            IndexSubCommand::Generate => {
+                let docs = generate_search_docs(paths)?;
+                let docs = serde_json::to_string(&docs)?;
+                println!("{}", docs);
+            }
 
-            let engine = Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
-            let index = generate_search_docs(engine.library().iter().map(|(_, page)| page))?;
-            let index_json = serde_json::to_string(&index)?;
-            println!("{}", index_json);
-        }
+            IndexSubCommand::Meilisearch(options) => {
+                use searchconnector::Meilisearch;
+
+                let docs = {
+                    if let Some(path) = options.use_doc {
+                        use std::fs;
+                        let docs = fs::read_to_string(&path).wrap_err_with(|| {
+                            format!("Failed to read provided JSON docs at '{}'", path.display())
+                        })?;
+                        let docs: searchdoc::SearchDocs = serde_json::from_str(&docs).unwrap();
+                        docs
+                    } else {
+                        generate_search_docs(paths)
+                            .wrap_err("Failed to generate JSON docs for indexing")?
+                    }
+                };
+
+                let client = Meilisearch::new(options.address, options.api_key);
+                futures::executor::block_on(async move {
+                    client
+                        .populate(&options.index_name, &docs, options.primary_key.as_deref())
+                        .await
+                        .wrap_err("Failed to populate Meilisearch")?;
+                    if !options.search_attributes.is_empty() {
+                        client
+                            .set_searchable_attributes(
+                                options.index_name,
+                                options.search_attributes.as_slice(),
+                            )
+                            .await
+                            .wrap_err("Failed to set search attributes")?;
+                    }
+                    Ok::<(), eyre::Report>(())
+                })
+                .wrap_err("Error while processing Meilisearch index")?;
+            }
+        },
     }
 
     Ok(())
+}
+
+fn generate_search_docs(paths: EnginePaths) -> Result<searchdoc::SearchDocs> {
+    use pylonlib::core::engine::step::generate_search_docs;
+    let engine = Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
+    generate_search_docs(engine.library().iter().map(|(_, page)| page))
 }
