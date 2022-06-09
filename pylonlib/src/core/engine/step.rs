@@ -272,6 +272,7 @@ pub fn generate_search_docs<'a, P: Iterator<Item = &'a Page>>(
 
     Ok(pages
         .into_iter()
+        .filter(|page| page.frontmatter.searchable)
         .map(gen_search_doc)
         .collect::<Result<Vec<_>>>()?
         .into())

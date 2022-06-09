@@ -5,11 +5,18 @@ pub use script::rhai_module;
 
 use crate::render::template::TemplateName;
 
+fn always_true() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct FrontMatter {
     pub template_name: Option<TemplateName>,
     pub keywords: Vec<String>,
+
+    #[serde(default = "always_true")]
+    pub searchable: bool,
 
     pub meta: HashMap<String, serde_json::Value>,
 }
