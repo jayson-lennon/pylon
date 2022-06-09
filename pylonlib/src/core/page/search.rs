@@ -27,15 +27,22 @@ pub fn gen_search_doc(page: &Page) -> Result<SearchDoc> {
             page.path()
         )
     })?;
+
     let mut doc = searchdoc::search_doc_from_markdown(raw_markdown, ContentOptions::all())
         .wrap_err_with(|| format!("Failed to generate search doc for page '{}'", page.path()))?;
-    let keywords = serde_json::to_value(&page.frontmatter().keywords).wrap_err_with(|| {
-        format!(
-            "Failed to convert page keywords to JSON for page '{}'",
-            page.path()
-        )
-    })?;
-    doc.insert("keywords", keywords);
+
+    // keywords
+    {
+        let keywords = serde_json::to_value(&page.frontmatter().keywords).wrap_err_with(|| {
+            format!(
+                "Failed to convert page keywords to JSON for page '{}'",
+                page.path()
+            )
+        })?;
+        doc.insert("keywords", keywords);
+    }
+
+    // uri
     doc.insert(
         "uri",
         serde_json::to_value(page.uri().to_string()).wrap_err_with(|| {
@@ -45,6 +52,11 @@ pub fn gen_search_doc(page: &Page) -> Result<SearchDoc> {
             )
         })?,
     );
+
+    // title
+    if let Some(title) = page.frontmatter.meta.get("title") {
+        doc.insert("title", title.clone());
+    }
 
     Ok(doc)
 }
