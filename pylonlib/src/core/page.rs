@@ -1,7 +1,6 @@
 pub mod frontmatter;
 pub mod lint;
 pub mod render;
-pub mod search;
 pub mod util;
 
 use std::collections::HashSet;

@@ -41,8 +41,6 @@ enum SubCommand {
     Serve(CmdServe),
     /// Generate CSS theme from thTheme file
     BuildSyntaxTheme { path: PathBuf },
-    /// Build search indexes & populate index services
-    Index(CmdIndex),
 }
 
 #[derive(Debug, clap::Args)]
@@ -55,51 +53,6 @@ struct CmdServe {
 
     #[clap(long, default_value = "write", env = "PYLON_RENDER_BEHAVIOR")]
     render_behavior: RenderBehavior,
-}
-
-#[derive(Debug, clap::Args)]
-struct CmdIndex {
-    #[clap(subcommand)]
-    command: IndexSubCommand,
-}
-
-#[derive(Debug, clap::Subcommand)]
-enum IndexSubCommand {
-    /// Generate an index
-    Generate,
-    /// Publish index to Meilisearch
-    Meilisearch(MeilisearchOptions),
-}
-
-#[derive(Debug, clap::Args)]
-struct MeilisearchOptions {
-    /// Address for Meilisearch service
-    #[clap(env = "PYLON_MEILISEARCH_ADDR")]
-    address: String,
-
-    /// API key for connecting to Meilisearch
-    #[clap(env = "PYLON_MEILISEARCH_API_KEY")]
-    api_key: String,
-
-    /// Document fields to search
-    #[clap(short = 'a', long = "attributes", name = "ATTRIBUTES")]
-    search_attributes: Vec<String>,
-
-    /// Primary key to use for documents (will be inferred if not provided)
-    #[clap(long, name = "KEY")]
-    primary_key: Option<String>,
-
-    /// Name to use for index
-    #[clap(long, default_value = "pylon", name = "NAME")]
-    index_name: String,
-
-    /// Provide pre-generated JSON document
-    #[clap(long, name = "JSON-FILE")]
-    use_doc: Option<PathBuf>,
-
-    /// Add documents to index instead of rebuilding from scratch
-    #[clap(long)]
-    append: bool,
 }
 
 fn install_tracing() {
@@ -196,57 +149,7 @@ fn main() -> Result<()> {
             })?;
             println!("{}", css_theme.css());
         }
-        SubCommand::Index(CmdIndex { command }) => match command {
-            IndexSubCommand::Generate => {
-                let docs = generate_search_docs(paths)?;
-                let docs = serde_json::to_string(&docs)?;
-                println!("{}", docs);
-            }
-
-            IndexSubCommand::Meilisearch(options) => {
-                use searchconnector::Meilisearch;
-
-                let docs = {
-                    if let Some(path) = options.use_doc {
-                        use std::fs;
-                        let docs = fs::read_to_string(&path).wrap_err_with(|| {
-                            format!("Failed to read provided JSON docs at '{}'", path.display())
-                        })?;
-                        let docs: searchdoc::SearchDocs = serde_json::from_str(&docs).unwrap();
-                        docs
-                    } else {
-                        generate_search_docs(paths)
-                            .wrap_err("Failed to generate JSON docs for indexing")?
-                    }
-                };
-
-                let client = Meilisearch::new(options.address, options.api_key);
-                futures::executor::block_on(async move {
-                    client
-                        .populate(&options.index_name, &docs, options.primary_key.as_deref())
-                        .await
-                        .wrap_err("Failed to populate Meilisearch")?;
-                    if !options.search_attributes.is_empty() {
-                        client
-                            .set_searchable_attributes(
-                                options.index_name,
-                                options.search_attributes.as_slice(),
-                            )
-                            .await
-                            .wrap_err("Failed to set search attributes")?;
-                    }
-                    Ok::<(), eyre::Report>(())
-                })
-                .wrap_err("Error while processing Meilisearch index")?;
-            }
-        },
     }
 
     Ok(())
-}
-
-fn generate_search_docs(paths: EnginePaths) -> Result<searchdoc::SearchDocs> {
-    use pylonlib::core::engine::step::generate_search_docs;
-    let engine = Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
-    generate_search_docs(engine.library().iter().map(|(_, page)| page))
 }

@@ -9,8 +9,6 @@ edition = "2021"
 pipeworks = { path = "../crates/pipeworks" }
 typed_path = { path = "../crates/typed_path" }
 typed_uri = { path = "../crates/typed_uri" }
-searchconnector = { path = "../crates/searchconnector" }
-searchdoc = { path = "../crates/searchdoc" }
 shortcode_processor = { path = "../crates/shortcode_processor" }
 pathmarker = { path = "../crates/pathmarker" }
 
