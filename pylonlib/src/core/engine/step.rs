@@ -3,7 +3,7 @@ use std::{collections::HashSet, ffi::OsStr, path::Path, sync::Arc};
 use eyre::WrapErr;
 use itertools::Itertools;
 use tracing::trace;
-use typed_path::{ConfirmedPath, SysPath};
+use typed_path::{ConfirmedPath, RelPath, SysPath};
 
 use crate::{
     core::{
@@ -263,4 +263,31 @@ pub fn get_all_html_output_files(
         .and_then(|sys_path| sys_path.confirm(pathmarker::HtmlFile))
     })
     .collect::<Result<Vec<_>>>()
+}
+
+pub fn export_frontmatter<'a, P>(engine: &Engine, pages: P, target_dir: &RelPath) -> Result<()>
+where
+    P: Iterator<Item = &'a Page>,
+{
+    use crate::util::make_parent_dirs;
+
+    for page in pages {
+        let parent = page
+            .target()
+            .with_base(target_dir)
+            .without_file_name()
+            .to_absolute_path();
+        make_parent_dirs(&parent)?;
+
+        let file_name = page.target().with_extension("json");
+        let file_name = file_name.file_name();
+
+        let target_file = parent.join(&RelPath::from_relative(file_name));
+
+        let frontmatter_json = serde_json::to_string(page.frontmatter())?;
+        std::fs::write(target_file, &frontmatter_json)
+            .wrap_err("Failed to write frontmatter to disk")?;
+    }
+
+    Ok(())
 }

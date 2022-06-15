@@ -22,7 +22,8 @@ where
     S: AsRef<str>,
 {
     use std::fs;
-    let actual: String = fs::read_to_string(path).expect("missing file");
+    let actual: String = fs::read_to_string(path.as_ref())
+        .unwrap_or_else(|e| format!("missing file at path '{}': {}", path.as_ref().display(), e));
     assert_eq!(actual, content.as_ref());
 }
 
@@ -50,6 +51,58 @@ fn sample() {
     engine.build_site().unwrap();
 
     assert_content(tree.path().join("target/sample.html"), "<p>sample</p>\n");
+}
+
+#[test]
+fn exports_frontmatter() {
+    let file_1 = r#"+++
++++
+sample one"#;
+
+    let file_2 = r#"+++
++++
+sample two"#;
+    let default_template = r#"{{ content | safe }}"#;
+
+    let tree = temptree! {
+        "rules.rhai": "",
+        src: {
+            dir_1: {
+                "file_1.md": file_1,
+                dir_2: {
+                    "file_2.md": file_2,
+                }
+            }
+        },
+        templates: {
+            "default.tera": default_template,
+        },
+        target: {},
+        syntax_themes: {},
+        test: {}
+    };
+
+    let engine_paths = engine_paths(&tree);
+
+    let engine = Engine::new(engine_paths).unwrap();
+    let pages = engine.library().iter().map(|(_, page)| page);
+    let target = RelPath::from_relative("test");
+
+    step::export_frontmatter(&engine, pages, &target).expect("failed to export frontmatter");
+
+    // file 1
+    {
+        use serde_json::json;
+
+        let expected = json! ({
+            "template_name": "default.tera",
+            "keywords": [],
+            "searchable": true,
+            "meta": {}
+        })
+        .to_string();
+        assert_content(tree.path().join("test/dir_1/file_1.json"), expected);
+    }
 }
 
 #[test]

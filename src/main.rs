@@ -36,7 +36,7 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum SubCommand {
     /// Build site
-    Build,
+    Build(CmdBuild),
     /// Run dev server
     Serve(CmdServe),
     /// Generate CSS theme from thTheme file
@@ -53,6 +53,13 @@ struct CmdServe {
 
     #[clap(long, default_value = "write", env = "PYLON_RENDER_BEHAVIOR")]
     render_behavior: RenderBehavior,
+}
+
+#[derive(Debug, clap::Args)]
+struct CmdBuild {
+    /// Export frontmatter to provided directory
+    #[clap(long)]
+    frontmatter: Option<PathBuf>,
 }
 
 fn install_tracing() {
@@ -136,9 +143,21 @@ fn main() -> Result<()> {
             .wrap_err("Failed to initialize engine broker")?;
             let _ = handle.join().map_err(|e| eyre!("{:?}", e))?;
         }
-        SubCommand::Build => {
-            let engine = Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
-            engine.build_site().wrap_err("Failed to build site")?;
+        SubCommand::Build(cmd_build) => {
+            use pylonlib::core::engine::step::export_frontmatter;
+            if let Some(path) = cmd_build.frontmatter {
+                let engine =
+                    Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
+
+                let target_dir = RelPath::new(path)?;
+                let pages = engine.library().iter().map(|(_, page)| page);
+                export_frontmatter(&engine, pages, &target_dir)
+                    .wrap_err("Failed to export frontmatter")?;
+            } else {
+                let engine =
+                    Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
+                engine.build_site().wrap_err("Failed to build site")?;
+            }
         }
         SubCommand::BuildSyntaxTheme { path } => {
             let css_theme = SyntectHighlighter::generate_css_theme(&path).wrap_err_with(|| {
