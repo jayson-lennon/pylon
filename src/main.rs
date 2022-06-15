@@ -80,6 +80,8 @@ fn install_tracing() {
 }
 
 fn main() -> Result<()> {
+    use dotenv::dotenv;
+
     install_tracing();
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
 
@@ -88,6 +90,8 @@ fn main() -> Result<()> {
     std::panic::set_hook(Box::new(move |pi| {
         tracing::error!("{}", panic_hook.panic_report(pi));
     }));
+
+    dotenv().ok();
 
     let args = Cli::parse();
 
