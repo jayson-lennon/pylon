@@ -2,6 +2,12 @@
 name = "pylonlib"
 version = "0.1.0"
 edition = "2021"
+authors = ["Jayson Lennon <jayson@jaysonlennon.dev>"]
+description = "Core functionality for Pylon"
+homepage = "https://github.com/jayson-lennon/pylon"
+repository = "https://github.com/jayson-lennon/pylon"
+license = "MIT OR Apache-2.0"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
