@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
-use crate::core::engine::{Engine, EnginePaths};
+use crate::core::engine::{Engine, EnginePaths, GlobalEnginePaths};
 use crate::core::library::SearchKey;
 use crate::core::page::RenderedPage;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
@@ -89,7 +89,7 @@ impl std::str::FromStr for RenderBehavior {
 #[derive(Debug, Clone)]
 pub struct EngineBroker {
     rt: Arc<tokio::runtime::Runtime>,
-    engine_paths: Arc<EnginePaths>,
+    engine_paths: GlobalEnginePaths,
     devserver: (DevServerSender, DevServerReceiver),
     engine: (EngineSender, EngineReceiver),
     render_behavior: RenderBehavior,
@@ -99,7 +99,7 @@ impl EngineBroker {
     pub fn new(
         rt: Arc<tokio::runtime::Runtime>,
         behavior: RenderBehavior,
-        engine_paths: Arc<EnginePaths>,
+        engine_paths: GlobalEnginePaths,
     ) -> Self {
         Self {
             rt,
@@ -114,7 +114,7 @@ impl EngineBroker {
         self.rt.handle().clone()
     }
 
-    pub fn engine_paths(&self) -> Arc<EnginePaths> {
+    pub fn engine_paths(&self) -> GlobalEnginePaths {
         self.engine_paths.clone()
     }
 
@@ -160,7 +160,7 @@ impl EngineBroker {
 
     pub fn spawn_engine_thread<S: Into<SocketAddr> + std::fmt::Debug>(
         &self,
-        paths: Arc<EnginePaths>,
+        paths: GlobalEnginePaths,
         bind: S,
         debounce_ms: u64,
     ) -> Result<JoinHandle<Result<()>>> {

@@ -1,11 +1,11 @@
-use pylonlib::core::engine::{step, Engine, EnginePaths};
+use pylonlib::core::engine::{step, Engine, EnginePaths, GlobalEnginePaths};
 use std::path::Path;
 use std::sync::Arc;
 use tempfile::TempDir;
 use temptree::temptree;
 use typed_path::{AbsPath, RelPath};
 
-pub fn engine_paths(tree: &TempDir) -> Arc<EnginePaths> {
+pub fn engine_paths(tree: &TempDir) -> GlobalEnginePaths {
     Arc::new(EnginePaths {
         rule_script: RelPath::new("rules.rhai").unwrap(),
         src_dir: RelPath::new("src").unwrap(),

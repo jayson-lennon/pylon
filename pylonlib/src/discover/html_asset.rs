@@ -10,7 +10,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::core::engine::EnginePaths;
+use crate::core::engine::{EnginePaths, GlobalEnginePaths};
 use crate::{discover, RelPath, Result, SysPath};
 
 use crate::discover::AssetPath;
@@ -191,7 +191,7 @@ impl<'a> FromIterator<&'a HtmlAsset> for HtmlAssets {
     }
 }
 
-pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<HtmlAssets> {
+pub fn find_all(engine_paths: GlobalEnginePaths, search_dir: &RelPath) -> Result<HtmlAssets> {
     let html_paths =
         discover::get_all_paths(&engine_paths.project_root().join(search_dir), &|path| {
             path.extension() == Some(OsStr::new("html"))
@@ -214,7 +214,7 @@ pub fn find_all(engine_paths: Arc<EnginePaths>, search_dir: &RelPath) -> Result<
 }
 
 pub fn find<S>(
-    engine_paths: Arc<EnginePaths>,
+    engine_paths: GlobalEnginePaths,
     html_path: &ConfirmedPath<pathmarker::HtmlFile>,
     html: S,
 ) -> Result<HtmlAssets>

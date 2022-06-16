@@ -36,7 +36,10 @@ pub(crate) mod test {
     use temptree::temptree;
     use typed_path::{ConfirmedPath, SysPath};
 
-    use crate::{core::engine::EnginePaths, AbsPath, RelPath};
+    use crate::{
+        core::engine::{EnginePaths, GlobalEnginePaths},
+        AbsPath, RelPath,
+    };
 
     macro_rules! abs {
         ($path:literal) => {{
@@ -59,7 +62,7 @@ pub(crate) mod test {
     pub(crate) use abs;
     pub(crate) use rel;
 
-    pub fn default_test_paths(tree: &TempDir) -> Arc<EnginePaths> {
+    pub fn default_test_paths(tree: &TempDir) -> GlobalEnginePaths {
         Arc::new(EnginePaths {
             rule_script: RelPath::new("rules.rhai").unwrap(),
             src_dir: RelPath::new("src").unwrap(),
@@ -70,7 +73,7 @@ pub(crate) mod test {
         })
     }
 
-    pub fn simple_init() -> (Arc<EnginePaths>, TempDir) {
+    pub fn simple_init() -> (GlobalEnginePaths, TempDir) {
         let tree = temptree! {
           "rules.rhai": "",
           templates: {

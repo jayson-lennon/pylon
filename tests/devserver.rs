@@ -1,5 +1,5 @@
 use pylonlib::{
-    core::engine::{Engine, EnginePaths},
+    core::engine::{Engine, EnginePaths, GlobalEnginePaths},
     devserver::broker::RenderBehavior,
 };
 use serial_test::serial;
@@ -45,7 +45,7 @@ pub fn assert_404(response: reqwest::Response) {
     assert_eq!(actual, StatusCode::NOT_FOUND);
 }
 
-pub fn engine_paths(tree: &TempDir) -> Arc<EnginePaths> {
+pub fn engine_paths(tree: &TempDir) -> GlobalEnginePaths {
     Arc::new(EnginePaths {
         rule_script: RelPath::new("rules.rhai").unwrap(),
         src_dir: RelPath::new("src").unwrap(),

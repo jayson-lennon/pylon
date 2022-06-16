@@ -77,7 +77,7 @@ impl EnginePaths {
 
 #[derive(Debug)]
 pub struct Engine {
-    paths: Arc<EnginePaths>,
+    paths: GlobalEnginePaths,
     renderers: Renderers,
 
     // these are reset when the user script is updated
@@ -110,12 +110,12 @@ impl Engine {
         &self.rule_processor
     }
 
-    pub fn paths(&self) -> Arc<EnginePaths> {
+    pub fn paths(&self) -> GlobalEnginePaths {
         Arc::clone(&self.paths)
     }
 
     pub fn with_broker<S: Into<SocketAddr> + std::fmt::Debug>(
-        paths: Arc<EnginePaths>,
+        paths: GlobalEnginePaths,
         bind: S,
         debounce_ms: u64,
         render_behavior: RenderBehavior,
@@ -141,7 +141,7 @@ impl Engine {
         Ok((engine_handle, broker_clone))
     }
 
-    pub fn new(paths: Arc<EnginePaths>) -> Result<Engine> {
+    pub fn new(paths: GlobalEnginePaths) -> Result<Engine> {
         let renderers = Renderers::new(paths.clone()).wrap_err_with(|| {
             format!(
                 "failed initializing renderers using template root '{}'",

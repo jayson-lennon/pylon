@@ -16,7 +16,7 @@ use crate::{
     Renderers, Result,
 };
 
-use super::{Engine, EnginePaths};
+use super::{Engine, EnginePaths, GlobalEnginePaths};
 
 pub mod report {
     use std::collections::HashSet;
@@ -127,7 +127,7 @@ pub fn mount_directories<'a, M: Iterator<Item = &'a Mount>>(mounts: M) -> Result
 }
 
 pub fn load_rules(
-    engine_paths: Arc<EnginePaths>,
+    engine_paths: GlobalEnginePaths,
     library: &Library,
 ) -> Result<(ScriptEngine, RuleProcessor, Rules)> {
     let script_engine_config = ScriptEngineConfig::new();
@@ -185,7 +185,7 @@ pub fn run_pipelines<'a>(
     Ok(unhandled_assets)
 }
 
-pub fn build_library(engine_paths: Arc<EnginePaths>, renderers: &Renderers) -> Result<Library> {
+pub fn build_library(engine_paths: GlobalEnginePaths, renderers: &Renderers) -> Result<Library> {
     let pages: Vec<_> =
         crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {
             path.extension() == Some(OsStr::new("md"))
