@@ -626,6 +626,42 @@ mod test {
     }
 
     #[test]
+    fn op_shell_base_subdir_from_root() {
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {},
+            target: {
+                "output.html": "",
+            },
+            src: {},
+            random: {
+                a: {
+                    b: {
+                        "test.txt": "old",
+                    }
+                }
+            },
+            syntax_themes: {},
+        };
+
+        let paths = make_paths(&tree);
+
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/random/a/b")).unwrap();
+
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            "sed 's/old/new/g' $SOURCE > $TARGET",
+        )));
+
+        let html_file = confirmed_html_path(&tree, "target/output.html");
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+
+        pipeline.run(&asset_uri).expect("failed to run pipeline");
+
+        let target_content = fs::read_to_string(tree.path().join("target/test.txt")).unwrap();
+        assert_eq!(&target_content, "new");
+    }
+
+    #[test]
     fn op_shell_new_scratch_autocopy() {
         let tree = temptree! {
             "rules.rhai": "",
