@@ -249,6 +249,9 @@ where
             if let Some(url) = el.value().attr(attr) {
                 match discover::get_url_type(url) {
                     UrlType::Absolute => {
+                        if url.contains('#') {
+                            continue;
+                        }
                         let uri = Uri::new(url)?;
                         let uri = AssetUri::new(html_path, &uri);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
@@ -261,6 +264,9 @@ where
                     }
                     // relative links need to get converted to absolute links
                     UrlType::Relative(target) => {
+                        if url.contains('#') {
+                            continue;
+                        }
                         let uri = raw_relative_uri_to_based_uri(html_path, &target);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
                         let html_asset =
@@ -367,6 +373,27 @@ mod test {
         let assets = super::find(paths, &html_path, html).expect("failed to find assets");
 
         assert_eq!(assets.len(), 11);
+    }
+
+    #[test]
+    fn ignore_name_links() {
+        let tree = temptree! {
+          "rules.rhai": "",
+          templates: {},
+          target: {
+            "page.html": "",
+          },
+          src: {},
+          syntax_themes: {}
+        };
+        let paths = crate::test::default_test_paths(&tree);
+        let html_path = SysPath::new(abs!(tree.path()), rel!("target"), rel!("page.html"))
+            .confirm(pathmarker::HtmlFile)
+            .unwrap();
+        let html = r#"<a href="page.html#test">link</a>"#;
+        let assets = super::find(paths, &html_path, html).expect("failed to find assets");
+
+        assert_eq!(assets.len(), 0);
     }
 
     #[test]
