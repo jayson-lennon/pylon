@@ -2,6 +2,15 @@
 name = "pylon"
 version = "0.1.0"
 edition = "2021"
+authors = ["Jayson Lennon <jayson@jaysonlennon.dev>"]
+description = "Static Site Generator"
+readme = "README.md"
+homepage = "https://github.com/jayson-lennon/pylon"
+repository = "https://github.com/jayson-lennon/pylon"
+license = "MIT OR Apache-2.0"
+keywords = ["generator", "site"]
+categories = ["web-programming"]
+publish = false
 
 [[bin]]
 name = "pylon"

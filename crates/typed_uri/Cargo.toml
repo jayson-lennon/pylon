@@ -2,6 +2,12 @@
 name = "typed_uri"
 version = "0.1.0"
 edition = "2021"
+authors = ["Jayson Lennon <jayson@jaysonlennon.dev>"]
+description = "Type-checked URIs for Pylon"
+homepage = "https://github.com/jayson-lennon/pylon"
+repository = "https://github.com/jayson-lennon/pylon"
+license = "MIT OR Apache-2.0"
+publish = false
 
 [lib]
 name = "typed_uri"
