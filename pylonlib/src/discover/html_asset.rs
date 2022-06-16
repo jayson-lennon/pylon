@@ -227,6 +227,7 @@ where
         ("a", "href"),
         ("audio", "src"),
         ("embed", "src"),
+        ("iframe", "src"),
         ("img", "src"),
         ("link", "href"),
         ("object", "data"),
@@ -331,6 +332,7 @@ mod test {
             pair!("a",      r#"<a href="TARGET">"#, target),
             pair!("audio",  r#"<audio src="TARGET">"#, target),
             pair!("embed",  r#"<embed src="TARGET">"#, target),
+            pair!("iframe", r#"<iframe src="TARGET">"#, target),
             pair!("img",    r#"<img src="TARGET">"#, target),
             pair!("link",   r#"<link href="TARGET">"#, target),
             pair!("object", r#"<object data="TARGET">"#, target),
@@ -361,6 +363,7 @@ mod test {
             <a href="/a.file"></a>
             <audio src="/audio.file"></audio>
             <embed src="/embed.file" />
+            <iframe src="/iframe.file"></iframe>
             <img src="/img.file" />
             <link href="/link.file">
             <object data="/object.file"></object>
@@ -372,7 +375,7 @@ mod test {
 "#;
         let assets = super::find(paths, &html_path, html).expect("failed to find assets");
 
-        assert_eq!(assets.len(), 11);
+        assert_eq!(assets.len(), 12);
     }
 
     #[test]
