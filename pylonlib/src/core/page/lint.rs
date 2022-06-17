@@ -224,8 +224,8 @@ mod test {
         test content"#;
 
         let rule_script = r#"
-        rules.add_lint(DENY, "Missing author", "**", |page| {
-            page.meta("author") == "" || type_of(page.meta("author")) == "()"
+        rules.add_lint(DENY, "Missing author", "**", |doc| {
+            doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
         });
         "#;
 
@@ -267,11 +267,11 @@ mod test {
         test content"#;
 
         let rule_script = r#"
-        rules.add_lint(DENY, "Missing author", "**", |page| {
-            page.meta("author") == "" || type_of(page.meta("author")) == "()"
+        rules.add_lint(DENY, "Missing author", "**", |doc| {
+            doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
         });
-        rules.add_lint(WARN, "Missing publish date", "**", |page| {
-            page.meta("published") == "" || type_of(page.meta("published")) == "()"
+        rules.add_lint(WARN, "Missing publish date", "**", |doc| {
+            doc.meta("published") == "" || type_of(doc.meta("published")) == "()"
         });
         "#;
 

@@ -354,17 +354,17 @@ pub mod test {
     #[test]
     fn reloads_rules() {
         let old_rules = r#"
-            rules.add_lint(DENY, "Missing author", "**", |page| {
-                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            rules.add_lint(DENY, "Missing author", "**", |doc| {
+                doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
-            rules.add_lint(WARN, "Missing author", "**", |page| {
-                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            rules.add_lint(WARN, "Missing author", "**", |doc| {
+                doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
         "#;
 
         let new_rules = r#"
-            rules.add_lint(WARN, "Missing author", "**", |page| {
-                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            rules.add_lint(WARN, "Missing author", "**", |doc| {
+                doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
         "#;
 

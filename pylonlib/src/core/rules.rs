@@ -113,7 +113,7 @@ impl Rules {
         &self.lints
     }
 
-    pub fn add_page_context(&mut self, matcher: Matcher, ctx_fn: rhai::FnPtr) {
+    pub fn add_doc_context(&mut self, matcher: Matcher, ctx_fn: rhai::FnPtr) {
         self.page_contexts.add(matcher, ctx_fn);
     }
 
@@ -247,7 +247,7 @@ pub mod script {
         /// Associates the closure with the given matcher. This closure will be called
         /// and the returned context from the closure will be available in the page template.
         #[rhai_fn(return_raw)]
-        pub fn add_page_context(
+        pub fn add_doc_context(
             rules: &mut Rules,
             matcher: &str,
             ctx_fn: FnPtr,
@@ -257,7 +257,7 @@ pub mod script {
             })?;
             let matcher = Matcher::Glob(vec![matcher]);
             trace!("add page ctx_fn");
-            rules.add_page_context(matcher, ctx_fn);
+            rules.add_doc_context(matcher, ctx_fn);
             Ok(())
         }
 
@@ -421,7 +421,7 @@ pub mod script {
 
             let (ptr, paths) = {
                 let rules = r#"
-            rules.add_page_context("**", |page| { () });
+            rules.add_doc_context("**", |doc| { () });
         "#;
 
                 let doc1 = r#"+++
@@ -454,7 +454,7 @@ pub mod script {
                 (all[0].clone(), paths)
             };
             let mut rules = Rules::new(paths);
-            assert!(add_page_context(&mut rules, "*", ptr).is_ok());
+            assert!(add_doc_context(&mut rules, "*", ptr).is_ok());
             assert_eq!(rules.page_contexts().iter().count(), 1);
         }
     }
@@ -483,7 +483,7 @@ pub mod script {
 //     #[test]
 //     fn adds_page_context() {
 //         let rules = r#"
-//             rules.add_page_context("**", |page| { () });
+//             rules.add_doc_context("**", |doc| { () });
 //         "#;
 
 //         let doc1 = r#"+++

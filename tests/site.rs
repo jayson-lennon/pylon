@@ -169,8 +169,8 @@ fn builds_site_no_lint_errors() {
     };
 
     let rules = r#"
-            rules.add_lint(WARN, "Missing author", "**", |page| {
-                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            rules.add_lint(WARN, "Missing author", "**", |doc| {
+                doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
             rules.add_pipeline(".", "**/*.png", ["[COPY]"]);
             "#;
@@ -196,8 +196,8 @@ fn builds_site_no_lint_errors() {
 #[test]
 fn aborts_site_build_with_deny_lint_error() {
     let rules = r#"
-            rules.add_lint(DENY, "Missing author", "**", |page| {
-                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            rules.add_lint(DENY, "Missing author", "**", |doc| {
+                doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
             rules.add_pipeline("base", "**/*.png", ["[COPY]"]);
         "#;
@@ -472,11 +472,11 @@ doc2"#;
 #[test]
 fn does_lint() {
     let rules = r#"
-            rules.add_lint(WARN, "Missing author", "**", |page| {
-                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            rules.add_lint(WARN, "Missing author", "**", |doc| {
+                doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
-            rules.add_lint(WARN, "Missing author 2", "**", |page| {
-                page.meta("author") == "" || type_of(page.meta("author")) == "()"
+            rules.add_lint(WARN, "Missing author 2", "**", |doc| {
+                doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
         "#;
 
