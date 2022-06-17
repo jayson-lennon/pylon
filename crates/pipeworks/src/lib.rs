@@ -199,7 +199,7 @@ impl Pipeline {
                             let relative_base = base.strip_prefix("/").wrap_err_with(||format!("Failed to strip root prefix(/) from '{}' during pipline processing", base.display()))?;
                             let asset_uri_without_root = &asset_uri.as_str()[1..];
 
-                            let working_dir = self.paths.root().clone();
+                            let working_dir = self.paths.root().clone().join(&relative_base);
                             let relative_asset_path =
                                 relative_base.join(&asset_uri_without_root.try_into().wrap_err("Failed to create relative path from root base directory during pipeline processing")?);
 
@@ -220,13 +220,16 @@ impl Pipeline {
                                 // remove file name
                                 .pop()
                                 // change to absolute path so we can change directory
-                                .to_absolute_path();
+                                .to_absolute_path()
+                                // append the relative directory
+                                .join(relative);
 
                             let asset_name = PathBuf::from(asset_uri.as_str());
                             let asset_name = asset_name
                                 .file_name()
                                 .ok_or_else(|| eyre!("failed to located filename in asset uri"))?;
-                            let relative_asset_path = relative.join(&RelPath::new(asset_name).wrap_err_with(||format!("Failed to create relative path from asset '{}' during pipeline processing", asset_name.to_string_lossy()))?);
+                            let relative_asset_path = RelPath::new(asset_name)
+                                .wrap_err_with(||format!("Failed to create relative path from asset '{}' during pipeline processing", asset_name.to_string_lossy()))?;
 
                             (working_dir, relative_asset_path)
                         }
@@ -626,6 +629,83 @@ mod test {
     }
 
     #[test]
+    fn op_shell_changes_working_dir_when_absolute() {
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {},
+            target: {
+                "output.html": "",
+            },
+            src: {},
+            random: {
+                a: {
+                    b: {
+                        "test.txt": "old",
+                    }
+                }
+            },
+            syntax_themes: {},
+        };
+
+        let paths = make_paths(&tree);
+
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("/random/a/b")).unwrap();
+
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            "sed 's/old/new/g' test.txt > $TARGET",
+        )));
+
+        let html_file = confirmed_html_path(&tree, "target/output.html");
+        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+
+        pipeline.run(&asset_uri).expect("failed to run pipeline");
+
+        let target_content = fs::read_to_string(tree.path().join("target/test.txt")).unwrap();
+        assert_eq!(&target_content, "new");
+    }
+
+    #[test]
+    fn op_shell_changes_working_dir_when_relative() {
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {},
+            target: {
+                a: {
+                    b: {
+                        "output.html": "",
+                    }
+                }
+            },
+            src: {
+                a: {
+                    b: {
+                        data: {
+                            "test.txt": "old"
+                        }
+                    }
+                }
+            },
+            syntax_themes: {},
+        };
+
+        let paths = make_paths(&tree);
+
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("./data")).unwrap();
+
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            "sed 's/old/new/g' test.txt > $TARGET",
+        )));
+
+        let html_file = confirmed_html_path(&tree, "target/a/b/output.html");
+        let asset_uri = Uri::new("/a/b/test.txt").unwrap().to_based_uri(&html_file);
+
+        pipeline.run(&asset_uri).expect("failed to run pipeline");
+
+        let target_content = fs::read_to_string(tree.path().join("target/a/b/test.txt")).unwrap();
+        assert_eq!(&target_content, "new");
+    }
+
+    #[test]
     fn op_shell_new_scratch_autocopy() {
         let tree = temptree! {
             "rules.rhai": "",
@@ -728,6 +808,47 @@ mod test {
 
     #[test]
     fn op_shell_new_scratch_no_autocopy_relative_nested() {
+        let tree = temptree! {
+            "rules.rhai": "",
+            templates: {},
+            target: {
+                inner: {
+                    "output.html": "",
+                }
+            },
+            src: {
+                inner: {
+                    asset: {
+                        "test.txt": "old",
+                    }
+                }
+            },
+            syntax_themes: {},
+        };
+
+        let paths = make_paths(&tree);
+
+        let mut pipeline = Pipeline::new(paths, &BaseDir::new("./asset")).unwrap();
+
+        pipeline.push_op(Operation::Shell(ShellCommand::new(
+            "sed 's/old/new/g' test.txt > $NEW_SCRATCH",
+        )));
+
+        pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
+
+        let html_file = confirmed_html_path(&tree, "target/inner/output.html");
+        let asset_uri = Uri::new("/inner/test.txt")
+            .unwrap()
+            .to_based_uri(&html_file);
+
+        pipeline.run(&asset_uri).expect("failed to run pipeline");
+
+        let target_content = fs::read_to_string(tree.path().join("target/inner/test.txt")).unwrap();
+        assert_eq!(&target_content, "new");
+    }
+
+    #[test]
+    fn op_shell_source_token_works_with_relative_path() {
         let tree = temptree! {
             "rules.rhai": "",
             templates: {},
