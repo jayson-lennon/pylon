@@ -1,4 +1,4 @@
-use std::{collections::HashSet, ffi::OsStr, path::Path, sync::Arc};
+use std::{collections::HashSet, ffi::OsStr, path::Path};
 
 use eyre::WrapErr;
 use itertools::Itertools;
@@ -16,7 +16,7 @@ use crate::{
     Renderers, Result,
 };
 
-use super::{Engine, EnginePaths, GlobalEnginePaths};
+use super::{Engine, GlobalEnginePaths};
 
 pub mod report {
     use std::collections::HashSet;
@@ -47,8 +47,8 @@ pub mod report {
         Ok(())
     }
 
-    pub fn missing_assets(assets: HashSet<&HtmlAsset>) -> Result<()> {
-        for asset in &assets {
+    pub fn missing_assets(assets: &HashSet<&HtmlAsset>) -> Result<()> {
+        for asset in assets {
             error!(asset = ?asset, "missing asset or no pipeline defined");
         }
         if !assets.is_empty() {
@@ -66,7 +66,9 @@ pub mod filter {
     }
 }
 
-pub fn find_unpipelined_assets(not_pipelined: HashSet<&HtmlAsset>) -> HashSet<&HtmlAsset> {
+pub fn find_unpipelined_assets<'a>(
+    not_pipelined: &HashSet<&'a HtmlAsset>,
+) -> HashSet<&'a HtmlAsset> {
     not_pipelined
         .iter()
         .copied()
@@ -86,7 +88,7 @@ pub fn run_lints<'a, P: Iterator<Item = &'a Page>>(
 
     let lint_results = lint_results.into_iter().flatten();
 
-    Ok(LintResults::from_iter(lint_results))
+    Ok(lint_results.collect::<LintResults>())
 }
 
 pub fn render<'a, P: Iterator<Item = &'a Page>>(
@@ -185,6 +187,7 @@ pub fn run_pipelines<'a>(
     Ok(unhandled_assets)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 pub fn build_library(engine_paths: GlobalEnginePaths, renderers: &Renderers) -> Result<Library> {
     let pages: Vec<_> =
         crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {
@@ -265,7 +268,7 @@ pub fn get_all_html_output_files(
     .collect::<Result<Vec<_>>>()
 }
 
-pub fn export_frontmatter<'a, P>(engine: &Engine, pages: P, target_dir: &RelPath) -> Result<()>
+pub fn export_frontmatter<'a, P>(_engine: &Engine, pages: P, target_dir: &RelPath) -> Result<()>
 where
     P: Iterator<Item = &'a Page>,
 {

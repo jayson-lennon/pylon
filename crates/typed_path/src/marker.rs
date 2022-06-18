@@ -50,8 +50,6 @@ mod test {
     use crate::{AbsPath, SysPath, TypedPath};
     use temptree::temptree;
 
-    use super::*;
-
     use crate::marker;
 
     #[test]

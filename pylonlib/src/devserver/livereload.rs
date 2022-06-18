@@ -136,6 +136,7 @@ impl ClientBroker {
 }
 
 #[handler]
+#[allow(clippy::needless_pass_by_value)]
 pub fn handle(ws: WebSocket, clients: Data<&ClientBroker>) -> impl IntoResponse {
     use futures_util::{SinkExt, StreamExt};
 

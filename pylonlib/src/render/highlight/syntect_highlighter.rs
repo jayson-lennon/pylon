@@ -113,6 +113,7 @@ impl<'s> ClassHighlighter<'s> {
     }
 
     /// Close all open `<span>` tags and return the finished HTML string
+    #[allow(clippy::cast_sign_loss)]
     pub fn finalize(&mut self) -> String {
         let mut html = String::with_capacity((self.open_spans * 7) as usize);
         for _ in 0..self.open_spans {

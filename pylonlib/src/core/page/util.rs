@@ -93,7 +93,7 @@ fn split_document(raw: &str) -> Result<(&str, &str)> {
 mod test {
     use std::collections::HashSet;
 
-    use crate::test::{abs, rel};
+    use crate::test::{rel};
     use temptree::temptree;
     use typed_path::{AbsPath, SysPath};
 
@@ -190,7 +190,7 @@ mod test {
         };
         let root = AbsPath::new(tree.path()).unwrap();
 
-        let mut all_templates = HashSet::new();
+        let all_templates = HashSet::new();
 
         let path = SysPath::new(&root, rel!("content"), rel!("sample.md"))
             .typed(pathmarker::MdFile)

@@ -43,6 +43,7 @@ impl TeraRenderer {
         Ok(renderer.render_str(input.as_ref(), context)?)
     }
 
+    #[allow(clippy::redundant_closure_for_method_calls)]
     pub fn get_template_names(&self) -> Vec<String> {
         let renderer = self.renderer.lock();
         renderer

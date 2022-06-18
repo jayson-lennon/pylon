@@ -66,6 +66,7 @@ impl AbsPath {
         self.0.extension()
     }
 
+    #[must_use]
     pub fn join(&self, path: &RelPath) -> AbsPath {
         AbsPath(self.0.join(path.0.clone()))
     }

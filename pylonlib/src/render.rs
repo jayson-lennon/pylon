@@ -1,7 +1,6 @@
 use crate::{core::engine::GlobalEnginePaths, Result};
 use eyre::WrapErr;
 
-
 pub mod highlight;
 pub mod markup;
 pub mod template;
@@ -11,6 +10,7 @@ pub struct Renderers {
     tera: template::TeraRenderer,
     markdown: markup::MarkdownRenderer,
     highlight: highlight::SyntectHighlighter,
+    #[allow(dead_code)]
     engine_paths: GlobalEnginePaths,
 }
 

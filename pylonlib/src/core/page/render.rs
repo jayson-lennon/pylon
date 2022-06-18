@@ -170,6 +170,7 @@ pub fn build_context(
 
 #[derive(Debug)]
 pub struct RenderedPage {
+    #[allow(dead_code)]
     page_key: PageKey,
     html: String,
     target: SysPath,
@@ -236,6 +237,12 @@ impl RenderedPageCollection {
 
     pub fn iter(&self) -> std::slice::Iter<'_, RenderedPage> {
         self.pages.iter()
+    }
+}
+
+impl Default for RenderedPageCollection {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

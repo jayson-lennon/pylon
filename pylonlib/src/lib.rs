@@ -1,11 +1,10 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::must_use_candidate)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::from_iter_instead_of_collect)]
 #![allow(clippy::module_name_repetitions)]
-#![allow(clippy::single_match_else)]
 #![allow(clippy::enum_glob_use)]
+#![allow(clippy::implicit_hasher)]
+#![allow(clippy::match_bool)]
 // TODO: delete these after writing docs
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::missing_errors_doc)]

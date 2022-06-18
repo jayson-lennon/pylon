@@ -67,7 +67,7 @@ impl PylonPipeline {
         // let target_path = asset_uri
         //     .to_target_sys_path(self.paths.root(), self.paths.output_dir())
         //     .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?;
-        self.pipeline.run(&asset_uri)
+        self.pipeline.run(asset_uri)
     }
 }
 
@@ -175,9 +175,8 @@ impl RuleProcessor {
         ptr: &rhai::FnPtr,
         args: A,
     ) -> crate::Result<T> {
-        Ok(ptr
-            .call(&self.engine, &self.ast, args)
-            .wrap_err("Failed to call function pointer in rule script")?)
+        ptr.call(&self.engine, &self.ast, args)
+            .wrap_err("Failed to call function pointer in rule script")
     }
 }
 
@@ -264,6 +263,7 @@ pub mod script {
         /// Associates the closure with the given matcher. This closure will be called
         /// and the returned context from the closure will be available in the page template.
         #[rhai_fn(return_raw)]
+        #[allow(clippy::needless_pass_by_value)]
         pub fn set_global_context(
             rules: &mut Rules,
             ctx: rhai::Dynamic,

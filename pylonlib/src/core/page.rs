@@ -162,7 +162,6 @@ impl Page {
                 .with_base(&RelPath::from_relative(""))
                 .with_extension("html")
                 .to_relative_path()
-                .to_string()
         );
         // always has a starting slash
         Uri::new(uri).unwrap()

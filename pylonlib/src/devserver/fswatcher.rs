@@ -5,7 +5,7 @@ use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use tracing::error;
-use tracing::{trace};
+use tracing::trace;
 
 use crate::devserver::broker::EngineMsg;
 use crate::{AbsPath, Result};
@@ -111,18 +111,17 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
             Err(e) => panic!("internal error in fswatcher thread: {:?}", e),
         }
         loop {
-            match engine_relay_rx.recv_timeout(debounce_wait) {
-                Ok(msg) => {
-                    let WatchMsg::Ev(ev) = msg;
-                    add_event(&mut events, ev);
+            if let Ok(msg) = engine_relay_rx.recv_timeout(debounce_wait) {
+                let WatchMsg::Ev(ev) = msg;
+                if let Err(e) = add_event(&mut events, ev) {
+                    error!("failed to add fswatch event: {}", e);
                 }
-                Err(_) => {
-                    trace!(events = ?events, "sending filesystem update events");
-                    broker
-                        .send_engine_msg_sync(EngineMsg::FilesystemUpdate(events))
-                        .expect("error communicating with engine from filesystem watcher");
-                    break;
-                }
+            } else {
+                trace!(events = ?events, "sending filesystem update events");
+                broker
+                    .send_engine_msg_sync(EngineMsg::FilesystemUpdate(events))
+                    .expect("error communicating with engine from filesystem watcher");
+                break;
             }
         }
     });
