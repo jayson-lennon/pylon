@@ -8,6 +8,7 @@ use typed_path::{AbsPath, RelPath};
 use typed_uri::AssetUri;
 
 pub const TMP_ARTIFACT_PREFIX: &str = "pipeworks_artifact_";
+pub const OP_COPY: &str = "_COPY_";
 
 pub type Result<T> = eyre::Result<T>;
 
@@ -31,7 +32,7 @@ impl FromStr for Operation {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
-            "[COPY]" => Ok(Self::Copy),
+            "_COPY_" => Ok(Self::Copy),
             other => Ok(Self::Shell(ShellCommand(other.to_owned()))),
         }
     }
@@ -923,7 +924,7 @@ mod test {
     fn operation_fromstr_impl_copy() {
         use std::str::FromStr;
 
-        let operation = Operation::from_str("[COPY]").unwrap();
+        let operation = Operation::from_str("_COPY_").unwrap();
         match operation {
             Operation::Copy => (),
             _ => panic!("wrong variant"),

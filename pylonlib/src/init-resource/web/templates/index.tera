@@ -1,0 +1,20 @@
+{% import "macros/text.tera" as text_macro %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+{% include "partials/head.tera" %}
+
+<body>
+  <p>This is the index page</p>
+
+  {# This will be replaced by child templates #}
+  {% block content %}
+
+  <p>This only renders if the block is <em>not</em> overwritten, or if <pre><code>super()</code></pre> is called from a child template.</p>
+
+  {% endblock %}
+
+</body>
+
+</html>

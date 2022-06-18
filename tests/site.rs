@@ -172,7 +172,7 @@ fn builds_site_no_lint_errors() {
             rules.add_lint(WARN, "Missing author", "**", |doc| {
                 doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
-            rules.add_pipeline(".", "**/*.png", ["[COPY]"]);
+            rules.add_pipeline(".", "**/*.png", ["_COPY_"]);
             "#;
 
     let rule_script = tree.path().join("rules.rhai");
@@ -199,7 +199,7 @@ fn aborts_site_build_with_deny_lint_error() {
             rules.add_lint(DENY, "Missing author", "**", |doc| {
                 doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
-            rules.add_pipeline("base", "**/*.png", ["[COPY]"]);
+            rules.add_pipeline("base", "**/*.png", ["_COPY_"]);
         "#;
 
     let doc1 = r#"+++
@@ -345,7 +345,7 @@ fn doesnt_reprocess_existing_assets() {
 
     let rules = r#"
                 rules.mount("wwwroot", "target");
-                rules.add_pipeline(".", "**/*.png", ["[COPY]"]);"#;
+                rules.add_pipeline(".", "**/*.png", ["_COPY_"]);"#;
 
     let rule_script = tree.path().join("rules.rhai");
     std::fs::write(&rule_script, rules).unwrap();
@@ -397,7 +397,7 @@ fn renders_properly_when_assets_are_available() {
       syntax_themes: {}
     };
 
-    let rules = r#"rules.add_pipeline(".", "**/*.png", ["[COPY]"]);"#;
+    let rules = r#"rules.add_pipeline(".", "**/*.png", ["_COPY_"]);"#;
 
     let rule_script = tree.path().join("rules.rhai");
     std::fs::write(&rule_script, rules).unwrap();

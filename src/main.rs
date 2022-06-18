@@ -26,7 +26,7 @@ struct Cli {
     #[clap(long, default_value = "syntax_themes", env = "PYLON_SYNTAX_THEMES")]
     syntax_themes_dir: PathBuf,
 
-    #[clap(long, default_value = "templates", env = "PYLON_TEMPLATES")]
+    #[clap(long, default_value = "web/templates", env = "PYLON_TEMPLATES")]
     template_dir: PathBuf,
 
     #[clap(subcommand)]
@@ -37,10 +37,26 @@ struct Cli {
 enum SubCommand {
     /// Build site
     Build(CmdBuild),
+    /// Initialize a new site
+    Init(CmdInit),
     /// Run dev server
     Serve(CmdServe),
     /// Generate CSS theme from thTheme file
     BuildSyntaxTheme { path: PathBuf },
+}
+
+#[derive(Debug, clap::Args)]
+struct CmdBuild {
+    /// Export frontmatter to provided directory
+    #[clap(long)]
+    frontmatter: Option<PathBuf>,
+}
+
+#[derive(Debug, clap::Args)]
+struct CmdInit {
+    /// Target directory
+    #[clap(default_value = ".")]
+    directory: PathBuf,
 }
 
 #[derive(Debug, clap::Args)]
@@ -53,13 +69,6 @@ struct CmdServe {
 
     #[clap(long, default_value = "write", env = "PYLON_RENDER_BEHAVIOR")]
     render_behavior: RenderBehavior,
-}
-
-#[derive(Debug, clap::Args)]
-struct CmdBuild {
-    /// Export frontmatter to provided directory
-    #[clap(long)]
-    frontmatter: Option<PathBuf>,
 }
 
 fn install_tracing() {
@@ -95,7 +104,56 @@ fn main() -> Result<()> {
 
     let args = Cli::parse();
 
-    let paths = EnginePaths {
+    match &args.command {
+        SubCommand::Build(options) => {
+            use pylonlib::core::engine::step::export_frontmatter;
+            let paths = engine_paths(&args)?;
+            if let Some(path) = &options.frontmatter {
+                let engine =
+                    Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
+
+                let target_dir = RelPath::new(path)?;
+                let pages = engine.library().iter().map(|(_, page)| page);
+                export_frontmatter(&engine, pages, &target_dir)
+                    .wrap_err("Failed to export frontmatter")?;
+            } else {
+                let engine =
+                    Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
+                engine.build_site().wrap_err("Failed to build site")?;
+            }
+        }
+        SubCommand::Init(options) => {
+            use pylonlib::init;
+            let cwd = std::env::current_dir()?;
+            init::at_target(&AbsPath::new(cwd.join(&options.directory))?)?;
+        }
+        SubCommand::Serve(opt) => {
+            let paths = engine_paths(&args)?;
+            let (handle, _broker) = Engine::with_broker(
+                Arc::new(paths),
+                opt.bind,
+                opt.debounce_ms,
+                opt.render_behavior,
+            )
+            .wrap_err("Failed to initialize engine broker")?;
+            let _ = handle.join().map_err(|e| eyre!("{:?}", e))?;
+        }
+        SubCommand::BuildSyntaxTheme { path } => {
+            let css_theme = SyntectHighlighter::generate_css_theme(&path).wrap_err_with(|| {
+                format!(
+                    "Failed to generate CSS output from theme file {}",
+                    path.display()
+                )
+            })?;
+            println!("{}", css_theme.css());
+        }
+    }
+
+    Ok(())
+}
+
+fn engine_paths(args: &Cli) -> Result<EnginePaths> {
+    Ok(EnginePaths {
         rule_script: RelPath::new(&args.rule_script).wrap_err_with(|| {
             format!(
                 "Failed to locate rule script at {}",
@@ -135,44 +193,5 @@ fn main() -> Result<()> {
                 )?
                 .parent().ok_or_else(|| eyre!("Unable to determine project root from rule script"))?,
         )?,
-    };
-    match args.command {
-        SubCommand::Serve(opt) => {
-            let (handle, _broker) = Engine::with_broker(
-                Arc::new(paths),
-                opt.bind,
-                opt.debounce_ms,
-                opt.render_behavior,
-            )
-            .wrap_err("Failed to initialize engine broker")?;
-            let _ = handle.join().map_err(|e| eyre!("{:?}", e))?;
-        }
-        SubCommand::Build(cmd_build) => {
-            use pylonlib::core::engine::step::export_frontmatter;
-            if let Some(path) = cmd_build.frontmatter {
-                let engine =
-                    Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
-
-                let target_dir = RelPath::new(path)?;
-                let pages = engine.library().iter().map(|(_, page)| page);
-                export_frontmatter(&engine, pages, &target_dir)
-                    .wrap_err("Failed to export frontmatter")?;
-            } else {
-                let engine =
-                    Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
-                engine.build_site().wrap_err("Failed to build site")?;
-            }
-        }
-        SubCommand::BuildSyntaxTheme { path } => {
-            let css_theme = SyntectHighlighter::generate_css_theme(&path).wrap_err_with(|| {
-                format!(
-                    "Failed to generate CSS output from theme file {}",
-                    path.display()
-                )
-            })?;
-            println!("{}", css_theme.css());
-        }
-    }
-
-    Ok(())
+    })
 }
