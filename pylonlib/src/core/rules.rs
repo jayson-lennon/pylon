@@ -378,7 +378,7 @@ pub mod script {
         fn adds_pipeline() {
             let (paths, tree) = crate::test::simple_init();
             let mut rules = Rules::new(paths);
-            let values = vec!["[COPY]".into()];
+            let values = vec!["_COPY_".into()];
             add_pipeline(&mut rules, "base", "*", values).expect("failed to add pipeline");
             assert_eq!(rules.pipelines().count(), 1);
         }

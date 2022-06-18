@@ -1,0 +1,16 @@
+{% extends "index.tera" %}
+{# This page will use the `index.tera` page for rendering #}
+
+
+{# this block will replace the block in `index.tera` #}
+{% block content %}
+
+{# calling `super` will render anything in the parent block prior to rendering the content #}
+{{ super() }}
+
+{# `content` is Markdown that is rendered into HTML #}
+{{ content | safe }}
+
+{{ text_macro::sample(text="macro text from Tera template") }}
+
+{% endblock content%}

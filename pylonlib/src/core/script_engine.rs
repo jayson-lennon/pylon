@@ -99,11 +99,14 @@ impl ScriptEngine {
 
     fn new_scope(engine_paths: GlobalEnginePaths, library: &Library) -> Scope<'static> {
         use crate::core::page::lint::{LINT_LEVEL_DENY, LINT_LEVEL_WARN};
+        use pipeworks::OP_COPY;
+
         let mut scope = Scope::new();
         scope.push("rules", Rules::new(engine_paths));
         scope.push("PAGES", library.clone());
         scope.push("DENY", LINT_LEVEL_DENY);
         scope.push("WARN", LINT_LEVEL_WARN);
+        scope.push("OP_COPY", OP_COPY);
         scope
     }
 

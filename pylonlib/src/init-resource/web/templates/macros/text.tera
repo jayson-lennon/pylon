@@ -1,0 +1,5 @@
+{# This is a macro that can be used anywhere in a Tera template #}
+
+{% macro sample(text) %}
+<p style="color: red">{{ text }}</p>
+{% endmacro %}
