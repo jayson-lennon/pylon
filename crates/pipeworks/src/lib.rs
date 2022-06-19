@@ -191,20 +191,22 @@ impl Pipeline {
                         autocopy = true;
                     }
 
-                    let (working_dir, src_path): (AbsPath, RelPath) = match &self.base_dir {
+                    let asset_name = PathBuf::from(asset_uri.as_str());
+                    let asset_name = asset_name
+                        .file_name()
+                        .ok_or_else(|| eyre!("failed to located filename in asset uri"))?
+                        .to_string_lossy();
+
+                    let working_dir: AbsPath = match &self.base_dir {
                         // Base           HTML page                URI in HTML page        working dir              target file name (src path)
                         // ----           ---------------------    -------------------     ---------------------    ---------------
                         // "/"            /blog/entry/post.html    /blog/entry/img.png     $ROOT/                   $ROOT/blog/entry/img.png
                         // "/wwwroot"     /blog/entry/post.html    /blog/entry/img.png     $ROOT/wwwroot/           $ROOT/wwwroot/blog/entry/img.png
                         BaseDir::RelativeToRoot(base) => {
                             let relative_base = base.strip_prefix("/").wrap_err_with(||format!("Failed to strip root prefix(/) from '{}' during pipline processing", base.display()))?;
-                            let asset_uri_without_root = &asset_uri.as_str()[1..];
-
                             let working_dir = self.paths.root().clone().join(&relative_base);
-                            let relative_asset_path =
-                                relative_base.join(&asset_uri_without_root.try_into().wrap_err("Failed to create relative path from root base directory during pipeline processing")?);
 
-                            (working_dir, relative_asset_path)
+                            working_dir
                         }
                         // Base           HTML page                URI in HTML page        working dir                target file name (src path)
                         // ----           ---------------------    -------------------     ---------------------      ---------------
@@ -225,14 +227,7 @@ impl Pipeline {
                                 // append the relative directory
                                 .join(relative);
 
-                            let asset_name = PathBuf::from(asset_uri.as_str());
-                            let asset_name = asset_name
-                                .file_name()
-                                .ok_or_else(|| eyre!("failed to located filename in asset uri"))?;
-                            let relative_asset_path = RelPath::new(asset_name)
-                                .wrap_err_with(||format!("Failed to create relative path from asset '{}' during pipeline processing", asset_name.to_string_lossy()))?;
-
-                            (working_dir, relative_asset_path)
+                            working_dir
                         }
                     };
 
@@ -253,7 +248,7 @@ impl Pipeline {
 
                         command
                             .0
-                            .replace("$SOURCE", src_path.to_string().as_str())
+                            .replace("$SOURCE", asset_name.to_string().as_str())
                             .replace("$SCRATCH", scratch_path.to_string_lossy().as_ref())
                             .replace("$TARGET", target.to_string().as_str())
                     };

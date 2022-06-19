@@ -28,7 +28,7 @@ where
 }
 
 fn install_eyre_hook() {
-    let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
+    let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
     eyre_hook.install().unwrap();
 }
 
@@ -75,8 +75,8 @@ rules.add_pipeline(
     "sed 's/#AABBCC/#123456/g' $SOURCE > $SCRATCH",  // run `sed` to replace the color in the SVG file,
                                                      // and redirect to a scratch file
 
-    "usvg $SCRATCH $TARGET"    // minify the scratch file (which now has color #123456)
-                               // with `usvg` and output to target
+    "cat $SCRATCH > $TARGET"     // minify the scratch file (which now has color #123456)
+                                 // with `usvg` and output to target
   ]
 );
     "#;
