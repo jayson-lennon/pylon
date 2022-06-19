@@ -478,7 +478,13 @@ Pylon provides some basic information to each page when rendering:
 
 ## Syntax Highlighting
 
-Syntax highlighting is themed with Sublime text `tmTheme` files. Pylon can convert a `tmTheme` file to CSS using `pylon build-syntax-theme`. Currently, only class-based syntax highlighting is supported, so the generated CSS file will need to be manually included in your site.
+Syntax highlighting is themed with Sublime text `tmTheme` files. Pylon can convert a `tmTheme` file to CSS with:
+
+```sh
+pylon build-syntax-theme
+```
+
+Currently, only class-based syntax highlighting is supported, so the generated CSS file will need to be manually included in your site.
 
 # Roadmap
 
