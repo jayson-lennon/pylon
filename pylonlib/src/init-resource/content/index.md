@@ -8,7 +8,7 @@
 # well. If still no `default.tera` is found in any parent directories, then
 # the build will fail.
 #
-template_name = "default.tera"
+template_name = "content/default.tera"
 
 #
 # keywords to associate with this page
