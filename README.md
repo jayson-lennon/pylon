@@ -20,7 +20,7 @@ Pylon is a static site generator focused on customization that uses Markdown doc
 
 # Note
 
-Pylon is in early development and unstable. Breaking changes are planned while still in version `0`.
+Pylon is in early development and unstable. Major changes are planned while still on version `0`.
 
 # Getting Started
 
@@ -35,32 +35,17 @@ cargo build --release
 Create a new Pylon site and launch the development server:
 
 ```sh
-pylon init <directory>
+pylon init .
 pylon serve
 ```
 
-# Roadmap
-
-You can check the detailed status of all planned features for the next release using the `milestones` in the issue tracker. Important features that are currently planned:
-
-- [ ] Pagination
-- [ ] Launch external source watchers
-- [ ] Scan CSS files for linked files
-- [ ] Integrated Preprocessors
-- [ ] Integrated Postprocessor
-- [ ] Link checker
-- [ ] Generate RSS feeds
-- [ ] Generate sitemap
-- [ ] Proper logging
-
-
 # Documentation
 
-Configuration of Pylon is done through a [Rhai](https://rhai.rs/) script. This allows fine-grained control over different aspects of Pylon. Only a small amount of Pylon functionality is currently scriptable, but expansion is planned as more features are implemented. Check out the Rhai [language reference](https://rhai.rs/book/language/) for details on how to write a Rhai script.
+Configuration of Pylon is done through a [Rhai](https://rhai.rs/) script. This allows fine-grained control over different aspects of Pylon. Only a small amount of Pylon functionality is currently scriptable, but expansion is planned as more features are implemented. Check out the Rhai [language reference](https://rhai.rs/book/language/) for details on how to write Rhai scripts.
 
 ## Documents
 
-Pylon pages are called "documents" and are modified [Markdown](https://www.markdownguide.org/) files that are split into two parts: frontmatter in [TOML format](https://toml.io/en/), and the Markdown content. Three pluses (`+++`) are used to delimit the frontmatter from the Markdown content.
+Pylon pages are called "documents" which are modified [Markdown](https://www.markdownguide.org/) files that are split into two parts: frontmatter in [TOML format](https://toml.io/en/), and the Markdown content. Three pluses (`+++`) are used to delimit the frontmatter from the Markdown content.
 
 Pylon will preserve the directory structure you provide in the `content` directory when rendering the documents to the `output` directory.
 
@@ -68,9 +53,7 @@ Pylon will preserve the directory structure you provide in the `content` directo
 
 The frontmatter is used to associate some metadata with the page so Pylon knows how to render it properly. It can also be used to provide page-specific information for rendering.
 
-Pylon currently has very few frontmatter keys, but it is expected that this list will grow as more features are added.
-
-Here is a sample document showing all possible frontmatter keys and their default values:
+All frontmatter keys are optional, and the default values are listed below:
 
 ```
 +++
@@ -88,11 +71,10 @@ template_name = "default.tera"
 #
 # keywords to associate with this page
 #
-# Keywords aren't yet used by Pylon, but can be used by custom
-# scripts when exporting the frontmatter.
+# Keywords aren't yet used by Pylon, but they will be exported when
+# running `pylon build --frontmatter`.
 #
 keywords = []
-
 
 #
 # custom data to provide to the rendering context
@@ -109,14 +91,14 @@ This is now the [Markdown](https://www.markdownguide.org/) section of the docume
 
 ### Internal Links
 
-Linking to other documents can be accomplished prefixing a path to a Markdown file with `@/`. The path always starts from the _project root_ and will be automatically expanded to the appropriate URI when rendered. Example:
+Linking to other documents can be accomplished prefixing a path to a Markdown file with `@/`. The path always starts from the _project root_ and will be automatically expanded to the appropriate URI when rendered:
 
 ```[my favorite post](@/blog/favorite/post.md)```
 
 
 ## Templates
 
-Pylon uses [Tera](https://tera.netlify.app/) for it's template engine and provides a few extra builtin functions on top of what Tera already provides. These functions are available in `Tera` templates, _and_ within Markdown documents:
+Pylon uses [Tera](https://tera.netlify.app/) for it's template engine and provides a few extra builtin functions on top of what Tera already provides. These functions are available in `Tera` templates and within Markdown documents:
 
 ### include_file
 
@@ -127,7 +109,7 @@ Inlines the content of an entire file. The path must start with a slash (`/`) an
 ```
 
 ### include_cmd
-Inlines the output of a shell command (`cmd`). By default, `stdout` will be captured and used as the inlined data. This can be changed by including `$SCRATCH` somewhere in the shell command, which causes Pylon to generate a temporary file to be read and inlined. `cwd` is the current working directory to use for shell execution, must start with a slash (`/`), and is always relative from the project root.
+Inlines the output of a shell command (`cmd`). By default, `stdout` will be captured and used as the inlined data. This can be changed by including `$SCRATCH` somewhere in the shell command, which causes Pylon to generate a temporary file to be read from and then inlined. `cwd` is the current working directory to use for shell execution, must start with a slash (`/`), and is always relative from the project root.
 
 ```
 {{ include_cmd( cwd = "/", cmd = "echo inline from stdout" ) }}
@@ -200,10 +182,10 @@ rules.add_pipeline(
 
 `working directory` can be either:
 
-* Relative (from the Markdown parent directory) using `.` (dot) or `./dir_name`
-* Absolute (from project root) using `/` (slash) or `/dir_name`
+* Relative (from the Markdown parent directory) using `.` (dot). Subdirectories can be accessed using `./dir_name`.
+* Absolute (from project root) using `/` (slash). Subdirectories can be accessed using `/dir_name`.
 
-When using a relative `working directory`, Pylon will lookup the source Markdown file that the HTML file was generated from. The directory containing the Markdown file is where `working directory` is relative from. If the HTML file was mounted (as in, not generated from a Markdown file), then relative `working directory` will fail.
+When using a relative `working directory`, Pylon will lookup the source Markdown file that the HTML file was generated from and use the directory containing this Markdown file. If the HTML file was mounted (as in, not generated from a Markdown file), then relative `working directory` will fail.
 
 ### Builtin Commands
 
@@ -494,3 +476,16 @@ Pylon provides some basic information to each page when rendering:
 | `doc.meta`  | Any metadata added using the `[meta]` section in the [frontmatter](#frontmatter)  |
 | `doc.toc`   | Rendered table of contents                                                        |
 
+# Roadmap
+
+You can check the detailed status of all planned features for the next release using the `milestones` in the issue tracker. Important features that are currently planned:
+
+- [ ] Pagination
+- [ ] Launch external source watchers
+- [ ] Scan CSS files for linked files
+- [ ] Integrated Preprocessors
+- [ ] Integrated Postprocessor
+- [ ] Link checker
+- [ ] Generate RSS feeds
+- [ ] Generate sitemap
+- [ ] Proper logging

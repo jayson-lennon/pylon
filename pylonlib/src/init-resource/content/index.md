@@ -13,8 +13,8 @@ template_name = "default.tera"
 #
 # keywords to associate with this page
 #
-# Keywords aren't yet used by Pylon, but can be used by custom
-# scripts when exporting the frontmatter.
+# Keywords aren't yet used by Pylon, but they will be exported when
+# running `pylon build --frontmatter`.
 #
 keywords = []
 
