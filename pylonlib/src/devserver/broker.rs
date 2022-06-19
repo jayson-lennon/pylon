@@ -289,7 +289,7 @@ mod handle_msg {
         if !missing_assets.is_empty() {
             return Err(eyre!(missing_assets
                 .iter()
-                .map(|asset| asset.uri().as_unchecked())
+                .map(|asset| asset.uri().unconfirmed())
                 .collect::<MissingAssetsError>()));
         }
         Ok(())
@@ -337,7 +337,7 @@ mod handle_msg {
                 if !missing_assets.is_empty() {
                     return Err(eyre!(missing_assets
                         .iter()
-                        .map(|asset| asset.uri().as_unchecked())
+                        .map(|asset| asset.uri().unconfirmed())
                         .collect::<MissingAssetsError>()));
                 }
 

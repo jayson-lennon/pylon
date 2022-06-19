@@ -164,7 +164,7 @@ impl Page {
                 .to_relative_path()
         );
         // always has a starting slash
-        Uri::new(uri).unwrap()
+        Uri::new(&uri, &uri).unwrap()
     }
 
     pub fn search_keys(&self) -> Vec<SearchKey> {

@@ -64,9 +64,6 @@ impl PylonPipeline {
         self.target_glob.is_match(asset)
     }
     pub fn run(&self, asset_uri: &AssetUri) -> crate::Result<()> {
-        // let target_path = asset_uri
-        //     .to_target_sys_path(self.paths.root(), self.paths.output_dir())
-        //     .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?;
         self.pipeline.run(asset_uri)
     }
 }
@@ -459,62 +456,3 @@ pub mod script {
         }
     }
 }
-
-// #[cfg(test)]
-// mod test {
-//
-//     use crate::core::engine::Engine;
-//     use crate::test::abs;
-//     use crate::test::rel;
-
-//     use temptree::temptree;
-
-//     use super::*;
-
-//     #[test]
-//     fn sets_global_context() {
-//         let mut rules = Rules::new(abs!("/"));
-//         assert!(rules
-//             .set_global_context(serde_json::to_value(1).unwrap())
-//             .is_ok());
-//         assert!(rules.global_context().is_some());
-//     }
-
-//     #[test]
-//     fn adds_page_context() {
-//         let rules = r#"
-//             rules.add_doc_context("**", |doc| { () });
-//         "#;
-
-//         let doc1 = r#"+++
-//             template_name = "empty.tera"
-//             +++
-//         "#;
-
-//         let tree = temptree! {
-//           "rules.rhai": rules,
-//           templates: {
-//               "empty.tera": ""
-//           },
-//           target: {},
-//           src: {
-//               "doc1.md": doc1,
-//           },
-//           syntax_themes: {},
-//         };
-
-//         let paths = crate::test::default_test_paths(&tree);
-
-//         let engine = Engine::new(paths).unwrap();
-
-//         assert_eq!(engine.rules().page_contexts().iter().count(), 1);
-//     }
-
-//     #[test]
-//     fn adds_mount() {
-//         let mut rules = Rules::new(abs!("/"));
-//         rules.add_mount(rel!("src"), rel!("target"));
-
-//         assert_eq!(rules.mounts().count(), 1);
-//     }
-// }

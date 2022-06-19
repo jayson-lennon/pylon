@@ -135,53 +135,75 @@ impl Pipeline {
         result
     }
 
-    #[allow(clippy::too_many_lines)]
     fn do_run(&self, scratch_files: &mut Vec<PathBuf>, asset_uri: &AssetUri) -> Result<()> {
         let mut scratch_path = new_scratch_file(scratch_files, &[])
             .wrap_err("Failed to created new scratch file for pipeline processing")?;
 
-        let mut autocopy = false;
+        let working_dir: AbsPath = match &self.base_dir {
+            BaseDir::RelativeToRoot(base) => {
+                let relative_base = base.strip_prefix("/").wrap_err_with(|| {
+                    format!(
+                        "Failed to strip root prefix(/) from '{}' during pipline processing",
+                        base.display()
+                    )
+                })?;
+                let working_dir = self.paths.root().clone().join(&relative_base);
+
+                working_dir
+            }
+            BaseDir::RelativeToDoc(relative) => {
+                let working_dir = asset_uri
+                    // get HTML source file
+                    .html_src()
+                    // convert to sys_path
+                    .as_sys_path()
+                    // change base to the source base directory
+                    .with_base(self.paths.src_dir())
+                    // remove file name
+                    .pop()
+                    // use absolute path so we can change directory
+                    .to_absolute_path()
+                    // append the relative directory
+                    .join(relative);
+
+                working_dir
+            }
+        };
 
         let target_path = asset_uri
             .to_target_sys_path(self.paths.root(), self.paths.output_dir())
-            .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?;
+            .wrap_err("Failed to convert asset uri to SysPath for pipeline processing")?
+            .to_absolute_path();
+
+        let src_path = {
+            if asset_uri.uri_fragment().starts_with('/') {
+                working_dir.join(&RelPath::from_relative(
+                    asset_uri.uri_fragment().rsplit_once('/').unwrap().1,
+                ))
+            } else {
+                working_dir.join(&RelPath::from_relative(asset_uri.uri_fragment()))
+            }
+        };
+
+        // create all parent directories for target file
+        std::fs::create_dir_all(&target_path.pop()).wrap_err_with(|| {
+            format!(
+                "Failed to make parent directories for asset target '{}'",
+                &target_path.pop()
+            )
+        })?;
+
+        // autocopy is enabled whenever we have a shell command that
+        // does _not_ use the $TARGET token
+        let mut autocopy = false;
 
         for op in &self.ops {
             let _span = info_span!("perform pipeline operation").entered();
 
             match op {
                 Operation::Copy => {
-                    let src_path = match &self.base_dir {
-                        // Base           URI in HTML page                   filesystem location
-                        // ----           -------------------------          ----------------------------
-                        // "/"            "/static/styles/site.css"          $ROOT/static/styles/site.css
-                        // "/wwwroot"     "/static/styles/site.css"          $ROOT/wwwroot/static/styles/site.css
-                        BaseDir::RelativeToRoot(base) => {
-                            let base = base.strip_prefix("/").wrap_err_with(||format!("Failed to strip root prefix (/) from '{}' during pipeline processing", base.display()))?;
-                            // Change the "base" directory to whatever is supplied by the user.
-                            target_path.with_base(&base)
-                        }
-                        // Base           URI in HTML page                   filesystem location
-                        // ----           -------------------------          ----------------------------
-                        // ".",           "**/blog/**/diagram.js"            $ROOT/**/blog/**/diagram.js
-                        // "./_src",      "**/blog/**/diagram.js"            $ROOT/**/blog/**/_src/diagram.js
-                        // ".",           "**/blog/**/*.png"                 $ROOT/**/blog/**/*.png
-                        BaseDir::RelativeToDoc(relative) => {
-                            target_path
-                                // Change the base directory from output to source (where the markdown files are located)
-                                .with_base(self.paths.src_dir())
-                                // Remove the target file name so we have the parent directory to work with
-                                .pop()
-                                // Push the supplied relative path onto the existing path
-                                .push(relative)
-                                // Push the target file name back onto the path (this should always work)
-                                .push(&target_path.file_name().try_into().wrap_err(
-                                    "Missing file name from target path during pipeline processing",
-                                )?)
-                        }
-                    };
                     trace!("copy: {:?} -> {:?}", src_path, target_path);
-                    std::fs::copy(&src_path.to_absolute_path(), &target_path.to_absolute_path()).wrap_err_with(||format!("Failed to copy '{src_path}' -> '{target_path}' during pipeline processing"))?;
+                    std::fs::copy(&src_path, &target_path).wrap_err_with(||format!("Failed to copy '{src_path}' -> '{target_path}' during pipeline processing"))?;
                 }
                 Operation::Shell(command) => {
                     trace!("shell command: {:?}", command);
@@ -191,66 +213,12 @@ impl Pipeline {
                         autocopy = true;
                     }
 
-                    let asset_name = PathBuf::from(asset_uri.as_str());
-                    let asset_name = asset_name
-                        .file_name()
-                        .ok_or_else(|| eyre!("failed to located filename in asset uri"))?
-                        .to_string_lossy();
-
-                    let working_dir: AbsPath = match &self.base_dir {
-                        // Base           HTML page                URI in HTML page        working dir              target file name (src path)
-                        // ----           ---------------------    -------------------     ---------------------    ---------------
-                        // "/"            /blog/entry/post.html    /blog/entry/img.png     $ROOT/                   $ROOT/blog/entry/img.png
-                        // "/wwwroot"     /blog/entry/post.html    /blog/entry/img.png     $ROOT/wwwroot/           $ROOT/wwwroot/blog/entry/img.png
-                        BaseDir::RelativeToRoot(base) => {
-                            let relative_base = base.strip_prefix("/").wrap_err_with(||format!("Failed to strip root prefix(/) from '{}' during pipline processing", base.display()))?;
-                            let working_dir = self.paths.root().clone().join(&relative_base);
-
-                            working_dir
-                        }
-                        // Base           HTML page                URI in HTML page        working dir                target file name (src path)
-                        // ----           ---------------------    -------------------     ---------------------      ---------------
-                        // "."            /blog/entry/post.html    /blog/entry/img.png     $ROOT/src/blog/entry/      img.png
-                        // "./src"        /blog/entry/post.html    /blog/entry/img.png     $ROOT/src/blog/entry/src/  img.png
-                        BaseDir::RelativeToDoc(relative) => {
-                            let working_dir = asset_uri
-                                // get HTML source file
-                                .html_src()
-                                // convert to sys_path
-                                .as_sys_path()
-                                // change base to the source base directory
-                                .with_base(self.paths.src_dir())
-                                // remove file name
-                                .pop()
-                                // change to absolute path so we can change directory
-                                .to_absolute_path()
-                                // append the relative directory
-                                .join(relative);
-
-                            working_dir
-                        }
-                    };
-
                     let command = {
-                        let target = asset_uri
-                            .to_target_sys_path(self.paths.root(), self.paths.output_dir())
-                            .wrap_err(
-                                "Failed to convert asset URI to SysPath during pipeline processing",
-                            )?
-                            .to_absolute_path();
-
-                        std::fs::create_dir_all(&target.pop()).wrap_err_with(|| {
-                            format!(
-                                "Failed to make parent directories for asset target '{}'",
-                                &target.pop()
-                            )
-                        })?;
-
                         command
                             .0
-                            .replace("$SOURCE", asset_name.to_string().as_str())
+                            .replace("$SOURCE", &src_path.to_string())
                             .replace("$SCRATCH", scratch_path.to_string_lossy().as_ref())
-                            .replace("$TARGET", target.to_string().as_str())
+                            .replace("$TARGET", target_path.to_string().as_str())
                     };
 
                     if command.contains("$NEW_SCRATCH") {
@@ -272,7 +240,7 @@ impl Pipeline {
         }
 
         if autocopy {
-            std::fs::copy(&scratch_path, &target_path.to_absolute_path()).wrap_err_with(||format!("Failed performing copy operation in pipeline. '{scratch_path:?}' -> '{target_path:?}'"))?;
+            std::fs::copy(&scratch_path, &target_path).wrap_err_with(||format!("Failed performing copy operation in pipeline. '{scratch_path:?}' -> '{target_path:?}'"))?;
         }
 
         Ok(())
@@ -281,32 +249,30 @@ impl Pipeline {
 
 pub fn run_command<S: AsRef<str>>(command: S, working_dir: &AbsPath) -> Result<String> {
     let command = command.as_ref();
-    trace!("command= {:?}", command);
-    {
-        let cmd = format!(
-            "cd {} && {}",
-            working_dir.as_path().to_string_lossy(),
-            &command
-        );
-        trace!("cmd= {:?}", cmd);
 
-        let output = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(&cmd)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .wrap_err_with(|| format!("Failed running shell command: '{command}'"))?;
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-        } else {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(eyre!("Shell command failed to run"))
-                .with_section(move || command.to_owned().header("Command:"))
-                .with_section(move || stdout.trim().to_string().header("Stdout:"))
-                .with_section(move || stderr.trim().to_string().header("Stderr:"))
-        }
+    let cmd = format!(
+        "cd {} && {}",
+        working_dir.as_path().to_string_lossy(),
+        &command
+    );
+    trace!("cmd= {:?}", cmd);
+
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&cmd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .wrap_err_with(|| format!("Failed running shell command: '{command}'"))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    } else {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(eyre!("Shell command failed to run"))
+            .with_section(move || command.to_owned().header("Command:"))
+            .with_section(move || stdout.trim().to_string().header("Stdout:"))
+            .with_section(move || stderr.trim().to_string().header("Stderr:"))
     }
 }
 
@@ -407,7 +373,9 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -435,7 +403,9 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -462,7 +432,9 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         let status = pipeline.run(&asset_uri);
         assert!(status.is_err());
@@ -487,7 +459,9 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         let status = pipeline.run(&asset_uri);
         assert!(status.is_err());
@@ -514,7 +488,9 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -547,9 +523,9 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = confirmed_html_path(&tree, "target/inner/output.html");
-        let asset_uri = Uri::new("/inner/test.txt")
+        let asset_uri = Uri::new("/inner/test.txt", "/inner/test.txt")
             .unwrap()
-            .to_based_uri(&html_file);
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -584,9 +560,9 @@ mod test {
         pipeline.push_op(Operation::Copy);
 
         let html_file = confirmed_html_path(&tree, "target/inner/output.html");
-        let asset_uri = Uri::new("/inner/test.txt")
+        let asset_uri = Uri::new("/inner/test.txt", "/inner/test.txt")
             .unwrap()
-            .to_based_uri(&html_file);
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -616,7 +592,9 @@ mod test {
         )));
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -652,7 +630,9 @@ mod test {
         )));
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -693,7 +673,9 @@ mod test {
         )));
 
         let html_file = confirmed_html_path(&tree, "target/a/b/output.html");
-        let asset_uri = Uri::new("/a/b/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/a/b/test.txt", "/a/b/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -723,7 +705,9 @@ mod test {
         )));
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -755,7 +739,9 @@ mod test {
         pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -792,9 +778,9 @@ mod test {
         pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
 
         let html_file = confirmed_html_path(&tree, "target/inner/output.html");
-        let asset_uri = Uri::new("/inner/test.txt")
+        let asset_uri = Uri::new("/inner/test.txt", "/inner/test.txt")
             .unwrap()
-            .to_based_uri(&html_file);
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -833,9 +819,9 @@ mod test {
         pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
 
         let html_file = confirmed_html_path(&tree, "target/inner/output.html");
-        let asset_uri = Uri::new("/inner/test.txt")
+        let asset_uri = Uri::new("/inner/test.txt", "/inner/test.txt")
             .unwrap()
-            .to_based_uri(&html_file);
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -874,9 +860,9 @@ mod test {
         pipeline.push_op(Operation::Shell(ShellCommand::new("cp $SCRATCH $TARGET")));
 
         let html_file = confirmed_html_path(&tree, "target/inner/output.html");
-        let asset_uri = Uri::new("/inner/test.txt")
+        let asset_uri = Uri::new("/inner/test.txt", "/inner/test.txt")
             .unwrap()
-            .to_based_uri(&html_file);
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -904,9 +890,9 @@ mod test {
         pipeline.push_op(Operation::Shell(ShellCommand::new("echo test > $TARGET")));
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/static/styles/site.css")
+        let asset_uri = Uri::new("/static/styles/site.css", "/static/styles/site.css")
             .unwrap()
-            .to_based_uri(&html_file);
+            .to_asset_uri(&html_file);
 
         pipeline.run(&asset_uri).expect("failed to run pipeline");
 
@@ -957,7 +943,9 @@ mod test {
         pipeline.push_op(Operation::Shell(ShellCommand::new("CMD_NOT_FOUND")));
 
         let html_file = confirmed_html_path(&tree, "target/output.html");
-        let asset_uri = Uri::new("/test.txt").unwrap().to_based_uri(&html_file);
+        let asset_uri = Uri::new("/test.txt", "/test.txt")
+            .unwrap()
+            .to_asset_uri(&html_file);
 
         let result = pipeline.run(&asset_uri);
         assert!(result.is_err());

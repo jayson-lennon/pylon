@@ -27,11 +27,6 @@ where
     assert_eq!(actual, content.as_ref());
 }
 
-fn install_eyre_hook() {
-    let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
-    eyre_hook.install().unwrap();
-}
-
 #[test]
 fn sample() {
     let sample_md = r#"+++
@@ -59,9 +54,86 @@ fn sample() {
 }
 
 #[test]
-fn readme_svg_example() {
-    install_eyre_hook();
+fn readme_copy() {
+    let sample_md = r#"+++
+    +++"#;
+    let default_template = r#"<link href="assets/sample.png">"#;
 
+    let rules = r#"
+rules.add_pipeline(
+  "",          // use the Markdown directory for the working directory
+  "**/*.png",   // apply this pipeline to all .png files
+  [
+    OP_COPY     // run the OP_COPY builtin to copy the png file
+  ]
+);"#;
+
+    let tree = temptree! {
+        "rules.rhai": rules,
+        src: {
+            blog: {
+                "page.md": sample_md,
+                assets: {
+                    "sample.png": "test",
+                }
+            }
+        },
+        templates: {
+            "default.tera": default_template,
+        },
+        target: {},
+        syntax_themes: {}
+    };
+
+    let engine_paths = engine_paths(&tree);
+    let engine = Engine::new(engine_paths).unwrap();
+    engine.build_site().unwrap();
+
+    assert_content(tree.path().join("target/blog/assets/sample.png"), "test");
+}
+
+#[test]
+fn readme_sass_example() {
+    let sample_md = r#"+++
+    +++"#;
+    let default_template = r#"<link href="/style.css">"#;
+
+    let rules = r#"
+rules.add_pipeline(
+  "/web/styles",                // working directory is <project root>/web/styles
+  "/style.css",                 // only run this pipeline when this exact file is linked in the HTML
+  [
+    "cat main.scss > $TARGET"   // run `sass` on the `main.scss` file, and output the resulting
+  ]                             // CSS code to the target file (<output root>/style.css)
+);
+    "#;
+
+    let tree = temptree! {
+        "rules.rhai": rules,
+        src: {
+            "sample.md": sample_md,
+        },
+        templates: {
+            "default.tera": default_template,
+        },
+        web: {
+            styles: {
+                "main.scss": "sample",
+            }
+        },
+        target: {},
+        syntax_themes: {}
+    };
+
+    let engine_paths = engine_paths(&tree);
+    let engine = Engine::new(engine_paths).unwrap();
+    engine.build_site().unwrap();
+
+    assert_content(tree.path().join("target/style.css"), "sample");
+}
+
+#[test]
+fn readme_svg_example() {
     let sample_md = r#"+++
     +++
     sample"#;

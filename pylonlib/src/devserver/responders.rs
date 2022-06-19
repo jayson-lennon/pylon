@@ -158,7 +158,8 @@ pub async fn run_pipelines<S: AsRef<str>>(broker: &EngineBroker, path: S) -> Res
     use super::broker::{EngineMsg, EngineRequest};
     use typed_uri::Uri;
 
-    let uri = Uri::new(format!("/{}", path.as_ref())).unwrap();
+    let uri = format!("/{}", path.as_ref());
+    let uri = Uri::new(&uri, &uri).unwrap();
 
     let (send, _recv) = EngineRequest::new(uri);
     broker

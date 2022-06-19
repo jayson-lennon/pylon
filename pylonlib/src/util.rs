@@ -45,7 +45,7 @@ pub fn based_uri_from_sys_path<S: Into<String>>(path: &SysPath, uri: S) -> Resul
             path
         )
     })?;
-    let uri = Uri::new(&uri).wrap_err_with(|| {
+    let uri = Uri::new(&uri, &uri).wrap_err_with(|| {
         format!(
             "Failed to create URI from '{}' when creating SysPath from Uri",
             uri

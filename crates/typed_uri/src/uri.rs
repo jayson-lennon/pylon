@@ -12,10 +12,16 @@ use typed_path::{AbsPath, ConfirmedPath, RelPath, SysPath};
 #[derivative(Debug, Clone, Hash, PartialEq)]
 pub struct Uri {
     uri: String,
+    fragment: String,
 }
 impl Uri {
-    pub fn new<S: Into<String>>(uri: S) -> Result<Self> {
+    pub fn new<U, F>(uri: U, fragment: F) -> Result<Self>
+    where
+        U: Into<String>,
+        F: Into<String>,
+    {
         let uri = uri.into();
+        let fragment = fragment.into();
 
         let mut abs_uri = PathBuf::new();
 
@@ -23,6 +29,7 @@ impl Uri {
             abs_uri.push(&uri);
             Ok(Self {
                 uri: abs_uri.to_string_lossy().to_string(),
+                fragment,
             })
         } else {
             Err(eyre!("virtual URI must be absolute"))
@@ -43,7 +50,7 @@ impl Uri {
         ))
     }
 
-    pub fn to_based_uri(&self, initiator: &ConfirmedPath<pathmarker::HtmlFile>) -> AssetUri {
+    pub fn to_asset_uri(&self, initiator: &ConfirmedPath<pathmarker::HtmlFile>) -> AssetUri {
         AssetUri::new(initiator, self)
     }
 
@@ -53,6 +60,10 @@ impl Uri {
 
     pub fn into_boxed_str(&self) -> Box<str> {
         self.as_str().to_string().into_boxed_str()
+    }
+
+    pub fn fragment(&self) -> &str {
+        &self.fragment
     }
 }
 
@@ -97,19 +108,20 @@ impl AssetUri {
         self.html_src.as_sys_path()
     }
 
-    pub fn as_unchecked(&self) -> &Uri {
+    pub fn unconfirmed(&self) -> &Uri {
         &self.uri
+    }
+
+    pub fn uri_fragment(&self) -> &str {
+        self.uri.fragment()
     }
 }
 
 impl From<ConfirmedPath<pathmarker::HtmlFile>> for AssetUri {
     fn from(html_path: ConfirmedPath<pathmarker::HtmlFile>) -> Self {
-        // slash is prepended to the URI. creationwill always succeed
-        let uri = Uri::new(format!(
-            "/{}",
-            html_path.as_sys_path().target().to_string_lossy()
-        ))
-        .unwrap();
+        let uri = format!("/{}", html_path.as_sys_path().target().to_string_lossy());
+        // slash is prepended to the URI. creation will always succeed
+        let uri = Uri::new(&uri, &uri).unwrap();
         Self {
             uri,
             html_src: html_path,
@@ -139,7 +151,7 @@ mod test {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
-        let uri = Uri::new("/page.html").unwrap();
+        let uri = Uri::new("/page.html", "/page.html").unwrap();
         let checked_path = path
             .confirm(pathmarker::HtmlFile)
             .expect("failed to confirm path");
@@ -153,7 +165,7 @@ mod test {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
-        let uri = Uri::new("/page.html").unwrap();
+        let uri = Uri::new("/page.html", "/page.html").unwrap();
         let checked_path = path
             .confirm(pathmarker::HtmlFile)
             .expect("failed to confirm path");
@@ -167,7 +179,7 @@ mod test {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
-        let uri = Uri::new("/page.html").unwrap();
+        let uri = Uri::new("/page.html", "/page.html").unwrap();
         let checked_path = path
             .confirm(pathmarker::HtmlFile)
             .expect("failed to confirm path");
@@ -181,12 +193,12 @@ mod test {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
-        let uri = Uri::new("/page.html").unwrap();
+        let uri = Uri::new("/page.html", "/page.html").unwrap();
         let checked_path = path
             .confirm(pathmarker::HtmlFile)
             .expect("failed to confirm path");
         let based_uri = AssetUri::new(&checked_path, &uri);
-        assert_eq!(based_uri.as_unchecked(), &uri);
+        assert_eq!(based_uri.unconfirmed(), &uri);
     }
 
     #[test]
@@ -195,7 +207,7 @@ mod test {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
-        let uri = Uri::new("/page.html").unwrap();
+        let uri = Uri::new("/page.html", "/page.html").unwrap();
         let checked_path = path
             .confirm(pathmarker::HtmlFile)
             .expect("failed to confirm path");
@@ -209,7 +221,7 @@ mod test {
           "test.html": "",
         };
         let path = SysPath::new(abs!(tree.path()), rel!(""), rel!("test.html"));
-        let uri = Uri::new("/page.html").unwrap();
+        let uri = Uri::new("/page.html", "/page.html").unwrap();
         let checked_path = path
             .confirm(pathmarker::HtmlFile)
             .expect("failed to confirm path");
@@ -226,34 +238,34 @@ mod test {
     #[test]
     fn new_uri() {
         let uri = "/test";
-        Uri::new(uri).expect("failed to make new URI");
+        Uri::new(uri, "").expect("failed to make new URI");
     }
 
     #[test]
     fn uri_as_str() {
         let uri = "/test";
-        let uri = Uri::new(uri).expect("failed to make new URI");
+        let uri = Uri::new(uri, "").expect("failed to make new URI");
         assert_eq!(uri.as_str(), "/test");
     }
 
     #[test]
     fn uri_into_boxed_str() {
         let uri = "/test";
-        let uri = Uri::new(uri).expect("failed to make new URI");
+        let uri = Uri::new(uri, "").expect("failed to make new URI");
         assert_eq!(uri.into_boxed_str(), "/test".into());
     }
 
     #[test]
     fn new_uri_fails_if_not_absolute() {
         let uri = "test";
-        let uri = Uri::new(uri);
+        let uri = Uri::new(uri, "");
         assert!(uri.is_err());
     }
 
     #[test]
     fn uri_to_sys_path() {
         let uri = "/test";
-        let uri = Uri::new(uri).unwrap();
+        let uri = Uri::new(uri, "").unwrap();
         let sys_path = uri
             .to_sys_path(abs!("/"), rel!(""))
             .expect("failed to create SysPath from Uri");
@@ -262,7 +274,7 @@ mod test {
     #[test]
     fn uri_to_sys_path_fails_with_broken_path() {
         let uri = "//test";
-        let uri = Uri::new(uri).unwrap();
+        let uri = Uri::new(uri, "").unwrap();
         let sys_path = uri.to_sys_path(abs!("/"), rel!(""));
         assert!(sys_path.is_err());
     }

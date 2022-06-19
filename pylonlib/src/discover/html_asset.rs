@@ -257,7 +257,7 @@ where
                         if url.contains('#') {
                             continue;
                         }
-                        let uri = Uri::new(url)?;
+                        let uri = Uri::new(url, url)?;
                         let uri = AssetUri::new(html_path, &uri);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
                         let html_asset =
@@ -272,7 +272,7 @@ where
                         if url.contains('#') {
                             continue;
                         }
-                        let uri = raw_relative_uri_to_based_uri(html_path, &target);
+                        let uri = canonicalized_uri_from_html_path(html_path, &target);
                         let asset_path = AssetPath::new(engine_paths.clone(), &uri)?;
                         let html_asset =
                             HtmlAsset::new(&asset_path, tag, &UrlType::Relative(target), html_path);
@@ -288,7 +288,7 @@ where
     Ok(assets)
 }
 
-fn raw_relative_uri_to_based_uri<S: AsRef<str>>(
+fn canonicalized_uri_from_html_path<S: AsRef<str>>(
     html_path: &ConfirmedPath<pathmarker::HtmlFile>,
     relative_uri: S,
 ) -> AssetUri {
@@ -310,7 +310,7 @@ fn raw_relative_uri_to_based_uri<S: AsRef<str>>(
         abs_uri.push(&relative_uri);
     }
 
-    let uri = Uri::new(abs_uri.to_string_lossy().to_string()).unwrap();
+    let uri = Uri::new(abs_uri.to_string_lossy().to_string(), relative_uri).unwrap();
     AssetUri::new(html_path, &uri)
 }
 
@@ -569,7 +569,7 @@ mod test {
             .confirm(pathmarker::HtmlFile)
             .unwrap();
         let relative_uri = "test.txt";
-        let uri = super::raw_relative_uri_to_based_uri(&html_path, relative_uri);
+        let uri = super::canonicalized_uri_from_html_path(&html_path, relative_uri);
         assert_eq!(uri.as_str(), "/test.txt");
     }
 
@@ -591,6 +591,6 @@ mod test {
             .confirm(pathmarker::HtmlFile)
             .unwrap();
         let relative_uri = "/test.txt";
-        super::raw_relative_uri_to_based_uri(&html_path, relative_uri);
+        super::canonicalized_uri_from_html_path(&html_path, relative_uri);
     }
 }
