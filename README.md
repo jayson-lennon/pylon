@@ -54,7 +54,65 @@ You can check the detailed status of all planned features for the next release u
 - [ ] Proper logging
 
 
-# Template / Content Documentation
+# Documentation
+
+Configuration of Pylon is done through a [Rhai](https://rhai.rs/) script. This allows fine-grained control over different aspects of Pylon. Only a small amount of Pylon functionality is currently scriptable, but expansion is planned as more features are implemented. Check out the Rhai [language reference](https://rhai.rs/book/language/) for details on how to write a Rhai script.
+
+## Documents
+
+Pylon pages are called "documents" and are modified [Markdown](https://www.markdownguide.org/) files that are split into two parts: frontmatter in [TOML format](https://toml.io/en/), and the Markdown content. Three pluses (`+++`) are used to delimit the frontmatter from the Markdown content.
+
+Pylon will preserve the directory structure you provide in the `content` directory when rendering the documents to the `output` directory.
+
+### Frontmatter
+
+The frontmatter is used to associate some metadata with the page so Pylon knows how to render it properly. It can also be used to provide page-specific information for rendering.
+
+Pylon currently has very few frontmatter keys, but it is expected that this list will grow as more features are added.
+
+Here is a sample document showing all possible frontmatter keys and their default values:
+
+```
++++
+#
+# template to use for rendering this document
+#
+# If not provided, Pylon will search for `default.tera` in the `templates`
+# directory using the same directory structure as the source Markdown file.
+# If no `default.tera` is found, then each parent directory is checked as
+# well. If still no `default.tera` is found in any parent directories, then
+# the build will fail.
+#
+template_name = "default.tera"
+
+#
+# keywords to associate with this page
+#
+# Keywords aren't yet used by Pylon, but can be used by custom
+# scripts when exporting the frontmatter.
+#
+keywords = []
+
+
+#
+# custom data to provide to the rendering context
+#
+# Any data you want available when the page is rendered goes under
+# the [meta] section, and can be accessed with {{ meta.keyname }}.
+#
+# [meta]
+# example = "example"
++++
+
+This is now the [Markdown](https://www.markdownguide.org/) section of the document.
+```
+
+### Internal Links
+
+Linking to other documents can be accomplished prefixing a path to a Markdown file with `@/`. The path always starts from the _project root_ and will be automatically expanded to the appropriate URI when rendered. Example:
+
+```[my favorite post](@/blog/favorite/post.md)```
+
 
 ## Templates
 
@@ -123,61 +181,6 @@ Usage in Markdown file:
 
 {% end %}
 ```
-
-## Documents
-
-Pylon pages are called "documents" and are modified [Markdown](https://www.markdownguide.org/) files that are split into two parts: frontmatter in [TOML format](https://toml.io/en/), and the Markdown content. Three pluses (`+++`) are used to delimit the frontmatter from the Markdown content.
-
-Pylon will preserve the directory structure you provide in the `content` directory when rendering the documents to the `output` directory.
-
-### Frontmatter
-
-The frontmatter is used to associate some metadata with the page so Pylon knows how to render it properly. It can also be used to provide page-specific information for rendering.
-
-Pylon currently has very few frontmatter keys, but it is expected that this list will grow as more features are added.
-
-Here is a sample document showing all possible frontmatter keys and their default values:
-
-```
-+++
-#
-# template to use for rendering this document
-#
-# If not provided, Pylon will search for `default.tera` in the `templates`
-# directory using the same directory structure as the source Markdown file.
-# If no `default.tera` is found, then each parent directory is checked as
-# well. If still no `default.tera` is found in any parent directories, then
-# the build will fail.
-#
-template_name = "default.tera"
-
-#
-# keywords to associate with this page
-#
-# Keywords aren't yet used by Pylon, but can be used by custom
-# scripts when exporting the frontmatter.
-#
-keywords = []
-
-
-#
-# custom data to provide to the rendering context
-#
-# Any data you want available when the page is rendered goes under
-# the [meta] section, and can be accessed with {{ meta.keyname }}.
-#
-# [meta]
-# example = "example"
-+++
-
-This is now the [Markdown](https://www.markdownguide.org/) section of the document.
-
-```
-
-
-# Scripting Documentation
-
-Configuration of Pylon is done through a [rhai](https://rhai.rs/) script. This allows fine-grained control over different aspects of Pylon. The exposed functionality is currently limited, but expansion is planned as more features are implemented.
 
 ## Pipelines
 
