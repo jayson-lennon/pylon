@@ -1,7 +1,7 @@
 Pylon
 =====
 
-Pylon is a static site generator focused on customization that uses Markdown documents and Tera templates.
+A static site generator that can integrate with existing CLI tooling.
 
 ## Features
 * Arbitrary shell commands can be used to build resources
