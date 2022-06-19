@@ -65,6 +65,7 @@ impl RelPath {
         self.0.starts_with(base)
     }
 
+    #[must_use]
     pub fn join(&self, path: &RelPath) -> Self {
         RelPath(self.0.join(path.0.clone()))
     }

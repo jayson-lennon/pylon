@@ -1,5 +1,5 @@
 use eyre::{eyre, WrapErr};
-use typed_path::{AbsPath, RelPath};
+use typed_path::{AbsPath};
 
 use crate::Result;
 
@@ -36,7 +36,7 @@ pub fn at_target(target: &AbsPath) -> Result<()> {
 mod test {
     use std::path::Path;
 
-    use tempfile::TempDir;
+    
     use temptree::temptree;
     use typed_path::AbsPath;
 

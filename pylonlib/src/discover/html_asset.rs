@@ -1,16 +1,15 @@
 use derivative::Derivative;
+use eyre::{eyre, WrapErr};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use typed_path::ConfirmedPath;
 use typed_uri::{AssetUri, Uri};
 
-use std::sync::Arc;
-
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::core::engine::{EnginePaths, GlobalEnginePaths};
+use crate::core::engine::GlobalEnginePaths;
 use crate::{discover, RelPath, Result, SysPath};
 
 use crate::discover::AssetPath;
@@ -80,7 +79,7 @@ impl HtmlAsset {
     }
 
     pub fn html_src_file(&self) -> &ConfirmedPath<pathmarker::HtmlFile> {
-        &self.target.html_src_file()
+        self.target.html_src_file()
     }
 
     pub fn url_type(&self) -> &UrlType {
@@ -94,7 +93,7 @@ impl HtmlAsset {
 
 impl std::hash::Hash for HtmlAsset {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.target.uri().as_str().hash(state)
+        self.target.uri().as_str().hash(state);
     }
 }
 
@@ -127,6 +126,10 @@ impl HtmlAssets {
 
     pub fn len(&self) -> usize {
         self.inner.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 
     pub fn extend(&mut self, other: Self) {
@@ -191,6 +194,7 @@ impl<'a> FromIterator<&'a HtmlAsset> for HtmlAssets {
     }
 }
 
+#[allow(clippy::needless_pass_by_value)]
 pub fn find_all(engine_paths: GlobalEnginePaths, search_dir: &RelPath) -> Result<HtmlAssets> {
     let html_paths =
         discover::get_all_paths(&engine_paths.project_root().join(search_dir), &|path| {
@@ -213,6 +217,7 @@ pub fn find_all(engine_paths: GlobalEnginePaths, search_dir: &RelPath) -> Result
     Ok(all_assets)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 pub fn find<S>(
     engine_paths: GlobalEnginePaths,
     html_path: &ConfirmedPath<pathmarker::HtmlFile>,
@@ -242,10 +247,9 @@ where
 
     let mut assets = HtmlAssets::new();
     for (tag, attr) in selectors {
-        let selector = Selector::parse(tag).expect(&format!(
-            "Error parsing CSS selector '{}'. This is a bug.",
-            tag
-        ));
+        let selector = Selector::parse(tag)
+            .map_err(|e| eyre!("selector error: {:?}", e))
+            .wrap_err_with(|| format!("Error parsing CSS selector '{}' (this is a bug)", tag))?;
         for el in doc.select(&selector) {
             if let Some(url) = el.value().attr(attr) {
                 match discover::get_url_type(url) {

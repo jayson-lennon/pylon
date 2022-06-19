@@ -47,7 +47,7 @@ impl<'a> Shortcode<'a> {
     }
 }
 
-pub fn find_next<'a>(in_text: &'a str) -> Result<Option<Shortcode>> {
+pub fn find_next(in_text: &str) -> Result<Option<Shortcode>> {
     let inline = find_one(ShortcodeKind::Inline, in_text)?;
     if inline.is_some() {
         Ok(inline)
@@ -56,7 +56,7 @@ pub fn find_next<'a>(in_text: &'a str) -> Result<Option<Shortcode>> {
     }
 }
 
-pub fn find_one<'a>(kind: ShortcodeKind, in_text: &'a str) -> Result<Option<Shortcode<'a>>> {
+pub fn find_one(kind: ShortcodeKind, in_text: &str) -> Result<Option<Shortcode<'_>>> {
     let re = match kind {
         ShortcodeKind::Inline => static_regex!(r#"\{\{.*?(?=\}\})\}\}"#),
         ShortcodeKind::WithBody => {
@@ -172,10 +172,6 @@ mod parse {
             self.name
         }
 
-        pub(super) fn args(&self) -> &[(&str, serde_json::Value)] {
-            self.args.as_ref()
-        }
-
         pub(super) fn args_clone(&self) -> Vec<(&'a str, serde_json::Value)> {
             self.args.clone()
         }
@@ -212,7 +208,7 @@ mod parse {
     fn value(s: &str) -> IResult<&str, serde_json::Value> {
         map_res(
             delimited(tag("\""), take_until("\""), tag("\"")),
-            |s: &str| serde_json::to_value(s),
+            serde_json::to_value,
         )(s)
     }
 
@@ -248,7 +244,7 @@ mod parse {
     }
 
     fn inner_body(s: &str) -> IResult<&str, serde_json::Value> {
-        map_res(take_until("{% end %}"), |s| serde_json::to_value(s))(s)
+        map_res(take_until("{% end %}"), serde_json::to_value)(s)
     }
 
     pub fn body_shortcode(s: &str) -> IResult<&str, ParsedShortcode> {

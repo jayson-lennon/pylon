@@ -1,5 +1,4 @@
 use eyre::WrapErr;
-use itertools::Itertools;
 use serde::Serialize;
 use std::{net::SocketAddr, sync::Arc, thread::JoinHandle};
 use tracing::trace;
@@ -250,8 +249,8 @@ impl Engine {
         // run pipelines
         step::run_pipelines(self, &missing_assets)
             .wrap_err("Failed to run pipelines during site build")?
-            .pipe(step::find_unpipelined_assets)
-            .pipe(step::report::missing_assets)?;
+            .pipe_borrow(step::find_unpipelined_assets)
+            .pipe_borrow(step::report::missing_assets)?;
 
         Ok(())
     }
@@ -280,9 +279,8 @@ impl Engine {
                     paths.absolute_rule_script(),
                 ];
 
-                #[allow(clippy::redundant_closure_for_method_calls)]
                 dirs.extend(engine.rules().mounts().map(|mount| mount.src().clone()));
-                dirs.extend(engine.rules().watches().map(|path| path.clone()));
+                dirs.extend(engine.rules().watches().cloned());
                 dirs
             };
 

@@ -117,7 +117,7 @@ impl Library {
         }
     }
 
-    pub fn iter<'a>(&'a self) -> slotmap::basic::Iter<'a, PageKey, Page> {
+    pub fn iter(&self) -> slotmap::basic::Iter<'_, PageKey, Page> {
         self.into_iter()
     }
 }

@@ -85,6 +85,10 @@ impl LintCollection {
     pub fn len(&self) -> usize {
         self.lints.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.lints.is_empty()
+    }
 }
 
 impl Default for LintCollection {
@@ -130,12 +134,6 @@ impl LintResults {
         }
     }
 
-    pub fn from_iter<L: Iterator<Item = LintResult>>(lints: L) -> Self {
-        Self {
-            inner: lints.collect(),
-        }
-    }
-
     pub fn has_deny(&self) -> bool {
         for lint in &self.inner {
             if lint.level == LintLevel::Deny {
@@ -147,6 +145,28 @@ impl LintResults {
 
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+
+    pub fn push(&mut self, lint: LintResult) {
+        self.inner.push(lint);
+    }
+}
+
+impl FromIterator<LintResult> for LintResults {
+    fn from_iter<I: IntoIterator<Item = LintResult>>(iter: I) -> Self {
+        let mut results = LintResults::new();
+
+        for i in iter {
+            results.push(i);
+        }
+
+        results
+    }
+}
+
+impl Default for LintResults {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

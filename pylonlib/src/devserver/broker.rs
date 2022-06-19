@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
-use crate::core::engine::{Engine, EnginePaths, GlobalEnginePaths};
+use crate::core::engine::{Engine, GlobalEnginePaths};
 use crate::core::library::SearchKey;
 use crate::core::page::RenderedPage;
 use crate::devserver::{DevServerMsg, DevServerReceiver, DevServerSender};
@@ -213,7 +213,7 @@ impl EngineBroker {
                                 "Building Assets...".to_owned(),
                             ));
 
-                            if let Err(e) = handle_msg::fs_event(&mut engine, events) {
+                            if let Err(e) = handle_msg::fs_event(&mut engine, &events) {
                                 error!(error=%e, "fswatch error");
                                 let _ws_msg = broker
                                     .send_devserver_msg_sync(DevServerMsg::Notify(e.to_string()));
@@ -287,11 +287,10 @@ mod handle_msg {
             .collect::<HashSet<_>>();
 
         if !missing_assets.is_empty() {
-            return Err(eyre!(MissingAssetsError::from_iter(
-                missing_assets
-                    .iter()
-                    .map(|asset| asset.uri().as_unchecked())
-            )));
+            return Err(eyre!(missing_assets
+                .iter()
+                .map(|asset| asset.uri().as_unchecked())
+                .collect::<MissingAssetsError>()));
         }
         Ok(())
     }
@@ -336,11 +335,10 @@ mod handle_msg {
                     .collect::<HashSet<_>>();
 
                 if !missing_assets.is_empty() {
-                    return Err(eyre!(MissingAssetsError::from_iter(
-                        missing_assets
-                            .iter()
-                            .map(|asset| asset.uri().as_unchecked())
-                    )));
+                    return Err(eyre!(missing_assets
+                        .iter()
+                        .map(|asset| asset.uri().as_unchecked())
+                        .collect::<MissingAssetsError>()));
                 }
 
                 Ok(Some(rendered_page))
@@ -350,7 +348,7 @@ mod handle_msg {
         }
     }
 
-    pub fn fs_event(engine: &mut Engine, events: FilesystemUpdateEvents) -> Result<()> {
+    pub fn fs_event(engine: &mut Engine, events: &FilesystemUpdateEvents) -> Result<()> {
         trace!(events = ?events, "receive file system update message");
         let mut reload_templates = false;
         let mut reload_rules = false;
@@ -358,7 +356,7 @@ mod handle_msg {
             let relative_path = {
                 let engine_paths = engine.paths();
                 let project_base = engine_paths.project_root();
-                path.to_relative(&project_base)?
+                path.to_relative(project_base)?
             };
 
             // reload any updated pages

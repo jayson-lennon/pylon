@@ -55,6 +55,7 @@ pub enum UrlType {
     InternalDoc(String),
 }
 
+#[allow(clippy::match_same_arms)]
 pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
     use std::str::from_utf8;
     match link.as_ref().as_bytes() {
