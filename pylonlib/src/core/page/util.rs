@@ -47,13 +47,10 @@ fn get_default_template_name(
     path: &ConfirmedPath<pathmarker::MdFile>,
 ) -> Option<TemplateName> {
     let mut path = path.as_sys_path().base().to_path_buf();
-    dbg!(&path);
-
     loop {
         let template_name = {
             let mut candidate = PathBuf::from(&path);
             candidate.push(DEFAULT_TEMPLATE_NAME);
-            dbg!(&candidate);
             candidate.to_string_lossy().to_string()
         };
         if default_template_names.contains(template_name.as_str()) {
@@ -93,7 +90,7 @@ fn split_document(raw: &str) -> Result<(&str, &str)> {
 mod test {
     use std::collections::HashSet;
 
-    use crate::test::{rel};
+    use crate::test::rel;
     use temptree::temptree;
     use typed_path::{AbsPath, SysPath};
 
