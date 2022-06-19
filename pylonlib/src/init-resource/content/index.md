@@ -18,7 +18,6 @@ template_name = "default.tera"
 #
 keywords = []
 
-
 #
 # custom data to provide to the rendering context
 #
