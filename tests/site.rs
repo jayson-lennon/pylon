@@ -340,7 +340,7 @@ fn aborts_site_build_with_deny_lint_error() {
             rules.add_lint(DENY, "Missing author", "**", |doc| {
                 doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
             });
-            rules.add_pipeline("base", "**/*.png", ["_COPY_"]);
+            rules.add_pipeline(".", "**/*.png", ["_COPY_"]);
         "#;
 
     let doc1 = r#"+++

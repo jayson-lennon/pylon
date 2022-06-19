@@ -34,8 +34,12 @@ pub mod report {
         let mut abort = false;
         for lint in lints {
             match lint.level {
-                LintLevel::Warn => warn!(%lint.msg),
+                LintLevel::Warn => {
+                    println!("WARN: {}", lint.msg);
+                    warn!(%lint.msg);
+                }
                 LintLevel::Deny => {
+                    println!("ERROR: {}", lint.msg);
                     error!(%lint.msg);
                     abort = true;
                 }
