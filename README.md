@@ -494,7 +494,7 @@ You can check the detailed status of all planned features for the next release u
 - [ ] Launch external source watchers
 - [ ] Scan CSS files for linked files
 - [ ] Integrated Preprocessors
-- [ ] Integrated Postprocessor
+- [ ] Integrated Postprocessors
 - [ ] Link checker
 - [ ] Generate RSS feeds
 - [ ] Generate sitemap
