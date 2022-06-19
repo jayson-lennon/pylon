@@ -1,32 +1,33 @@
 +++
 #
-# (OPTIONAL) template to use for rendering this document
+# template to use for rendering this document
 #
-# If not provided, Pylon will search for `page.tera` in the `templates`
-# directory and each parent directory. If no `page.tera` is found, then
+# If not provided, Pylon will search for `default.tera` in the `templates`
+# directory using the same directory structure as the source Markdown file.
+# If no `default.tera` is found, then each parent directory is checked as
+# well. If still no `default.tera` is found in any parent directories, then
 # the build will fail.
 #
-# template_name = "templates/content/default.tera"
+template_name = "default.tera"
 
 #
-# (OPTIONAL) keywords to associate with this page
+# keywords to associate with this page
 #
-# Keywords aren't used directly by Pylon, but can be used with custom
-# search engines when exporting the frontmatter
+# Keywords aren't yet used by Pylon, but can be used by custom
+# scripts when exporting the frontmatter.
 #
-# keywords = ["sample 1", "sample 2"]
+keywords = []
 
 
 #
-# (OPTIONAL) custom data to provide to the rendering context
+# custom data to provide to the rendering context
 #
 # Any data you want available when the page is rendered goes under
-# the [meta] section and can be accessed with {{ meta.custom_key }}
+# the [meta] section, and can be accessed with {{ meta.keyname }}.
 #
 # [meta]
-# custom_key = "sample"
+# example = "example"
 +++
-
 
 # This is a sample document.
 

@@ -18,67 +18,180 @@ Pylon is a static site generator focused on customization that uses Markdown doc
 * Add anchors to headers
 * Syntax highlighting
 
-# Documentation
+# Note
 
-Configuration of Pylon is done through a [rhai](https://rhai.rs/) script.
+Pylon is in early development and unstable. Breaking changes are planned while still in version `0`.
+
+# Getting Started
+
+Pylon must be built from source for now. Packages will be created once the project experiences fewer breaking changes.
+
+```sh
+git clone https://github.com/jayson-lennon/pylon
+cd pylon
+cargo build --release
+```
+
+Create a new Pylon site and launch the development server:
+
+```sh
+pylon init <directory>
+pylon serve
+```
+
+# Roadmap
+
+You can check the detailed status of all planned features for the next release using the `milestones` in the issue tracker. Important features that are currently planned:
+
+- [ ] Pagination
+- [ ] Launch external source watchers
+- [ ] Scan CSS files for linked files
+- [ ] Integrated Preprocessors
+- [ ] Integrated Postprocessor
+- [ ] Link checker
+- [ ] Generate RSS feeds
+- [ ] Generate sitemap
+- [ ] Proper logging
+
+
+# Template / Content Documentation
+
+## Templates
+
+Pylon uses [Tera](https://tera.netlify.app/) for it's template engine and provides a few extra builtin functions on top of what Tera already provides. These functions are available in `Tera` templates, _and_ within Markdown documents:
+
+### include_file
+
+Inlines the content of an entire file. The path must start with a slash (`/`) and is always relative from the project root.
+
+```
+{{ include_file( path = "/dir/file.ext" ) }}
+```
+
+### include_cmd
+Inlines the output of a shell command (`cmd`). By default, `stdout` will be captured and used as the inlined data. This can be changed by including `$SCRATCH` somewhere in the shell command, which causes Pylon to generate a temporary file to be read and inlined. `cwd` is the current working directory to use for shell execution, must start with a slash (`/`), and is always relative from the project root.
+
+```
+{{ include_cmd( cwd = "/", cmd = "echo inline from stdout" ) }}
+{{ include_cmd( cwd = "/some/dir", cmd = "echo inline from file > $SCRATCH" ) }}
+```
+
+## Shortcodes
+
+Shortcodes are small template functions that can be used to generate HTML code directly from your Markdown documents. They exist as `.tera` files in the `templates/shortcodes` directory. If you are looking for reusable chunks to use in template files (_not_ Markdown files), check out the [partials](https://tera.netlify.app/docs/#include) and [macros](https://tera.netlify.app/docs/#include) docs for Tera.
+
+There are two types of shortcodes:
+
+* `inline`: similar to a function call and only allows strings as arguments
+* `body`: allows arguments just like an `inline` shortcode, but it also allows multiple lines of Markdown to be included as an argument
+
+### Example: Inline shortcode
+
+**templates/shortcodes/custom_heading.tera**:
+
+```tera
+<h1 class="{{ class }}">{{ title }}</h1>
+```
+
+Usage in Markdown file:
+```
+{{ custom_heading(class = "bright-red", title = "My bright red heading!") }}
+```
+
+### Example: Body shortcode
+
+The provided `body` will be rendered as Markdown and is accessible with `{{ body }}` in the shortcode source.
+
+**templates/shortcodes/dialog.tera**:
+
+```tera
+<div>
+  <h1>{{ heading }}</h1>
+  <p>{{ body }}</p>
+</div>
+```
+
+Usage in Markdown file:
+```
+{% dialog(heading = "Notice") %}
+
+## Instructions for Windows users
+...
+
+## Instructions for Linux users
+...
+
+{% end %}
+```
 
 ## Documents
 
-Pylon pages are called "documents" and are modified [Markdown](https://www.markdownguide.org/) files that are split into two parts: frontmatter in [TOML format](https://toml.io/en/), and the Markdown content. Three pluses (`+++`) are used to delimit the frontmatter from the markdown content. Pylon will preserve the directory structure you provide in the `content` directory when rendering the documents.
+Pylon pages are called "documents" and are modified [Markdown](https://www.markdownguide.org/) files that are split into two parts: frontmatter in [TOML format](https://toml.io/en/), and the Markdown content. Three pluses (`+++`) are used to delimit the frontmatter from the Markdown content.
+
+Pylon will preserve the directory structure you provide in the `content` directory when rendering the documents to the `output` directory.
 
 ### Frontmatter
 
-Pylon currently has very few frontmatter keys, and it is expected that this list will grow as more features are added.
+The frontmatter is used to associate some metadata with the page so Pylon knows how to render it properly. It can also be used to provide page-specific information for rendering.
 
-Here is a document showing all possible frontmatter keys:
+Pylon currently has very few frontmatter keys, but it is expected that this list will grow as more features are added.
+
+Here is a sample document showing all possible frontmatter keys and their default values:
 
 ```
 +++
 #
-# (OPTIONAL) template to use for rendering this document
+# template to use for rendering this document
 #
-# If not provided, Pylon will search for `page.tera` in the `templates`
-# directory and each parent directory. If no `page.tera` is found, then
+# If not provided, Pylon will search for `default.tera` in the `templates`
+# directory using the same directory structure as the source Markdown file.
+# If no `default.tera` is found, then each parent directory is checked as
+# well. If still no `default.tera` is found in any parent directories, then
 # the build will fail.
 #
-template_name = "templates/sample/landing.tera"
+template_name = "default.tera"
 
 #
-# (OPTIONAL) keywords to associate with this page
+# keywords to associate with this page
 #
-# Keywords aren't used directly by Pylon, but can be used with custom
-# search engines when exporting the frontmatter
+# Keywords aren't yet used by Pylon, but can be used by custom
+# scripts when exporting the frontmatter.
 #
-keywords = ["sample", "data"]
+keywords = []
 
 
 #
-# (OPTIONAL) custom data to provide to the rendering context
+# custom data to provide to the rendering context
 #
 # Any data you want available when the page is rendered goes under
-# the [meta] section and can be accessed with {{ meta.custom_key }}
+# the [meta] section, and can be accessed with {{ meta.keyname }}.
 #
-[meta]
-custom_key = "ok"
+# [meta]
+# example = "example"
 +++
 
 This is now the [Markdown](https://www.markdownguide.org/) section of the document.
 
 ```
 
+
+# Scripting Documentation
+
+Configuration of Pylon is done through a [rhai](https://rhai.rs/) script. This allows fine-grained control over different aspects of Pylon. The exposed functionality is currently limited, but expansion is planned as more features are implemented.
+
 ## Pipelines
 
-When Pylon builds your site, it checks all the HTML tags for linked files. If the linked file is not found, then an associated `pipeline` will be ran to generate this file. The pipeline can be as simple as copying a file from some directory, or it can progressively build the file from a series of shell commands. Pipelines only operate on a single file at a time and only on files that are linked directly in an HTML file. To copy batches of files without running a pipeline, use a [mount](#mounts) instead.
+When Pylon builds your site, it checks all the HTML tags for linked files (`href`, `src`, etc). If the linked file is not found, then an associated `pipeline` will be ran to generate this file. The pipeline can be simple, such as copying a file from some directory. It can also be complex and progressively build the file from a series of shell commands. Pipelines only operate on a single file at a time, and only on files that are linked directly in an HTML file. To copy batches of files without running a pipeline, use a [mount](#mounts) instead.
 
-Pipelines are the last step in the build process, so all mounted directories have been copied and all HTML files have been generated when the pipelines are ran. This allows other applications to parse the content as part of their build process (`tailwind` checks the `class` attributes on tags to generate minimal CSS, for example).
+Pipelines are the last step in the build process, so all mounted directories have been copied, and all HTML files have been generated when the pipelines are ran. This allows other applications to parse the content as part of their build process (`tailwind` checks the `class` attributes on HTML tags to generate CSS, for example).
 
-**Syntax**:
+**Create a pipeline**:
 
 ```rhai
 rules.add_pipeline(
   "",     // working directory
-  "",     // glob
-  []      // commands
+  "",     // glob to match linked files (in href, src, etc. attributes)
+  []      // commands to run
 );   
 ```
 
@@ -87,30 +200,31 @@ rules.add_pipeline(
 * Relative (from the Markdown parent directory) using `.` (dot) or `./dir_name`
 * Absolute (from project root) using `/` (slash) or `/dir_name`
 
+When using a relative `working directory`, Pylon will lookup the source Markdown file that the HTML file was generated from. The directory containing the Markdown file is where `working directory` is relative from. If the HTML file was mounted (as in, not generated from a Markdown file), then relative `working directory` will fail.
+
 ### Builtin Commands
 
 Pipelines offer builtin commands for common tasks:
 
-| Command | Description                                                       |
-|---------|-------------------------------------------------------------------|
-| `COPY`  | Copies the file from some source location to the target location. |
+| Command | Description                                                          |
+|---------|----------------------------------------------------------------------|
+| `OP_COPY`  | Copies the file from some source location to the target location. |
 
 ### Shell Commands
 
-To offer maximum customization, shell commands can be ran to generate linked files. Special tokens may be used within your commands and they will be replaced with appropriate information:
+To offer maximum customization, shell commands can be ran to generate files. Pylon provides tokens to use with your commands, which are replaced with appropriate information:
 
-| Token      | Description                                                                                                                                                                                                     |
-|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `$SOURCE`  | Absolute path to the source file being requested. Only applicable when using glob patterns (`*`). `$SOURCE` is the concatenation of `working directory` and the URI supplied in the HTML tag.                   |
-| `$TARGET`  | Absolute path to the target file in the output site directory. `$TARGET` is the path where the file should reside in order to be reachable by according to the URI in the HTML tag.                             |
-| `$SCRATCH` | Temporary file that can be used as an intermediary when redirecting the output of multiple commands. Persists across the entire pipeline run, allowing multiple shell commands to access the same scratch file. |
-
+| Token      | Description                                                                                                                                                                                                                        |
+|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `$SOURCE`  | Absolute path to the source file being requested. Only applicable when using globs (`*`) in the pipeline.                                                                                                                          |
+| `$TARGET`  | Absolute path to the target file in the `output` directory, that is: `$TARGET` will be reachable by the URI indicated in an HTML tag.                                                                                              |
+| `$SCRATCH` | Absolute path to a temporary file that can be used as an intermediary when redirecting the output of multiple commands. Persists across the entire pipeline run, allowing multiple shell commands to access the same scratch file. |
 
 ### Example: Copy all colocated files of a single type
 
-Colocation allows document-specific files to be stored alongside the Markdown document. This makes it easy to organize files. To access colocated assets, we need to create a pipeline that uses a path relative to the Markdown file.
+Colocation allows document-specific files to be stored alongside the Markdown document, making it easy to keep your files organized. To access colocated assets, we need to create a pipeline that uses a path relative to the Markdown file.
 
-This example uses the builtin `COPY` command to copy files from the source directory to the output directory.
+This example uses the builtin `OP_COPY` command to copy files from the source directory to the output directory.
 
 Given this directory structure:
 
@@ -136,10 +250,10 @@ we can use this pipeline to copy the colocated files:
 
 ```rhai
 rules.add_pipeline(
-  ".",          // use the Markdown source directory for the working directory
+  ".",          // use the Markdown directory for the working directory
   "**/*.png",   // apply this pipeline to all .png files
   [
-    COPY        // run the COPY builtin to copy the png file
+    OP_COPY     // run the OP_COPY builtin to copy the png file
   ]
 );
 ```
@@ -149,7 +263,7 @@ This will result in `content/blog/assets/sample.png` being copied to `output/blo
 
 ### Example: Generate a CSS file using `sass`
 
-There are a _lot_ of web development tools, and pipelines can be used to execute whichever tools make sense for your project.
+Pipelines were designed to allow integration of any tool that can be ran from CLI, making it easy to use whichever tooling you need to generate your site.
 
 This example uses shell redirection and the `$TARGET` token to generate a site's CSS using the [Sass](https://sass-lang.com/) preprocessor.
 
@@ -184,13 +298,13 @@ rules.add_pipeline(
 );
 ```
 
-This will result in `/output/style.css` being generated by `sass`.
+This will result in `/output/style.css` being generated by Sass.
 
 ### Example: Modify SVG files and then minify the result
 
-Instead of using an exported version of some file as a colocated asset, we can use the source file and compile it on demand. This removes the need to have separate "exported" and "source" versions of files.
+Instead of using an exported version of some file as a colocated asset, we can use the source file and then compile it on demand. This removes the need to have separate "exported" and "source" versions of files, making it easier to manage content.
 
-This example modifies SVG files by setting a custom brand color, and then minifying the file with [usvg](https://github.com/RazrFalcon/resvg/tree/master/usvg).
+This example modifies SVG files by setting a custom "brand" color, and then minifying the files with [usvg](https://github.com/RazrFalcon/resvg/tree/master/usvg).
 
 Given this directory structure:
 
@@ -204,23 +318,25 @@ and a desired output directory of
 
 ```
 /output/
-|-- index.html     (containing <img src="/img/logo.svg"> <img src="/img/popup.svg">)
-|-- logo.svg       (containing the color #123456)
-|-- popup.svg      (containing the color #123456)
+|-- index.html         (containing <img src="/static/img/logo.svg"> <img src="/static/img/popup.svg">)
+|-- static/
+    |-- img/
+        |-- logo.svg       (containing the color #123456)
+        |-- popup.svg      (containing the color #123456)
 ```
 
 we can use this pipeline to modify and generate the files:
 
 ```rhai
 rules.add_pipeline(
-  "/img",                       // working directory is <project root>
-  "/img/*.svg",                 // only run this pipeline on svg files requested from the `img` directory
+  "/img",                  // working directory is <project root>/img
+  "/static/img/*.svg",     // only run this pipeline on SVG files requested from `/static/img`
   [
-    "sed 's/#AABBCC/#123456/g' $SOURCE > $SCRATCH",  // run `sed` to replace the color in the svg file,
+    "sed 's/#AABBCC/#123456/g' $SOURCE > $SCRATCH",  // run `sed` to replace the color in the SVG file,
                                                      // and redirect to a scratch file
 
-    "usvg $SCRATCH $TARGET"     // minify the scratch file (which now has color #123456)
-                                // with `usvg` and output to target
+    "usvg $SCRATCH $TARGET"    // minify the scratch file (which now has color #123456)
+                               // with `usvg` and output to target
   ]
 );
 ```
@@ -375,69 +491,3 @@ Pylon provides some basic information to each page when rendering:
 | `doc.meta`  | Any metadata added using the `[meta]` section in the [frontmatter](#frontmatter)  |
 | `doc.toc`   | Rendered table of contents                                                        |
 
-## Templates
-
-Pylon uses [Tera](https://tera.netlify.app/) for it's template engine and provides a few extra builtin functions on top of what Tera already provides. These functions are available in `Tera` templates, and within Markdown documents.
-
-### include_file
-
-Includes a file directly in the template. The path must start with a slash (`/`) and is always relative from the project root.
-
-```
-include_file( path = "/dir/file.ext" )
-```
-
-### include_cmd
-Run a `cmd` in a shell, capture the output, and include it in the template. The `$SCRATCH` token can be used to create a temporary file, which will then be used as the output instead of `stdout`. `cwd` is the current working directory to use for shell execution, must start with a slash (`/`), and is always relative from the project root.
-
-```
-include_cmd( cwd = "/some/dir", cmd = "some shell command" )
-```
-
-## Shortcodes
-
-Shortcodes are small template functions that can be used to generate HTML code directly from your Markdown documents. They exist as `.tera` files in the `templates/shortcodes` directory. If you are looking for reusable chunks for usage in template files (_not_ Markdown files), check out [partials](https://tera.netlify.app/docs/#include) and [macros](https://tera.netlify.app/docs/#include).
-
-There are two types of shortcodes:
-
-* `inline`: similar to a function call and only allows strings as arguments
-* `body`: allows arguments just like an `inline` shortcode, but it also allows additional lines within the "body" of the shortcode
-
-### Example: Inline shortcode
-
-**templates/shortcodes/custom_heading.tera**:
-
-```tera
-<h1 class="{{ class }}">{{ title }}</h1>
-```
-
-Usage in Markdown file:
-```
-{{ custom_heading(class = "bright-red", title = "My bright red heading!") }}
-```
-
-### Example: Body shortcode
-
-The provided `body` will be rendered as Markdown and is accessible as `{{ body }}` within the shortcode.
-
-**templates/shortcodes/dialog.tera**:
-
-```tera
-<div>
-  <h1>{{ heading }}</h1>
-  <p>{{ body }}</p>
-</div>
-```
-
-Usage in Markdown file:
-```
-{% dialog(heading = "Notice") %}
-
-## Instructions for Windows users
-...
-
-## Instructions for Linux users
-...
-
-{% end %}
-```

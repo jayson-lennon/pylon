@@ -27,6 +27,11 @@ where
     assert_eq!(actual, content.as_ref());
 }
 
+fn install_eyre_hook() {
+    let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
+    eyre_hook.install().unwrap();
+}
+
 #[test]
 fn sample() {
     let sample_md = r#"+++
@@ -51,6 +56,54 @@ fn sample() {
     engine.build_site().unwrap();
 
     assert_content(tree.path().join("target/sample.html"), "<p>sample</p>\n");
+}
+
+#[test]
+fn readme_svg_example() {
+    install_eyre_hook();
+
+    let sample_md = r#"+++
+    +++
+    sample"#;
+    let default_template = r#"<img src="/static/img/logo.svg"><img src="/static/img/popup.svg">"#;
+
+    let rules = r#"
+rules.add_pipeline(
+  "/img",                  // working directory is <project root>/img
+  "/static/img/*.svg",     // only run this pipeline on SVG files requested from `/static/img`
+  [
+    "sed 's/#AABBCC/#123456/g' $SOURCE > $SCRATCH",  // run `sed` to replace the color in the SVG file,
+                                                     // and redirect to a scratch file
+
+    "usvg $SCRATCH $TARGET"    // minify the scratch file (which now has color #123456)
+                               // with `usvg` and output to target
+  ]
+);
+    "#;
+
+    let tree = temptree! {
+        "rules.rhai": rules,
+        src: {
+            "sample.md": sample_md,
+        },
+        templates: {
+            "default.tera": default_template,
+        },
+        img: {
+            "logo.svg": "#AABBCC",
+            "popup.svg": "#AABBCC",
+        },
+        target: {},
+        syntax_themes: {}
+    };
+
+    let engine_paths = engine_paths(&tree);
+    dbg!(&engine_paths);
+    let engine = Engine::new(engine_paths).unwrap();
+    engine.build_site().unwrap();
+
+    assert_content(tree.path().join("target/static/img/logo.svg"), "#123456");
+    assert_content(tree.path().join("target/static/img/popup.svg"), "#123456");
 }
 
 #[test]
