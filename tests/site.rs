@@ -27,8 +27,17 @@ where
     assert_eq!(actual, content.as_ref());
 }
 
+fn setup() {
+    static HOOKED: once_cell::sync::OnceCell<()> = once_cell::sync::OnceCell::new();
+    HOOKED.get_or_init(|| {
+        let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
+        eyre_hook.install().unwrap();
+    });
+}
+
 #[test]
 fn sample() {
+    setup();
     let sample_md = r#"+++
     +++
     sample"#;
@@ -55,6 +64,7 @@ fn sample() {
 
 #[test]
 fn readme_copy() {
+    setup();
     let sample_md = r#"+++
     +++"#;
     let default_template = r#"<link href="assets/sample.png">"#;
@@ -94,6 +104,7 @@ rules.add_pipeline(
 
 #[test]
 fn readme_sass_example() {
+    setup();
     let sample_md = r#"+++
     +++"#;
     let default_template = r#"<link href="/style.css">"#;
@@ -134,6 +145,7 @@ rules.add_pipeline(
 
 #[test]
 fn readme_svg_example() {
+    setup();
     let sample_md = r#"+++
     +++
     sample"#;
@@ -180,6 +192,7 @@ rules.add_pipeline(
 
 #[test]
 fn exports_frontmatter() {
+    setup();
     let file_1 = r#"+++
 +++
 sample one"#;
@@ -232,6 +245,7 @@ sample two"#;
 
 #[test]
 fn renders_shortcodes() {
+    setup();
     let sample_md = r#"+++
     +++
     line1
@@ -265,6 +279,7 @@ fn renders_shortcodes() {
 
 #[test]
 fn builds_site_no_lint_errors() {
+    setup();
     let doc1 = r#"+++
             template_name = "empty.tera"
             +++
@@ -320,6 +335,7 @@ fn builds_site_no_lint_errors() {
 }
 #[test]
 fn aborts_site_build_with_deny_lint_error() {
+    setup();
     let rules = r#"
             rules.add_lint(DENY, "Missing author", "**", |doc| {
                 doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
@@ -362,6 +378,7 @@ fn aborts_site_build_with_deny_lint_error() {
 
 #[test]
 fn copies_mounts() {
+    setup();
     let tree = temptree! {
       "rules.rhai": "",
       templates: {},
@@ -406,6 +423,7 @@ fn copies_mounts() {
 
 #[test]
 fn copies_mounts_inner() {
+    setup();
     let tree = temptree! {
       "rules.rhai": "",
       templates: {},
@@ -449,6 +467,7 @@ fn copies_mounts_inner() {
 }
 #[test]
 fn doesnt_reprocess_existing_assets() {
+    setup();
     let doc = r#"+++
             template_name = "test.tera"
             +++"#;
@@ -505,6 +524,7 @@ fn doesnt_reprocess_existing_assets() {
 
 #[test]
 fn renders_properly_when_assets_are_available() {
+    setup();
     let doc = r#"+++
             template_name = "test.tera"
             +++"#;
@@ -536,6 +556,7 @@ fn renders_properly_when_assets_are_available() {
 
 #[test]
 fn aborts_render_when_assets_are_missing() {
+    setup();
     let doc = r#"+++
             template_name = "test.tera"
             +++"#;
@@ -561,6 +582,7 @@ fn aborts_render_when_assets_are_missing() {
 
 #[test]
 fn does_render() {
+    setup();
     let doc1 = r#"+++
             template_name = "test.tera"
             +++
@@ -596,6 +618,7 @@ doc2"#;
 
 #[test]
 fn does_lint() {
+    setup();
     let rules = r#"
             rules.add_lint(WARN, "Missing author", "**", |doc| {
                 doc.meta("author") == "" || type_of(doc.meta("author")) == "()"

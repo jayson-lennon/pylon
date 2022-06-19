@@ -11,6 +11,14 @@ use tempfile::TempDir;
 use temptree::temptree;
 use typed_path::{AbsPath, RelPath};
 
+fn setup() {
+    static HOOKED: once_cell::sync::OnceCell<()> = once_cell::sync::OnceCell::new();
+    HOOKED.get_or_init(|| {
+        let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
+        eyre_hook.install().unwrap();
+    });
+}
+
 pub fn assert_err_body<A, E>(actual: A, expected_msg: E)
 where
     A: AsRef<str>,
@@ -69,6 +77,7 @@ where
 #[test]
 #[serial]
 fn sample() {
+    setup();
     let sample_md = r#"+++
     +++
     sample"#;
