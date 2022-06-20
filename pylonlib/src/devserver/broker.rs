@@ -183,9 +183,6 @@ impl EngineBroker {
             let _devserver = engine.start_devserver(bind, debounce_ms, broker.clone())?;
 
             loop {
-                if let Err(e) = handle_msg::mount_directories(&engine) {
-                    error!(err=%e, "failed mounting directories");
-                }
                 match broker.recv_engine_msg_sync() {
                     Ok(msg) => match msg {
                         EngineMsg::ProcessMounts(chan) => {

@@ -20,9 +20,11 @@ pub mod util;
 pub use render::Renderers;
 pub use typed_path::*;
 
+use thiserror::Error;
+
 pub type Result<T> = eyre::Result<T>;
 
-use thiserror::Error;
+pub const USER_LOG: &str = "pylon_user";
 
 #[derive(Error, Debug)]
 #[error(transparent)]

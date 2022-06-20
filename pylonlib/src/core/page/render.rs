@@ -2,7 +2,7 @@ use eyre::{eyre, WrapErr};
 use itertools::Itertools;
 use std::collections::HashSet;
 
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 
 use crate::{
     core::{
@@ -12,11 +12,15 @@ use crate::{
         Page,
     },
     site_context::SiteContext,
-    Result, SysPath,
+    Result, SysPath, USER_LOG,
 };
 
 pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
-    trace!("rendering page");
+    debug!(
+        target: USER_LOG,
+        "rendering doc {}",
+        page.path().as_sys_path()
+    );
 
     let site_ctx = SiteContext::new("sample");
 

@@ -1,7 +1,7 @@
 use eyre::WrapErr;
 use serde::Serialize;
 use std::{net::SocketAddr, sync::Arc, thread::JoinHandle};
-use tracing::trace;
+use tracing::{debug, info, trace};
 
 use crate::{
     core::rules::{RuleProcessor, Rules},
@@ -10,7 +10,7 @@ use crate::{
     devserver::{broker::RenderBehavior, DevServer, EngineBroker},
     discover::html_asset::HtmlAssets,
     render::Renderers,
-    AbsPath, RelPath, Result,
+    AbsPath, RelPath, Result, USER_LOG,
 };
 
 pub mod step;
@@ -176,6 +176,8 @@ impl Engine {
     }
 
     pub fn reload_rules(&mut self) -> Result<()> {
+        info!(target: USER_LOG, "reloading site rules script");
+
         let (script_engine, rule_processor, rules) =
             step::load_rules(self.paths(), &self.library).wrap_err("failed to reload rules")?;
         self.script_engine = script_engine;
@@ -185,12 +187,15 @@ impl Engine {
     }
 
     pub fn reload_template_engines(&mut self) -> Result<()> {
+        info!(target: USER_LOG, "reloading template engines");
+
         self.renderers.tera_mut().reload()?;
         Ok(())
     }
 
     pub fn rebuild_library(&mut self) -> Result<()> {
-        trace!("rebuilding the page store");
+        info!(target: USER_LOG, "rebuilding library");
+
         self.library = step::build_library(self.paths(), &self.renderers)
             .wrap_err("Failed to rebuild the page store")?;
         Ok(())
@@ -198,6 +203,7 @@ impl Engine {
 
     pub fn re_init(&mut self) -> Result<()> {
         trace!("rebuilding everything");
+
         self.reload_template_engines()
             .wrap_err("Failed to reload template engines during re-init")?;
         self.rebuild_library()
@@ -209,7 +215,7 @@ impl Engine {
 
     pub fn build_site(&self) -> Result<()> {
         use tap::prelude::*;
-        trace!("running build");
+        info!(target: USER_LOG, "building site");
 
         let pages = self
             .library()
@@ -266,7 +272,7 @@ impl Engine {
 
         let engine = self;
 
-        trace!("starting devserver");
+        info!(target: USER_LOG, "starting dev server");
 
         // spawn filesystem monitoring thread
         {
@@ -284,6 +290,7 @@ impl Engine {
                 dirs
             };
 
+            info!(target: USER_LOG, "starting filesystem event thread");
             devserver::fswatcher::start_watching(
                 &watch_dirs,
                 engine_broker.clone(),
@@ -293,6 +300,8 @@ impl Engine {
         }
 
         let devserver = DevServer::run(engine_broker, engine.paths().output_dir(), bind);
+        info!(target: USER_LOG, "devserver now running on {}", bind);
+
         Ok(devserver)
     }
 }

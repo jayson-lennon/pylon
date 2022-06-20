@@ -10,8 +10,9 @@ pub use responders::{error_page_with_msg, html_with_live_reload_script, page_not
 
 use poem::EndpointExt;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::thread::JoinHandle;
-use tracing::{trace};
+use tracing::trace;
 
 use crate::Result;
 
@@ -25,6 +26,25 @@ channel and then sends out a message to their respective clients.
 
 pub type DevServerSender = async_channel::Sender<crate::devserver::DevServerMsg>;
 pub type DevServerReceiver = async_channel::Receiver<crate::devserver::DevServerMsg>;
+
+#[derive(Debug, Clone)]
+pub struct MountDebouncer {
+    pub last_update: Arc<async_lock::Mutex<std::time::Instant>>,
+}
+
+impl MountDebouncer {
+    pub fn new() -> Self {
+        Self {
+            last_update: Arc::new(async_lock::Mutex::new(std::time::Instant::now())),
+        }
+    }
+}
+
+impl Default for MountDebouncer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[derive(Debug)]
 pub struct DevServer {
@@ -86,6 +106,7 @@ async fn run<R: AsRef<std::path::Path> + std::fmt::Debug, B: Into<SocketAddr> + 
         .at("/*path", get(responders::handle))
         .with(AddData::new(responders::OutputRootDir(output_root)))
         .with(AddData::new(broker))
+        .with(AddData::new(MountDebouncer::new()))
         .with(AddData::new(connected_clients));
 
     Server::new(TcpListener::bind(bind.to_string()))

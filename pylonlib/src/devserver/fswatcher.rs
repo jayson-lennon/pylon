@@ -4,10 +4,13 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
+use tracing::debug;
 use tracing::error;
+use tracing::info;
 use tracing::trace;
 
 use crate::devserver::broker::EngineMsg;
+use crate::USER_LOG;
 use crate::{AbsPath, Result};
 
 use super::EngineBroker;
@@ -50,6 +53,14 @@ impl FilesystemUpdateEvents {
 
     pub fn created(&self) -> impl Iterator<Item = &AbsPath> {
         self.created.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.changed.len() + self.deleted.len() + self.created.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -117,7 +128,11 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
                     error!("failed to add fswatch event: {}", e);
                 }
             } else {
-                trace!(events = ?events, "sending filesystem update events");
+                info!(
+                    target: USER_LOG,
+                    "{} filesystem events detected",
+                    events.len()
+                );
                 broker
                     .send_engine_msg_sync(EngineMsg::FilesystemUpdate(events))
                     .expect("error communicating with engine from filesystem watcher");
@@ -133,10 +148,25 @@ fn add_event(events: &mut FilesystemUpdateEvents, ev: hotwatch::Event) -> Result
     use hotwatch::Event::*;
 
     match ev {
-        Create(path) => events.create(&AbsPath::new(path)?),
-        Remove(path) => events.delete(&AbsPath::new(path)?),
-        Write(path) => events.change(&AbsPath::new(path)?),
+        Create(path) => {
+            debug!(target: USER_LOG, "file created: {}", path.display());
+            events.create(&AbsPath::new(path)?);
+        }
+        Remove(path) => {
+            debug!(target: USER_LOG, "file deleted: {}", path.display());
+            events.delete(&AbsPath::new(path)?);
+        }
+        Write(path) => {
+            debug!(target: USER_LOG, "file updated: {}", path.display());
+            events.change(&AbsPath::new(path)?);
+        }
         Rename(src, dst) => {
+            debug!(
+                target: USER_LOG,
+                "file renamed: {} -> {}",
+                src.display(),
+                dst.display()
+            );
             events.delete(&AbsPath::new(src)?);
             events.create(&AbsPath::new(dst)?);
         }
