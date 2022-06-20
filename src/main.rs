@@ -4,30 +4,52 @@ use eyre::{eyre, WrapErr};
 use pylonlib::core::engine::{Engine, EnginePaths};
 use pylonlib::devserver::broker::RenderBehavior;
 use pylonlib::render::highlight::SyntectHighlighter;
-use pylonlib::{AbsPath, RelPath};
+use pylonlib::{AbsPath, RelPath, USER_LOG};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::info;
 
 pub type Result<T> = eyre::Result<T>;
 
+const LOGSPEC: [&str; 3] = [
+    "pylon_user=info",
+    "pylon_user=debug",
+    "pylon=trace,pipeworks=trace,pathmarker=trace,shortcode_processor=trace,typed_path=trace,typed_uri=trace",
+];
+
+mod logspec {}
+
 #[derive(clap::Parser)]
 #[clap(author, version, about, long_about = None)]
-struct Cli {
+struct Args {
+    /// Path to rhai script
     #[clap(long, default_value = "site-rules.rhai", env = "PYLON_RULES")]
     rule_script: PathBuf,
 
+    /// Target output directory
     #[clap(long, default_value = "public", env = "PYLON_OUTPUT")]
     output_dir: PathBuf,
 
+    /// Source document directory
     #[clap(long, default_value = "content", env = "PYLON_CONTENT")]
     content_dir: PathBuf,
 
+    /// Syntax theme directory
     #[clap(long, default_value = "syntax_themes", env = "PYLON_SYNTAX_THEMES")]
     syntax_themes_dir: PathBuf,
 
+    /// Template directory
     #[clap(long, default_value = "web/templates", env = "PYLON_TEMPLATES")]
     template_dir: PathBuf,
+
+    /// Increase logging verbosity. Use multiple -v for more logging
+    #[clap(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
+
+    /// Disable logging
+    #[clap(short, long)]
+    quiet: bool,
 
     #[clap(subcommand)]
     command: SubCommand,
@@ -61,24 +83,26 @@ struct CmdInit {
 
 #[derive(Debug, clap::Args)]
 struct CmdServe {
+    /// Time to wait before refreshing page after fs event (in ms)
     #[clap(long, default_value = "100", env = "PYLON_DEBOUNCE_MS")]
     debounce_ms: u64,
 
+    /// Address to bind server
     #[clap(long, default_value = "127.0.0.1:8000", env = "PYLON_BIND_ADDR")]
     bind: SocketAddr,
-
-    #[clap(long, default_value = "write", env = "PYLON_RENDER_BEHAVIOR")]
-    render_behavior: RenderBehavior,
+    // /// Either "write" or "memory"
+    // #[clap(long, default_value = "write", env = "PYLON_RENDER_BEHAVIOR")]
+    // render_behavior: RenderBehavior,
 }
 
-fn install_tracing() {
+fn install_tracing<S: AsRef<str>>(logspec: S) {
     use tracing_error::ErrorLayer;
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::{fmt, EnvFilter};
 
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("pylon=info"))
+        .or_else(|_| EnvFilter::try_new(logspec.as_ref()))
         .unwrap();
 
     tracing_subscriber::registry()
@@ -91,29 +115,47 @@ fn install_tracing() {
 fn main() -> Result<()> {
     use dotenv::dotenv;
 
-    install_tracing();
-    let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
-
-    eyre_hook.install()?;
-
-    std::panic::set_hook(Box::new(move |pi| {
-        tracing::error!("{}", panic_hook.panic_report(pi));
-    }));
-
     dotenv().ok();
 
-    let args = Cli::parse();
+    let args = Args::parse();
+
+    // logging
+    {
+        if !args.quiet {
+            let verbosity = {
+                if args.verbose > 2 {
+                    2
+                } else {
+                    args.verbose
+                }
+            } as usize;
+
+            install_tracing(LOGSPEC[verbosity]);
+        }
+
+        let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
+
+        eyre_hook.install()?;
+
+        std::panic::set_hook(Box::new(move |pi| {
+            tracing::error!("{}", panic_hook.panic_report(pi));
+        }));
+    }
 
     match &args.command {
         SubCommand::Build(options) => {
             use pylonlib::core::engine::step::export_frontmatter;
+
             let paths = engine_paths(&args)?;
             if let Some(path) = &options.frontmatter {
+                info!(target: USER_LOG, "exporting frontmatter");
+
                 let engine =
                     Engine::new(Arc::new(paths)).wrap_err("Failed to create new engine")?;
 
                 let target_dir = RelPath::new(path)?;
                 let pages = engine.library().iter().map(|(_, page)| page);
+
                 export_frontmatter(&engine, pages, &target_dir)
                     .wrap_err("Failed to export frontmatter")?;
             } else {
@@ -125,7 +167,12 @@ fn main() -> Result<()> {
         SubCommand::Init(options) => {
             use pylonlib::init;
             let cwd = std::env::current_dir()?;
-            init::at_target(&AbsPath::new(cwd.join(&options.directory))?)?;
+
+            let target = AbsPath::new(cwd.join(&options.directory))?;
+
+            info!(target: USER_LOG, "creating new site at {}", target);
+
+            init::at_target(&target)?;
         }
         SubCommand::Serve(opt) => {
             let paths = engine_paths(&args)?;
@@ -133,12 +180,19 @@ fn main() -> Result<()> {
                 Arc::new(paths),
                 opt.bind,
                 opt.debounce_ms,
-                opt.render_behavior,
+                RenderBehavior::Write,
+                // opt.render_behavior,
             )
             .wrap_err("Failed to initialize engine broker")?;
             let _ = handle.join().map_err(|e| eyre!("{:?}", e))?;
         }
         SubCommand::BuildSyntaxTheme { path } => {
+            info!(
+                target: USER_LOG,
+                "building syntax theme CSS from {}",
+                path.display()
+            );
+
             let css_theme = SyntectHighlighter::generate_css_theme(&path).wrap_err_with(|| {
                 format!(
                     "Failed to generate CSS output from theme file {}",
@@ -152,7 +206,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn engine_paths(args: &Cli) -> Result<EnginePaths> {
+fn engine_paths(args: &Args) -> Result<EnginePaths> {
     Ok(EnginePaths {
         rule_script: RelPath::new(&args.rule_script).wrap_err_with(|| {
             format!(

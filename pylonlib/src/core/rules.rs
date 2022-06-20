@@ -60,11 +60,17 @@ impl PylonPipeline {
             target_glob,
         }
     }
+
     pub fn is_match<P: AsRef<Path>>(&self, asset: P) -> bool {
         self.target_glob.is_match(asset)
     }
+
     pub fn run(&self, asset_uri: &AssetUri) -> crate::Result<()> {
         self.pipeline.run(asset_uri)
+    }
+
+    pub fn glob(&self) -> &str {
+        self.target_glob.glob()
     }
 }
 

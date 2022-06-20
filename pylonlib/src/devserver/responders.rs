@@ -1,4 +1,5 @@
 use crate::core::page::RenderedPage;
+use crate::devserver::MountDebouncer;
 use crate::{AsStdError, Result};
 use poem::http::StatusCode;
 use poem::{
@@ -168,13 +169,33 @@ pub async fn run_pipelines<S: AsRef<str>>(broker: &EngineBroker, path: S) -> Res
     Ok(())
 }
 
+pub async fn try_mount(broker: &EngineBroker, debouncer: MountDebouncer) -> Result<()> {
+    use crate::devserver::broker::{EngineMsg, EngineRequest};
+    use std::time::{Duration, Instant};
+
+    let mut last_update = debouncer.last_update.lock_arc().await;
+    if Instant::now() - *last_update > Duration::from_millis(1000) {
+        *last_update = Instant::now();
+        let (send, _recv) = EngineRequest::new(());
+        broker
+            .send_engine_msg(EngineMsg::ProcessMounts(send))
+            .await?;
+    }
+    Ok(())
+}
+
 #[handler]
 pub async fn handle(
     path: Path<String>,
     mount_point: Data<&OutputRootDir>,
     broker: Data<&EngineBroker>,
+    mount_debouncer: Data<&MountDebouncer>,
 ) -> std::result::Result<Response, poem::error::Error> {
     let path = path_to_file(path.to_string());
+
+    try_mount(&broker, mount_debouncer.clone())
+        .await
+        .map_err(|e| poem::error::InternalServerError(AsStdError(e)))?;
 
     match try_rendered_file(*broker, &path).await {
         Ok(Some(page)) => return Ok(serve_rendered_file(&page.html())),

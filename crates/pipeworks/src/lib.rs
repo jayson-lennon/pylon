@@ -3,7 +3,7 @@ use eyre::{eyre, WrapErr};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::str::FromStr;
-use tracing::{info_span, trace, trace_span};
+use tracing::{debug, info_span, trace, trace_span};
 use typed_path::{AbsPath, RelPath};
 use typed_uri::AssetUri;
 
@@ -198,8 +198,6 @@ impl Pipeline {
         let mut autocopy = false;
 
         for op in &self.ops {
-            let _span = info_span!("perform pipeline operation").entered();
-
             match op {
                 Operation::Copy => {
                     trace!("copy: {:?} -> {:?}", src_path, target_path);
@@ -255,7 +253,8 @@ pub fn run_command<S: AsRef<str>>(command: S, working_dir: &AbsPath) -> Result<S
         working_dir.as_path().to_string_lossy(),
         &command
     );
-    trace!("cmd= {:?}", cmd);
+    trace!(command=%cmd, "execute shell command");
+    debug!(target: "pylon_user", command=%cmd, "execute shell command");
 
     let output = std::process::Command::new("sh")
         .arg("-c")
@@ -264,6 +263,7 @@ pub fn run_command<S: AsRef<str>>(command: S, working_dir: &AbsPath) -> Result<S
         .stderr(Stdio::piped())
         .output()
         .wrap_err_with(|| format!("Failed running shell command: '{command}'"))?;
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {

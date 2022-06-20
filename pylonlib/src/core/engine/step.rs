@@ -2,7 +2,7 @@ use std::{collections::HashSet, ffi::OsStr, path::Path};
 
 use eyre::WrapErr;
 use itertools::Itertools;
-use tracing::trace;
+use tracing::{debug, info, trace};
 use typed_path::{ConfirmedPath, RelPath, SysPath};
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
         Library, Page,
     },
     discover::html_asset::{HtmlAsset, HtmlAssets},
-    Renderers, Result,
+    Renderers, Result, USER_LOG,
 };
 
 use super::{Engine, GlobalEnginePaths};
@@ -84,7 +84,8 @@ pub fn run_lints<'a, P: Iterator<Item = &'a Page>>(
     engine: &Engine,
     pages: P,
 ) -> Result<LintResults> {
-    trace!("linting");
+    info!(target: USER_LOG, "running lints");
+
     let lint_results: Vec<Vec<LintResult>> = pages
         .map(|page| crate::core::page::lint(engine.rule_processor(), engine.rules().lints(), page))
         .try_collect()
@@ -99,7 +100,7 @@ pub fn render<'a, P: Iterator<Item = &'a Page>>(
     engine: &Engine,
     pages: P,
 ) -> Result<RenderedPageCollection> {
-    trace!("rendering");
+    info!(target: USER_LOG, "rendering docs");
 
     let rendered: Vec<RenderedPage> = pages
         .map(|page| crate::core::page::render(engine, page))
@@ -111,8 +112,16 @@ pub fn render<'a, P: Iterator<Item = &'a Page>>(
 
 pub fn mount_directories<'a, M: Iterator<Item = &'a Mount>>(mounts: M) -> Result<()> {
     use fs_extra::dir::CopyOptions;
+
+    info!(target: USER_LOG, "mounting directories");
+
     for mount in mounts {
-        trace!(mount=?mount, "mounting");
+        debug!(
+            target: USER_LOG,
+            "mount {} -> {}",
+            mount.src(),
+            mount.target()
+        );
         crate::util::make_parent_dirs(mount.target()).wrap_err_with(|| {
             format!(
                 "Failed to create parent directories at '{}' while processing mounts",
@@ -160,7 +169,7 @@ pub fn run_pipelines<'a>(
     engine: &Engine,
     html_assets: &'a HtmlAssets,
 ) -> Result<HashSet<&'a HtmlAsset>> {
-    trace!("running pipelines");
+    info!(target: USER_LOG, "running pipelines");
 
     let mut unhandled_assets = HashSet::new();
 
@@ -176,6 +185,7 @@ pub fn run_pipelines<'a>(
 
         for pipeline in engine.rules().pipelines() {
             if pipeline.is_match(asset.uri().as_str()) {
+                debug!(target: USER_LOG, pipeline=%pipeline.glob(), asset=%asset.path().uri().as_str(), "run pipeline");
                 // asset has an associate pipeline, so we won't report an error
                 asset_has_pipeline = true;
 
@@ -184,6 +194,7 @@ pub fn run_pipelines<'a>(
                 })?;
             }
         }
+
         if !asset_has_pipeline {
             unhandled_assets.insert(asset);
         }
@@ -193,6 +204,8 @@ pub fn run_pipelines<'a>(
 
 #[allow(clippy::needless_pass_by_value)]
 pub fn build_library(engine_paths: GlobalEnginePaths, renderers: &Renderers) -> Result<Library> {
+    debug!(target: USER_LOG, "discovering documents");
+
     let pages: Vec<_> =
         crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {
             path.extension() == Some(OsStr::new("md"))
@@ -219,16 +232,14 @@ pub fn build_library(engine_paths: GlobalEnginePaths, renderers: &Renderers) -> 
     Ok(library)
 }
 
-pub fn build_required_asset_list<
-    'a,
+pub fn build_required_asset_list<'a, F>(engine: &Engine, files: F) -> Result<HtmlAssets>
+where
     F: Iterator<Item = &'a ConfirmedPath<pathmarker::HtmlFile>>,
->(
-    engine: &Engine,
-    files: F,
-) -> Result<HtmlAssets> {
+{
     use tap::prelude::*;
 
-    trace!("locating HTML assets");
+    debug!(target: USER_LOG, "discovering linked assets");
+
     let mut html_assets = HtmlAssets::new();
     for file in files {
         std::fs::read_to_string(file.as_sys_path().to_absolute_path())
@@ -251,6 +262,8 @@ pub fn build_required_asset_list<
 pub fn get_all_html_output_files(
     engine: &Engine,
 ) -> Result<Vec<ConfirmedPath<pathmarker::HtmlFile>>> {
+    trace!("discovering all output HTML files");
+
     crate::discover::get_all_paths(engine.paths().absolute_output_dir(), &|path| {
         path.extension() == Some(OsStr::new("html"))
     })
@@ -277,6 +290,8 @@ where
     P: Iterator<Item = &'a Page>,
 {
     use crate::util::make_parent_dirs;
+
+    info!(target: USER_LOG, "exporting frontmatter");
 
     for page in pages {
         let parent = page
