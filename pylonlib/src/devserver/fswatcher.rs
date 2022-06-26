@@ -103,7 +103,7 @@ pub fn start_watching<P: AsRef<Path> + std::fmt::Debug>(
                         .expect("error communicating with debounce thread on filesystem watcher");
                     Flow::Continue
                 })
-                .expect("failed to watch file!");
+                .unwrap_or_else(|e| panic!("failed to watch file {}: {}!", dir.display(), e));
         }
 
         hotwatch.run();
