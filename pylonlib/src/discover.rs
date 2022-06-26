@@ -66,7 +66,6 @@ pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
         }
         // Absolute: /
         [b'/', ..] => UrlType::Absolute,
-        // Relative: ./
         [target @ ..] => {
             if target.contains(&b':') {
                 UrlType::Offsite
