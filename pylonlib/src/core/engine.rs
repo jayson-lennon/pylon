@@ -298,6 +298,18 @@ impl Engine {
             .wrap_err("Failed to start watching directories when starting devserver")?;
         }
 
+        // external watchers
+        {
+            for watch in engine.rules().external_watches() {
+                info!(
+                    target: USER_LOG,
+                    "starting external watcher: {}",
+                    watch.command()
+                );
+                watch.run()?;
+            }
+        }
+
         let devserver = DevServer::run(engine_broker, engine.paths().output_dir(), bind);
         info!(target: USER_LOG, "devserver now running on {}", bind);
 

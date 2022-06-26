@@ -2,6 +2,7 @@ pub mod fn_pointers;
 pub mod matcher;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use eyre::WrapErr;
 pub use fn_pointers::GlobStore;
@@ -48,6 +49,55 @@ impl Mount {
 }
 
 #[derive(Debug, Clone)]
+pub struct ExternalWatch<T>
+where
+    T: std::fmt::Debug + Clone,
+{
+    command: String,
+    working_dir: AbsPath,
+    child: T,
+}
+
+impl ExternalWatch<()> {
+    pub fn new<S: Into<String>>(working_dir: &AbsPath, command: S) -> Self {
+        let command = command.into();
+
+        Self {
+            command,
+            working_dir: working_dir.clone(),
+            child: (),
+        }
+    }
+
+    fn full_command(&self) -> String {
+        format!(
+            "cd {} && {}",
+            self.working_dir.as_path().display(),
+            self.command
+        )
+    }
+
+    pub fn run(&self) -> crate::Result<ExternalWatch<Arc<std::process::Child>>> {
+        use std::process::Command;
+        let child = Arc::new(
+            Command::new("sh")
+                .arg("-c")
+                .arg(self.full_command())
+                .spawn()?,
+        );
+        Ok(ExternalWatch {
+            command: self.command.clone(),
+            working_dir: self.working_dir.clone(),
+            child,
+        })
+    }
+
+    pub fn command(&self) -> &str {
+        self.command.as_str()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PylonPipeline {
     pipeline: pipeworks::Pipeline,
     target_glob: crate::util::PylonGlob,
@@ -82,6 +132,7 @@ pub struct Rules {
     lints: LintCollection,
     mounts: Vec<Mount>,
     watches: Vec<AbsPath>,
+    external_watches: Vec<ExternalWatch<()>>,
     engine_paths: GlobalEnginePaths,
 }
 
@@ -94,6 +145,7 @@ impl Rules {
             lints: LintCollection::new(),
             mounts: vec![],
             watches: vec![],
+            external_watches: vec![],
             engine_paths,
         }
     }
@@ -151,6 +203,17 @@ impl Rules {
 
     pub fn watches(&self) -> impl Iterator<Item = &AbsPath> {
         self.watches.iter()
+    }
+
+    pub fn add_external_watch<S: Into<String>>(&mut self, command: S) {
+        let paths = self.engine_paths();
+        let working_dir = paths.project_root();
+        let watch = ExternalWatch::new(working_dir, command);
+        self.external_watches.push(watch);
+    }
+
+    pub fn external_watches(&self) -> impl Iterator<Item = &ExternalWatch<()>> {
+        self.external_watches.iter()
     }
 
     pub fn engine_paths(&self) -> GlobalEnginePaths {
@@ -367,6 +430,15 @@ pub mod script {
 
             Ok(())
         }
+
+        #[rhai_fn(return_raw)]
+        pub fn external_watch(rules: &mut Rules, command: &str) -> Result<(), Box<EvalAltResult>> {
+            trace!("add external watch");
+
+            rules.add_external_watch(command);
+
+            Ok(())
+        }
     }
     #[cfg(test)]
     mod test_script {
@@ -408,6 +480,14 @@ pub mod script {
             let mut rules = Rules::new(paths);
             watch(&mut rules, "test");
             assert_eq!(rules.watches().count(), 1);
+        }
+
+        #[test]
+        fn adds_external_watch() {
+            let (paths, tree) = crate::test::simple_init();
+            let mut rules = Rules::new(paths);
+            external_watch(&mut rules, "echo test");
+            assert_eq!(rules.external_watches().count(), 1);
         }
 
         #[test]
