@@ -1,7 +1,7 @@
 use eyre::WrapErr;
 use serde::Serialize;
 use std::{net::SocketAddr, sync::Arc, thread::JoinHandle};
-use tracing::{debug, info, trace};
+use tracing::{info, trace};
 
 use crate::{
     core::rules::{RuleProcessor, Rules},

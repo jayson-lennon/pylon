@@ -182,7 +182,6 @@ rules.add_pipeline(
     };
 
     let engine_paths = engine_paths(&tree);
-    dbg!(&engine_paths);
     let engine = Engine::new(engine_paths).unwrap();
     engine.build_site().unwrap();
 
