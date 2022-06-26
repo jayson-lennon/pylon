@@ -67,9 +67,13 @@ pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
         // Absolute: /
         [b'/', ..] => UrlType::Absolute,
         // Relative: ./
-        [b'h', b't', b't', b'p', b':', b'/', b'/', ..] => UrlType::Offsite,
-        [b'h', b't', b't', b'p', b's', b':', b'/', b'/', ..] => UrlType::Offsite,
-        [target @ ..] => UrlType::Relative(from_utf8(target).unwrap().to_owned()),
+        [target @ ..] => {
+            if target.contains(&b':') {
+                UrlType::Offsite
+            } else {
+                UrlType::Relative(from_utf8(target).unwrap().to_owned())
+            }
+        }
     }
 }
 
@@ -96,6 +100,17 @@ mod test {
         let link = super::get_url_type(abs_target);
         match link {
             UrlType::Absolute => (),
+            #[allow(unreachable_patterns)]
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn offsite_mailto() {
+        let target = "mailto:example@example.com";
+        let link = super::get_url_type(target);
+        match link {
+            UrlType::Offsite => (),
             #[allow(unreachable_patterns)]
             _ => panic!("wrong variant"),
         }

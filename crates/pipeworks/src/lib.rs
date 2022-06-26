@@ -3,7 +3,7 @@ use eyre::{eyre, WrapErr};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::str::FromStr;
-use tracing::{debug, info_span, trace, trace_span};
+use tracing::{debug, trace, trace_span};
 use typed_path::{AbsPath, RelPath};
 use typed_uri::AssetUri;
 
@@ -200,11 +200,16 @@ impl Pipeline {
         for op in &self.ops {
             match op {
                 Operation::Copy => {
-                    trace!("copy: {:?} -> {:?}", src_path, target_path);
+                    trace!(
+                        operation = "OP_COPY",
+                        "copy: {:?} -> {:?}",
+                        src_path,
+                        target_path
+                    );
+                    debug!(target: "pylon_user", "copy: {:?} -> {:?}", src_path, target_path);
                     std::fs::copy(&src_path, &target_path).wrap_err_with(||format!("Failed to copy '{src_path}' -> '{target_path}' during pipeline processing"))?;
                 }
                 Operation::Shell(command) => {
-                    trace!("shell command: {:?}", command);
                     if command.0.contains("$TARGET") {
                         autocopy = false;
                     } else {

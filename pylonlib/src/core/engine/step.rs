@@ -12,7 +12,10 @@ use crate::{
         script_engine::{ScriptEngine, ScriptEngineConfig},
         Library, Page,
     },
-    discover::html_asset::{HtmlAsset, HtmlAssets},
+    discover::{
+        html_asset::{HtmlAsset, HtmlAssets},
+        UrlType,
+    },
     Renderers, Result, USER_LOG,
 };
 
@@ -174,9 +177,7 @@ pub fn run_pipelines<'a>(
     let mut unhandled_assets = HashSet::new();
 
     for asset in html_assets {
-        // Ignore anchor links for now. Issue https://github.com/jayson-lennon/pylon/issues/75
-        // to eventually make this work.
-        if asset.tag() == "a" {
+        if asset.url_type() == &UrlType::Offsite {
             continue;
         }
 

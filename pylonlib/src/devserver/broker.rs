@@ -220,7 +220,6 @@ impl EngineBroker {
                             broker.send_devserver_msg_sync(DevServerMsg::ReloadPage)?;
                         }
                         EngineMsg::Quit => {
-                            dbg!("quit");
                             break;
                         }
                         EngineMsg::Ping => {}
