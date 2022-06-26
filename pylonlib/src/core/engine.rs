@@ -279,13 +279,12 @@ impl Engine {
             let paths = engine.paths();
 
             let watch_dirs = {
-                let mut dirs = vec![
-                    paths.absolute_template_dir(),
-                    paths.absolute_src_dir(),
-                    paths.absolute_rule_script(),
-                ];
+                // watch rule script
+                let mut dirs = vec![paths.absolute_rule_script()];
 
+                // watch mounts
                 dirs.extend(engine.rules().mounts().map(|mount| mount.src().clone()));
+                // watches within rule-script
                 dirs.extend(engine.rules().watches().cloned());
                 dirs
             };
