@@ -31,9 +31,15 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             // site context (from global site.toml file)
             tera_ctx.insert("site", &site_ctx);
 
-            // entire page store
-            // TODO: Come up with some better way to manage this / delete it
-            tera_ctx.insert("library", &engine.library().iter().collect::<Vec<_>>());
+            // library
+            {
+                let mut library = ctx::Library::new();
+                for page in engine.library().iter().map(|(_, page)| page) {
+                    library.insert(page);
+                }
+
+                tera_ctx.insert("library", &library);
+            }
 
             // current page info
             {
@@ -279,6 +285,131 @@ fn get_overwritten_identifiers(contexts: &[ContextItem]) -> HashSet<String> {
     }
 
     overwritten_ids
+}
+
+mod ctx {
+    use std::collections::BTreeMap;
+
+    use serde::Serialize;
+
+    use crate::core::{self, page::FrontMatter};
+
+    #[derive(Debug, Serialize)]
+    pub struct Page<'f> {
+        frontmatter: &'f FrontMatter,
+        path: String,
+        uri: String,
+    }
+
+    impl<'f> From<&'f core::Page> for Page<'f> {
+        fn from(page: &'f core::Page) -> Self {
+            let path = {
+                let content_dir = page.engine_paths();
+                let content_dir = content_dir.src_dir();
+                let page_relative_path = page.path().as_sys_path().to_relative_path();
+                page_relative_path
+                .strip_prefix(content_dir)
+                .unwrap_or_else(|e|
+                    panic!("Failed to strip prefix '{}' from '{}' while creating ctx::Page: {}. This is a bug.", content_dir, page_relative_path, e)
+                ).to_string()
+            };
+
+            Self {
+                frontmatter: page.frontmatter(),
+                path,
+                uri: page.uri().to_string(),
+            }
+        }
+    }
+    #[derive(Debug, Serialize)]
+    #[serde(transparent)]
+    pub struct Library<'f> {
+        pages: BTreeMap<String, Page<'f>>,
+    }
+
+    impl<'f> Library<'f> {
+        pub fn new() -> Self {
+            Self {
+                pages: BTreeMap::new(),
+            }
+        }
+
+        pub fn insert<P: Into<Page<'f>>>(&mut self, page: P) {
+            let page = page.into();
+            self.pages.insert(page.path.clone(), page);
+        }
+    }
+
+    impl<'f> Default for Library<'f> {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use crate::core::page::render::ctx;
+        use crate::core::page::test_page::new_page;
+
+        #[test]
+        fn new_library() {
+            let library = ctx::Library::new();
+            assert!(library.pages.is_empty());
+
+            let library = ctx::Library::default();
+            assert!(library.pages.is_empty());
+        }
+
+        #[test]
+        fn library_insert() {
+            let mut library = ctx::Library::new();
+            let page = new_page(
+                r#"
++++
++++
+sample content"#,
+                "doc.md",
+            )
+            .unwrap();
+
+            library.insert(&page);
+
+            assert!(!library.pages.is_empty());
+        }
+
+        #[test]
+        fn ctx_page_from_core_page_impl() {
+            let page = new_page(
+                r#"
++++
++++
+sample content"#,
+                "doc.md",
+            )
+            .unwrap();
+
+            let ctx_page = ctx::Page::from(&page);
+
+            assert_eq!(ctx_page.path, "doc.md");
+            assert_eq!(ctx_page.uri, "/doc.html");
+        }
+        #[test]
+        fn ctx_page_from_core_page_impl_nested_src() {
+            let page = new_page(
+                r#"
++++
++++
+sample content"#,
+                "inner/two/doc.md",
+            )
+            .unwrap();
+
+            let ctx_page = ctx::Page::from(&page);
+
+            assert_eq!(ctx_page.path, "inner/two/doc.md");
+            assert_eq!(ctx_page.uri, "/inner/two/doc.html");
+        }
+    }
 }
 
 #[cfg(test)]

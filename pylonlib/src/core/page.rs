@@ -497,6 +497,13 @@ pub mod test_page {
         let renderers = Renderers::new(paths.clone()).expect("Failed to create renderers");
 
         let doc_path = tree.path().join("src").join(file_name);
+
+        {
+            let mut doc_path = doc_path.clone();
+            if let true = doc_path.pop() {
+                std::fs::create_dir_all(&doc_path).expect("failed to make subdirs for page");
+            }
+        }
         std::fs::write(&doc_path, doc).expect("failed to write doc");
 
         let sys_path = SysPath::new(paths.project_root(), paths.src_dir(), rel!(file_name));
