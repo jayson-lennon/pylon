@@ -177,7 +177,11 @@ pub fn run_pipelines<'a>(
     let mut unhandled_assets = HashSet::new();
 
     for asset in html_assets {
-        if asset.url_type() == &UrlType::Offsite {
+        // TODO: https://github.com/jayson-lennon/pylon/issues/144
+        if asset.url_type() == &UrlType::Offsite
+            || asset.uri().uri_fragment().ends_with('/')
+            || asset.uri().uri_fragment().ends_with("html")
+        {
             continue;
         }
 
