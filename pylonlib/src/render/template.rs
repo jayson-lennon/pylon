@@ -37,6 +37,11 @@ impl From<&str> for TemplateName {
     }
 }
 
+impl std::fmt::Display for TemplateName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 #[cfg(test)]
 mod test {
 

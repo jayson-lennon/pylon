@@ -143,9 +143,12 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             renderer
                 .render(template, &tera_ctx)
                 .map(|html| RenderedPage::new(page.page_key, html, &page.target()))
-                .map_err(|e| eyre!("{}", e))
                 .wrap_err_with(|| {
-                    format!("Failed to render template. Tera context: {:#?}", &tera_ctx)
+                    format!(
+                        "Failed to render template '{}' for document '{}'",
+                        template,
+                        page.path()
+                    )
                 })
         }
         None => Err(eyre!("no template declared for page '{}'", page.uri())),
