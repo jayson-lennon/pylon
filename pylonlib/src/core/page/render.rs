@@ -15,6 +15,7 @@ use crate::{
     Result, SysPath, USER_LOG,
 };
 
+#[allow(clippy::too_many_lines)]
 pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
     debug!(
         target: USER_LOG,
@@ -32,14 +33,15 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             tera_ctx.insert("site", &site_ctx);
 
             // library
-            {
+            let library = {
                 let mut library = ctx::Library::new();
                 for page in engine.library().iter().map(|(_, page)| page) {
                     library.insert(page);
                 }
 
                 tera_ctx.insert("library", &library);
-            }
+                library
+            };
 
             // current page info
             {
@@ -106,6 +108,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                     for (k, v) in code.context() {
                         context.insert(*k, v);
                     }
+                    context.insert("library", &library);
                     let rendered_shortcode = engine
                         .renderers()
                         .tera()
