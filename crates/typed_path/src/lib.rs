@@ -101,7 +101,7 @@ impl<T: PathMarker> TypedPath<T> {
 
 impl<T: PathMarker + fmt::Display> fmt::Display for TypedPath<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TypedPath<{}>({})", self.marker(), self.inner)
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -124,6 +124,6 @@ impl<T: PathMarker> ConfirmedPath<T> {
 
 impl<T: PathMarker + fmt::Display> fmt::Display for ConfirmedPath<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ConfirmedPath<{}>({})", self.marker(), self.inner)
+        write!(f, "{}", self.inner)
     }
 }
