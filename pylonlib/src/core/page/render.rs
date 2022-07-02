@@ -309,7 +309,11 @@ mod ctx {
             let path = {
                 let content_dir = page.engine_paths();
                 let content_dir = content_dir.src_dir();
-                let page_relative_path = page.path().as_sys_path().to_relative_path();
+                let page_relative_path = page
+                    .path()
+                    .as_sys_path()
+                    .with_extension("")
+                    .to_relative_path();
                 page_relative_path
                 .strip_prefix(content_dir)
                 .unwrap_or_else(|e|
