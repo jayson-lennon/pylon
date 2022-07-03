@@ -221,6 +221,7 @@ impl Engine {
             .library()
             .iter()
             .map(|(_, page)| page)
+            .filter(|page| page.frontmatter.published)
             .collect::<Vec<_>>();
 
         // lints

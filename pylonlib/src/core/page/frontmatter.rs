@@ -16,6 +16,9 @@ pub struct FrontMatter {
     pub keywords: Vec<String>,
 
     #[serde(default = "always_true")]
+    pub published: bool,
+
+    #[serde(default = "always_true")]
     pub searchable: bool,
 
     pub meta: HashMap<String, serde_json::Value>,

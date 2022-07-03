@@ -616,6 +616,44 @@ doc2"#;
 }
 
 #[test]
+fn skips_unpublished_docs() {
+    setup();
+    let doc1 = r#"+++
+            template_name = "test.tera"
+            published = false
+            +++
+doc1"#;
+
+    let doc2 = r#"+++
+            template_name = "test.tera"
+            +++
+doc2"#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": "content: {{content}}"
+      },
+      target: {},
+      src: {
+          "doc1.md": doc1,
+          "doc2.md": doc2,
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    engine.build_site().expect("failed to build site");
+
+    if tree.path().join("target/doc1.html").exists() {
+        panic!("html page should not exist when published == false");
+    }
+}
+
+#[test]
 fn does_lint() {
     setup();
     let rules = r#"
