@@ -304,19 +304,30 @@ mod ctx {
     pub struct Page<'f> {
         frontmatter: &'f FrontMatter,
         path: String,
+        search_key: String,
         uri: String,
     }
 
     impl<'f> From<&'f core::Page> for Page<'f> {
         fn from(page: &'f core::Page) -> Self {
-            let path = {
-                let content_dir = page.engine_paths();
-                let content_dir = content_dir.src_dir();
-                let page_relative_path = page
+            let content_dir = page.engine_paths();
+            let content_dir = content_dir.src_dir();
+            let search_key = {
+                let search_key = page
                     .path()
                     .as_sys_path()
                     .with_extension("")
                     .to_relative_path();
+                search_key
+                    .strip_prefix(content_dir)
+                    .unwrap_or_else(|e|
+                        panic!("Failed to strip prefix '{}' from '{}' while creating ctx::Page: {}. This is a bug.", content_dir, search_key, e)
+                    ).to_string()
+            };
+
+            let path = {
+                let page_relative_path = page.path().as_sys_path().to_relative_path();
+
                 page_relative_path
                 .strip_prefix(content_dir)
                 .unwrap_or_else(|e|
@@ -327,6 +338,7 @@ mod ctx {
             Self {
                 frontmatter: page.frontmatter(),
                 path,
+                search_key,
                 uri: page.uri().to_string(),
             }
         }
@@ -346,7 +358,7 @@ mod ctx {
 
         pub fn insert<P: Into<Page<'f>>>(&mut self, page: P) {
             let page = page.into();
-            self.pages.insert(page.path.clone(), page);
+            self.pages.insert(page.search_key.clone(), page);
         }
     }
 
@@ -401,6 +413,7 @@ sample content"#,
             let ctx_page = ctx::Page::from(&page);
 
             assert_eq!(ctx_page.path, "doc.md");
+            assert_eq!(ctx_page.search_key, "doc");
             assert_eq!(ctx_page.uri, "/doc.html");
         }
         #[test]
@@ -417,6 +430,7 @@ sample content"#,
             let ctx_page = ctx::Page::from(&page);
 
             assert_eq!(ctx_page.path, "inner/two/doc.md");
+            assert_eq!(ctx_page.search_key, "inner/two/doc");
             assert_eq!(ctx_page.uri, "/inner/two/doc.html");
         }
     }

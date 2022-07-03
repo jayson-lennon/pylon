@@ -234,6 +234,7 @@ sample two"#;
         let expected = json! ({
             "template_name": "default.tera",
             "keywords": [],
+            "published": true,
             "searchable": true,
             "meta": {}
         })

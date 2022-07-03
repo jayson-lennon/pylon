@@ -55,7 +55,12 @@ where
 {
     command: String,
     working_dir: AbsPath,
-    child: T,
+
+    // TODO: for capturing child output / proper cleanup. see:
+    // https://github.com/jayson-lennon/pylon/issues/146
+    // https://github.com/jayson-lennon/pylon/issues/137
+    // https://github.com/jayson-lennon/pylon/issues/122
+    _child_process: T,
 }
 
 impl ExternalWatch<()> {
@@ -65,7 +70,7 @@ impl ExternalWatch<()> {
         Self {
             command,
             working_dir: working_dir.clone(),
-            child: (),
+            _child_process: (),
         }
     }
 
@@ -88,7 +93,7 @@ impl ExternalWatch<()> {
         Ok(ExternalWatch {
             command: self.command.clone(),
             working_dir: self.working_dir.clone(),
-            child,
+            _child_process: child,
         })
     }
 
