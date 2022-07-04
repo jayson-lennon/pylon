@@ -470,7 +470,8 @@ pub mod test_page {
 
         let renderers = Renderers::new(paths.clone()).expect("Failed to create renderers");
 
-        std::fs::write(&file_path, content).expect("failed to write doc");
+        std::fs::write(&file_path, content)
+            .unwrap_or_else(|e| panic!("failed to write doc @ {}: {}", &file_path.display(), e));
 
         // relative to src directory in project folder
         let relative_target_path = file_path

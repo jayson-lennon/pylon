@@ -15,6 +15,8 @@ pub struct FrontMatter {
     pub template_name: Option<TemplateName>,
     pub keywords: Vec<String>,
 
+    pub use_breadcrumbs: bool,
+
     #[serde(default = "always_true")]
     pub published: bool,
 

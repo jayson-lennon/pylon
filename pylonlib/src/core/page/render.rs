@@ -1,3 +1,5 @@
+mod breadcrumbs;
+
 use eyre::{eyre, WrapErr};
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -14,6 +16,15 @@ use crate::{
     site_context::SiteContext,
     Result, SysPath, USER_LOG,
 };
+
+const RESERVED_CONTEXT_KEYWORDS: &[&str] = &[
+    "site",
+    "content",
+    "library",
+    "global",
+    "page",
+    "breadcrumbs",
+];
 
 #[allow(clippy::too_many_lines)]
 pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
@@ -60,6 +71,12 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
             // global context provided by user script
             if let Some(global) = engine.rules().global_context() {
                 tera_ctx.insert("global", global);
+            }
+
+            // breadcrumbs
+            if page.frontmatter().use_breadcrumbs {
+                let crumbs = breadcrumbs::generate(engine.library(), page);
+                tera_ctx.insert("breadcrumbs", &crumbs);
             }
 
             // page-specific context items provided by user script
@@ -281,11 +298,10 @@ impl<'a> IntoIterator for &'a RenderedPageCollection {
 }
 
 fn get_overwritten_identifiers(contexts: &[ContextItem]) -> HashSet<String> {
-    let reserved = ["site", "content", "library", "global", "page"];
     let mut overwritten_ids = HashSet::new();
 
     for ctx in contexts.iter() {
-        if reserved.contains(&ctx.identifier.as_str()) {
+        if RESERVED_CONTEXT_KEYWORDS.contains(&ctx.identifier.as_str()) {
             overwritten_ids.insert(ctx.identifier.clone());
         }
     }
@@ -530,8 +546,15 @@ mod test {
             ContextItem::new("library", serde_json::from_str("{}").unwrap()),
             ContextItem::new("global", serde_json::from_str("{}").unwrap()),
             ContextItem::new("page", serde_json::from_str("{}").unwrap()),
+            ContextItem::new("breadcrumbs", serde_json::from_str("{}").unwrap()),
         ];
+        assert_eq!(
+            RESERVED_CONTEXT_KEYWORDS.len(),
+            6,
+            "A keyword has been added, but is missing in the test code. Please update this test."
+        );
+
         let ids = get_overwritten_identifiers(&contexts);
-        assert_eq!(ids.len(), 5);
+        assert_eq!(ids.len(), 6);
     }
 }
