@@ -61,6 +61,7 @@ pub fn render(engine: &Engine, page: &Page) -> Result<RenderedPage> {
                 inner.insert("uri", &page.uri().to_string());
                 inner.insert("template_name", page.template_name().as_str());
                 inner.insert("meta", &page.frontmatter.meta);
+                inner.insert("use_breadcrumbs", &page.frontmatter.use_breadcrumbs);
 
                 let toc = engine.renderers().markdown().render_toc(page);
                 inner.insert("toc", &toc);
