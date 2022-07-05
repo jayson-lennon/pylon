@@ -55,7 +55,11 @@ impl Uri {
     }
 
     pub fn as_str(&self) -> &str {
-        self.uri.as_str()
+        if let Some((path, _)) = self.uri.rsplit_once("index.html") {
+            path
+        } else {
+            self.uri.as_str()
+        }
     }
 
     pub fn into_boxed_str(&self) -> Box<str> {
@@ -69,7 +73,7 @@ impl Uri {
 
 impl fmt::Display for Uri {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.uri)
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -246,6 +250,20 @@ mod test {
         let uri = "/test";
         let uri = Uri::new(uri, "").expect("failed to make new URI");
         assert_eq!(uri.as_str(), "/test");
+    }
+
+    #[test]
+    fn uri_as_str_shows_slash_for_index() {
+        let uri = "/index.html";
+        let uri = Uri::new(uri, "").expect("failed to make new URI");
+        assert_eq!(uri.as_str(), "/");
+    }
+
+    #[test]
+    fn uri_as_str_shows_slash_for_index_nested() {
+        let uri = "/1/2/index.html";
+        let uri = Uri::new(uri, "").expect("failed to make new URI");
+        assert_eq!(uri.as_str(), "/1/2/");
     }
 
     #[test]
