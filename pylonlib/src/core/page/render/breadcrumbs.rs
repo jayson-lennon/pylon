@@ -5,9 +5,9 @@
 
 use std::{ffi::OsStr, path::PathBuf};
 
-use crate::core::{library::SearchKey, Library, Page};
+use crate::core::{library::SearchKey, Library};
 
-pub fn generate<'p>(library: &'p Library, page: &Page) -> Vec<&'p Page> {
+pub fn generate<'p>(library: &'p Library, page: &crate::core::Page) -> Vec<super::ctx::Page<'p>> {
     let mut crumbs = vec![library.get_with_key(page.page_key).unwrap()];
 
     let mut path = {
@@ -43,7 +43,11 @@ pub fn generate<'p>(library: &'p Library, page: &Page) -> Vec<&'p Page> {
         crumbs.push(page);
     }
 
-    crumbs.into_iter().rev().collect()
+    crumbs
+        .into_iter()
+        .rev()
+        .map(super::ctx::Page::from)
+        .collect()
 }
 
 #[cfg(test)]
@@ -119,8 +123,8 @@ mod test {
 
         let crumbs = super::generate(&library, &page0);
         assert_eq!(crumbs.len(), 2);
-        assert_eq!(crumbs[0].path(), index0.path());
-        assert_eq!(crumbs[1].path(), page0.path());
+        assert_eq!(crumbs[0].uri, index0.uri().as_str());
+        assert_eq!(crumbs[1].uri, page0.uri().as_str());
     }
 
     #[test]
@@ -133,8 +137,8 @@ mod test {
         let crumbs = super::generate(&library, &index1);
         assert_eq!(crumbs.len(), 2);
 
-        assert_eq!(crumbs[0].path(), index0.path());
-        assert_eq!(crumbs[1].path(), index1.path());
+        assert_eq!(crumbs[0].uri, index0.uri().as_str());
+        assert_eq!(crumbs[1].uri, index1.uri().as_str());
     }
 
     #[test]
@@ -148,9 +152,9 @@ mod test {
         let crumbs = super::generate(&library, &page2);
         assert_eq!(crumbs.len(), 3);
 
-        assert_eq!(crumbs[0].path(), index0.path());
-        assert_eq!(crumbs[1].path(), index1.path());
-        assert_eq!(crumbs[2].path(), page2.path());
+        assert_eq!(crumbs[0].uri, index0.uri().as_str());
+        assert_eq!(crumbs[1].uri, index1.uri().as_str());
+        assert_eq!(crumbs[2].uri, page2.uri().as_str());
     }
 
     #[test]
@@ -166,9 +170,9 @@ mod test {
         let crumbs = super::generate(&library, &page3);
         assert_eq!(crumbs.len(), 4);
 
-        assert_eq!(crumbs[0].path(), index0.path());
-        assert_eq!(crumbs[1].path(), index1.path());
-        assert_eq!(crumbs[2].path(), index2.path());
-        assert_eq!(crumbs[3].path(), page3.path());
+        assert_eq!(crumbs[0].uri, index0.uri().as_str());
+        assert_eq!(crumbs[1].uri, index1.uri().as_str());
+        assert_eq!(crumbs[2].uri, index2.uri().as_str());
+        assert_eq!(crumbs[3].uri, page3.uri().as_str());
     }
 }

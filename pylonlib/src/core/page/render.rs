@@ -319,10 +319,10 @@ mod ctx {
 
     #[derive(Debug, Serialize)]
     pub struct Page<'f> {
-        frontmatter: &'f FrontMatter,
-        path: String,
-        search_key: String,
-        uri: String,
+        pub frontmatter: &'f FrontMatter,
+        pub path: String,
+        pub search_key: String,
+        pub uri: String,
     }
 
     impl<'f> From<&'f core::Page> for Page<'f> {
