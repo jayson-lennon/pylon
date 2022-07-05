@@ -18,19 +18,7 @@ pub struct OutputRootDir(pub String);
 fn path_to_file<S: AsRef<str>>(path: S) -> String {
     let path = path.as_ref();
     // remove relative paths
-    let path = path.replace("../", "");
-
-    if path.is_empty() {
-        String::from("/index.html")
-    } else {
-        // transform `some_page/` to `some_page/index.html`
-        if path.ends_with('/') || path.is_empty() {
-            trace!("directory requested, serving index.html");
-            format!("{}index.html", path)
-        } else {
-            path
-        }
-    }
+    path.replace("../", "")
 }
 
 fn error_page() -> &'static str {
@@ -73,20 +61,6 @@ pub fn try_static_file<S: AsRef<str>>(
     let path = path.as_ref();
 
     let mount_point = mount_point.0;
-
-    // Redirect `some_page` to `some_page/`. This will cause the above block to be
-    // executed on the next request, which will then add `index.html` to the request.
-    {
-        if PathBuf::from(&path).as_path().extension().is_none() {
-            trace!("no extension detected. redirecting to directory url");
-            return Some(
-                Response::builder()
-                    .status(StatusCode::SEE_OTHER)
-                    .header("Location", format!("/{}/", path))
-                    .finish(),
-            );
-        }
-    }
 
     // determine the path on the system
     let mut system_path = PathBuf::from(mount_point.0.clone());
