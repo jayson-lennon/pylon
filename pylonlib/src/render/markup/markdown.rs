@@ -73,6 +73,13 @@ fn render(
 
         for event in parser {
             match event {
+                Event::Start(Tag::FootnoteDefinition(ref s)) => {
+                    let content = format!("<div class=\"footnote-definition\" id=\"{}\"><span class=\"footnote-definition-label\">{}</span>",s, s);
+                    events.push(Event::Html(content.into()));
+                }
+                Event::End(Tag::FootnoteDefinition(_)) => {
+                    events.push(Event::Html("</div>".into()));
+                }
                 Event::Start(Tag::Link(LinkType::Inline, href, title)) => {
                     use discover::UrlType;
                     match discover::get_url_type(&href) {
@@ -391,8 +398,8 @@ let x = 1;
 
         let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
             .expect("failed to render markdown");
-        let expected = r#"<pre><code><span class="syn-source syn-rust"><span class="syn-storage syn-type syn-rust">let</span> x <span class="syn-keyword syn-operator syn-rust">=</span> <span class="syn-constant syn-numeric syn-integer syn-decimal syn-rust">1</span><span class="syn-punctuation syn-terminator syn-rust">;</span>
-</code></pre>"#.replace("syn-", THEME_CLASS_PREFIX);
+        let expected = include_str!("test_data/handles_code_fence_with_language_specified.html")
+            .replace("syn-", THEME_CLASS_PREFIX);
         assert_eq!(rendered, expected);
     }
 
@@ -424,7 +431,7 @@ let x = 1;
             .expect("failed to render markdown");
         assert_eq!(
             rendered,
-            r#"<h1 id="h1">h1</h1><h2 id="h2">h2</h2><h3 id="h3">h3</h3><h4 id="h4">h4</h4><h5 id="h5">h5</h5><h6 id="h6">h6</h6>"#
+            include_str!("test_data/adds_ids_to_headings_for_toc_anchors.html")
         );
     }
 
@@ -454,10 +461,7 @@ let x = 1;
 
         let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
             .expect("failed to render markdown");
-        assert_eq!(
-            rendered,
-            r#"<h1 id="h1-is-a-header">h1 is a HEADER</h1><h2 id="h2-is-a-header">h2 is a HEADER</h2><h3 id="h3-is-a-header">h3 is a HEADER</h3><h4 id="h4-is-a-header">h4 is a HEADER</h4><h5 id="h5-is-a-header">h5 is a HEADER</h5><h6 id="h6-is-a-header">h6 is a HEADER</h6>"#
-        );
+        assert_eq!(rendered, include_str!("test_data/dashifies_headers.html"));
     }
 
     #[cfg(test)]
@@ -479,5 +483,36 @@ let x = 1;
         test!(preserves_dashes: "test-test" => "test-test");
         test!(spaces_to_dashes: "test test" => "test-test");
         test!(preservse_underscores: "test_test" => "test_test");
+    }
+
+    #[test]
+    fn no_sup_tag_on_footnote_definitions() {
+        let page = new_page(
+            r#"+++
++++
+sample[^1]
+
+[^1]: definition
+"#,
+            "test.md",
+        )
+        .unwrap();
+
+        let mut store = Library::new();
+        let key = store.insert(page);
+
+        let page = store
+            .get_with_key(key)
+            .expect("page is missing from page store");
+
+        let highlighter = SyntectHighlighter::new().unwrap();
+
+        let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
+            .expect("failed to render markdown");
+
+        assert_eq!(
+            rendered,
+            include_str!("test_data/no_sup_tag_on_footnote_definitions.html")
+        );
     }
 }
