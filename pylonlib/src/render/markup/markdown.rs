@@ -156,9 +156,7 @@ fn render(
                     }
                 }
                 Event::Code(content) => {
-                    events.push(Event::Html(
-                        format!("<pre><code>{content}</code></pre>").into(),
-                    ));
+                    events.push(Event::Html(format!("<code>{content}</code>").into()));
                 }
                 Event::Start(Tag::Heading(level, _id, _classes)) => {
                     heading_level = Some(level);
@@ -344,7 +342,7 @@ code sample here
     }
 
     #[test]
-    fn nothing_strange_happens_with_inline_code_blocks() {
+    fn handles_inline_code_blocks() {
         let page = new_page(
             r#"+++
             +++
@@ -366,10 +364,7 @@ code sample here
         let rendered = super::render(page, &store, &highlighter, page.raw_markdown())
             .expect("failed to render markdown");
 
-        assert_eq!(
-            rendered,
-            "<p>inline <pre><code>let x = 1;</code></pre> code</p>\n"
-        );
+        assert_eq!(rendered, "<p>inline <code>let x = 1;</code> code</p>\n");
     }
 
     #[test]
