@@ -121,7 +121,10 @@ fn main() -> Result<()> {
 
     // logging
     {
-        if !args.quiet {
+        if !args.quiet
+            && std::mem::discriminant(&args.command)
+                != std::mem::discriminant(&SubCommand::BuildSyntaxTheme { path: "".into() })
+        {
             let verbosity = {
                 if args.verbose > 2 {
                     2
@@ -129,7 +132,6 @@ fn main() -> Result<()> {
                     args.verbose
                 }
             } as usize;
-
             install_tracing(LOGSPEC[verbosity]);
         }
 
