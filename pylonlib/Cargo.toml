@@ -55,6 +55,9 @@ derivative = "2.2"
 ansi-to-html = "0.1"
 tap = "1.0"
 fancy-regex = "0.10"
+minify-html = "0.9"
+minifier = "0.2"
+dyn-clonable = "0.9"
 
 [dev-dependencies]
 temptree = "0.2.0"

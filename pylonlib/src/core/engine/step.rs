@@ -3,7 +3,7 @@ use std::{collections::HashSet, ffi::OsStr, path::Path};
 use eyre::WrapErr;
 use itertools::Itertools;
 use tracing::{debug, info, trace};
-use typed_path::{ConfirmedPath, RelPath, SysPath};
+use typed_path::{ConfirmedPath, PathMarker, RelPath, SysPath};
 
 use crate::{
     core::{
@@ -264,13 +264,16 @@ where
     Ok(html_assets)
 }
 
-pub fn get_all_html_output_files(
+pub fn get_all_output_files<M: PathMarker>(
     engine: &Engine,
-) -> Result<Vec<ConfirmedPath<pathmarker::HtmlFile>>> {
+    marker: M,
+) -> Result<Vec<ConfirmedPath<M>>> {
     trace!("discovering all output HTML files");
 
     crate::discover::get_all_paths(engine.paths().abs_output_dir(), &|path| {
-        path.extension() == Some(OsStr::new("html"))
+        marker
+            .confirm(path)
+            .expect("Failed to run PathMarker confirmation function. This is a bug.")
     })
     .wrap_err_with(|| {
         format!(
@@ -285,7 +288,7 @@ pub fn get_all_html_output_files(
             engine.paths().project_root(),
             engine.paths().output_dir(),
         )
-        .and_then(|sys_path| sys_path.confirm(pathmarker::HtmlFile))
+        .and_then(|sys_path| sys_path.confirm(marker))
     })
     .collect::<Result<Vec<_>>>()
 }
@@ -316,5 +319,57 @@ where
             .wrap_err("Failed to write frontmatter to disk")?;
     }
 
+    Ok(())
+}
+
+pub fn minify_html_files<'a, F>(engine: &Engine, html_files: F) -> Result<()>
+where
+    F: Iterator<Item = &'a ConfirmedPath<pathmarker::HtmlFile>>,
+{
+    let processor = engine.rules.post_processors().html_minifier();
+
+    for file in html_files {
+        let path = &file.as_sys_path().to_absolute_path();
+
+        let content = std::fs::read_to_string(&path).wrap_err(format!(
+            "Failed to read file during HTML minification process at '{}'",
+            &path.display()
+        ))?;
+
+        let minified = processor
+            .execute(content.as_bytes())
+            .wrap_err("HTML minification failed")?;
+
+        std::fs::write(&path, &minified).wrap_err(format!(
+            "Failed to write minified HTML during minification process at '{}'",
+            &path.display()
+        ))?;
+    }
+    Ok(())
+}
+
+pub fn minify_css_files<'a, F>(engine: &Engine, css_files: F) -> Result<()>
+where
+    F: Iterator<Item = &'a ConfirmedPath<pathmarker::CssFile>>,
+{
+    let processor = engine.rules.post_processors().css_minifier();
+
+    for file in css_files {
+        let path = &file.as_sys_path().to_absolute_path();
+
+        let content = std::fs::read_to_string(&path).wrap_err(format!(
+            "Failed to read file during CSS minification process at '{}'",
+            &path.display()
+        ))?;
+
+        let minified = processor
+            .execute(content.as_bytes())
+            .wrap_err("CSS minification failed")?;
+
+        std::fs::write(&path, &minified).wrap_err(format!(
+            "Failed to write minified CSS during minification process at '{}'",
+            &path.display()
+        ))?;
+    }
     Ok(())
 }

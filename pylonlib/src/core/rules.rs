@@ -9,7 +9,7 @@ pub use fn_pointers::GlobStore;
 pub use matcher::Matcher;
 use typed_uri::AssetUri;
 
-use crate::{AbsPath, RelPath};
+use crate::{postprocess::PostProcessors, AbsPath, RelPath};
 use serde::Serialize;
 
 use super::{
@@ -139,6 +139,7 @@ pub struct Rules {
     watches: Vec<AbsPath>,
     external_watches: Vec<ExternalWatch<()>>,
     engine_paths: GlobalEnginePaths,
+    post_processors: PostProcessors,
 }
 
 impl Rules {
@@ -152,6 +153,7 @@ impl Rules {
             watches: vec![],
             external_watches: vec![],
             engine_paths,
+            post_processors: PostProcessors::new(),
         }
     }
     pub fn set_global_context<S: Serialize>(&mut self, ctx: S) -> crate::Result<()> {
@@ -223,6 +225,10 @@ impl Rules {
 
     pub fn engine_paths(&self) -> GlobalEnginePaths {
         self.engine_paths.clone()
+    }
+
+    pub fn post_processors(&self) -> &PostProcessors {
+        &self.post_processors
     }
 }
 
