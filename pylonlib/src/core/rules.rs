@@ -340,7 +340,12 @@ pub mod script {
             ctx: rhai::Dynamic,
         ) -> Result<(), Box<EvalAltResult>> {
             let ctx: serde_json::Value = rhai::serde::from_dynamic(&ctx)?;
-            trace!("add global ctx");
+            trace!("set global ctx");
+
+            if rules.global_context().is_some() {
+                return Err("Error: attempt to set the global context more than once".into());
+            }
+
             rules.set_global_context(ctx).map_err(|e| {
                 EvalAltResult::ErrorSystem("failed setting global context".into(), e.into())
             })?;
@@ -413,6 +418,73 @@ pub mod script {
             })?;
 
             rules.add_mount(src, &RelPath::from_relative(""));
+            Ok(())
+        }
+
+        fn script_err<M, E>(msg: M, error: E) -> Box<EvalAltResult>
+        where
+            M: Into<String>,
+            E: std::error::Error + Send + Sync + 'static,
+        {
+            Box::new(EvalAltResult::ErrorSystem(msg.into(), error.into()))
+        }
+
+        #[rhai_fn(return_raw)]
+        pub fn load_context(rules: &mut Rules, path: &str) -> Result<(), Box<EvalAltResult>> {
+            trace!("load context");
+
+            if rules.global_context().is_some() {
+                return Err("Error: attempt to set the global context more than once".into());
+            }
+
+            let path = {
+                let path = if path.starts_with('/') {
+                    path.strip_prefix('/').unwrap()
+                } else {
+                    path
+                };
+                let context_path = std::path::PathBuf::from(path);
+                rules
+                    .engine_paths()
+                    .project_root()
+                    .join(&RelPath::from_relative(context_path))
+            };
+
+            let raw_context = std::fs::read_to_string(&path).map_err(|e| {
+                script_err(
+                    format!("error reading context file at {}:{}", e, path.display()),
+                    e,
+                )
+            })?;
+
+            if let Some(ext) = path.extension() {
+                let status = if ext == "toml" {
+                    match raw_context.parse::<toml::Value>() {
+                        Ok(v) => rules.set_global_context(v),
+                        Err(e) => return Err(format!("failed parsing TOML content: {}", e).into()),
+                    }
+                } else if ext == "json" {
+                    let v: Result<serde_json::Value, _> = serde_json::from_str(&raw_context);
+                    match v {
+                        Ok(v) => rules.set_global_context(v),
+                        Err(e) => return Err(format!("failed parsing JSON content: {}", e).into()),
+                    }
+                } else {
+                    return Err(format!("unsupported file type: {}", ext.to_string_lossy()).into());
+                };
+                if let Err(e) = status {
+                    return Err(
+                        format!("failed setting context from {}:{}", path.display(), e).into(),
+                    );
+                }
+            } else {
+                return Err(format!(
+                    "file extension required for context data at {}",
+                    path.display()
+                )
+                .into());
+            };
+
             Ok(())
         }
 
@@ -544,6 +616,177 @@ pub mod script {
             let mut rules = Rules::new(paths);
             assert!(add_doc_context(&mut rules, "*", ptr).is_ok());
             assert_eq!(rules.page_contexts().iter().count(), 1);
+        }
+
+        #[test]
+        fn loads_global_context_toml() {
+            use temptree::temptree;
+
+            let rules = r#"rules.load_context("context.toml")"#;
+            let context_toml = r#"
+[test]
+key="value""#;
+
+            let tree = temptree! {
+              "rules.rhai": rules,
+              templates: {
+                  "empty.tera": ""
+              },
+              target: {},
+              src: {},
+              syntax_themes: {},
+              "context.toml": context_toml,
+            };
+
+            let paths = crate::test::default_test_paths(&tree);
+            let engine = crate::core::engine::Engine::new(paths.clone()).unwrap();
+
+            let global_context = engine.rules().global_context();
+            let expected = serde_json::json!({
+                "test": {
+                    "key": "value",
+                }
+            });
+            assert_eq!(global_context, Some(&expected));
+        }
+
+        #[test]
+        fn loads_global_context_json() {
+            use temptree::temptree;
+
+            let rules = r#"rules.load_context("context.json")"#;
+            let context_json = r#"{"test": {"key": "value"}}"#;
+
+            let tree = temptree! {
+              "rules.rhai": rules,
+              templates: {
+                  "empty.tera": ""
+              },
+              target: {},
+              src: {},
+              syntax_themes: {},
+              "context.json": context_json,
+            };
+
+            let paths = crate::test::default_test_paths(&tree);
+            let engine = crate::core::engine::Engine::new(paths.clone()).unwrap();
+
+            let global_context = engine.rules().global_context();
+            let expected = serde_json::json!({
+                "test": {
+                    "key": "value",
+                }
+            });
+            assert_eq!(global_context, Some(&expected));
+        }
+
+        #[test]
+        fn aborts_context_loading_with_unsupported_format() {
+            use temptree::temptree;
+
+            let rules = r#"rules.load_context("context.nope")"#;
+            let context_nope = r#"
+[test]
+key="value""#;
+
+            let tree = temptree! {
+              "rules.rhai": rules,
+              templates: {
+                  "empty.tera": ""
+              },
+              target: {},
+              src: {},
+              syntax_themes: {},
+              "context.nope": context_nope,
+            };
+
+            let paths = crate::test::default_test_paths(&tree);
+            let engine = crate::core::engine::Engine::new(paths.clone());
+            assert!(engine.is_err());
+        }
+
+        #[test]
+        fn aborts_context_loading_when_missing_extension() {
+            use temptree::temptree;
+
+            let rules = r#"rules.load_context("context")"#;
+            let context_nope = r#"
+[test]
+key="value""#;
+
+            let tree = temptree! {
+              "rules.rhai": rules,
+              templates: {
+                  "empty.tera": ""
+              },
+              target: {},
+              src: {},
+              syntax_themes: {},
+              "context": context_nope,
+            };
+
+            let paths = crate::test::default_test_paths(&tree);
+            let engine = crate::core::engine::Engine::new(paths.clone());
+            assert!(engine.is_err());
+        }
+
+        #[test]
+        fn loading_global_context_aborts_if_already_set() {
+            use temptree::temptree;
+
+            let rules = r#"
+rules.load_context("context.json");
+rules.load_context("context.json");"#;
+
+            let context_json = r#"{"test": {"key": "value"}}"#;
+
+            let tree = temptree! {
+              "rules.rhai": rules,
+              templates: {
+                  "empty.tera": ""
+              },
+              target: {},
+              src: {},
+              syntax_themes: {},
+              "context.json": context_json,
+            };
+
+            let paths = crate::test::default_test_paths(&tree);
+            let engine = crate::core::engine::Engine::new(paths.clone());
+            assert!(engine.is_err());
+        }
+
+        #[test]
+        fn set_inline_global_context_aborts_if_already_exists() {
+            use temptree::temptree;
+
+            let rules = r#"
+rules.load_context("context.json");
+rules.set_global_context(
+  #{
+    test: [
+      #{
+        key: "value
+      },
+    ],
+  }
+);"#;
+            let context_json = r#"{"test": {"key": "value"}}"#;
+
+            let tree = temptree! {
+              "rules.rhai": rules,
+              templates: {
+                  "empty.tera": ""
+              },
+              target: {},
+              src: {},
+              syntax_themes: {},
+              "context.json": context_json,
+            };
+
+            let paths = crate::test::default_test_paths(&tree);
+            let engine = crate::core::engine::Engine::new(paths.clone());
+            assert!(engine.is_err());
         }
     }
 }

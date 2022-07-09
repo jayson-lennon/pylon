@@ -450,7 +450,13 @@ rules.add_lint(WARN, "Missing author", "/blog/**/*.md", |doc| {
 
 ## Global Context
 
-Site-wide data can be set for all documents via the global context. When used, the data will be available under the `global` key in the templates:
+Site-wide data can be set for all documents via a "global context". This data is made available to templates with using `global` key. To load data from a TOML or JSON file, use the `load_context` script function:
+
+```rhai
+rules.load_context("context.toml");
+```
+
+Alternatively, you may provide a global context by creating it directly within the Rhai script using the `set_global_context` function:
 
 ```rhai
 rules.set_global_context(
