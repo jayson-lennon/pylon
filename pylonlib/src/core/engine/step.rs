@@ -154,10 +154,10 @@ pub fn load_rules(
     let _project_root = engine_paths.project_root();
 
     let rule_script =
-        std::fs::read_to_string(engine_paths.absolute_rule_script()).wrap_err_with(|| {
+        std::fs::read_to_string(engine_paths.abs_rule_script()).wrap_err_with(|| {
             format!(
                 "failed reading rule script at '{}'",
-                engine_paths.absolute_rule_script().display()
+                engine_paths.abs_rule_script().display()
             )
         })?;
 
@@ -269,13 +269,13 @@ pub fn get_all_html_output_files(
 ) -> Result<Vec<ConfirmedPath<pathmarker::HtmlFile>>> {
     trace!("discovering all output HTML files");
 
-    crate::discover::get_all_paths(engine.paths().absolute_output_dir(), &|path| {
+    crate::discover::get_all_paths(engine.paths().abs_output_dir(), &|path| {
         path.extension() == Some(OsStr::new("html"))
     })
     .wrap_err_with(|| {
         format!(
             "Failed to discover HTML files during build step at '{}'",
-            engine.paths().absolute_output_dir()
+            engine.paths().abs_output_dir()
         )
     })?
     .iter()

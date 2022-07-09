@@ -37,7 +37,7 @@ impl EnginePaths {
     pub fn rule_script(&self) -> &RelPath {
         &self.rule_script
     }
-    pub fn absolute_rule_script(&self) -> AbsPath {
+    pub fn abs_rule_script(&self) -> AbsPath {
         self.project_root.join(self.rule_script())
     }
 
@@ -51,21 +51,21 @@ impl EnginePaths {
     pub fn syntax_theme_dir(&self) -> &RelPath {
         &self.syntax_theme_dir
     }
-    pub fn absolute_syntax_theme_dir(&self) -> AbsPath {
+    pub fn abs_syntax_theme_dir(&self) -> AbsPath {
         self.project_root.join(self.syntax_theme_dir())
     }
 
     pub fn output_dir(&self) -> &RelPath {
         &self.output_dir
     }
-    pub fn absolute_output_dir(&self) -> AbsPath {
+    pub fn abs_output_dir(&self) -> AbsPath {
         self.project_root.join(self.output_dir())
     }
 
     pub fn template_dir(&self) -> &RelPath {
         &self.template_dir
     }
-    pub fn absolute_template_dir(&self) -> AbsPath {
+    pub fn abs_template_dir(&self) -> AbsPath {
         self.project_root.join(self.template_dir())
     }
 
@@ -144,7 +144,7 @@ impl Engine {
         let renderers = Renderers::new(paths.clone()).wrap_err_with(|| {
             format!(
                 "failed initializing renderers using template root '{}'",
-                paths.absolute_template_dir().display()
+                paths.abs_template_dir().display()
             )
         })?;
 
@@ -281,7 +281,7 @@ impl Engine {
 
             let watch_dirs = {
                 // watch rule script
-                let mut dirs = vec![paths.absolute_rule_script()];
+                let mut dirs = vec![paths.abs_rule_script()];
 
                 // watch mounts
                 dirs.extend(engine.rules().mounts().map(|mount| mount.src().clone()));

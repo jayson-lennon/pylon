@@ -388,7 +388,7 @@ mod handle_msg {
             }
 
             // reload rules
-            if path == &engine.paths().absolute_rule_script() {
+            if path == &engine.paths().abs_rule_script() {
                 reload_rules = true;
             }
         }

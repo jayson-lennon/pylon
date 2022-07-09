@@ -19,7 +19,7 @@ impl Renderers {
         let tera = template::TeraRenderer::new(engine_paths.clone()).wrap_err_with(|| {
             format!(
                 "Failed to initialize Tera with template root of '{}'",
-                engine_paths.absolute_template_dir().display()
+                engine_paths.abs_template_dir().display()
             )
         })?;
         let markdown = markup::MarkdownRenderer::new();

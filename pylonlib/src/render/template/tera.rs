@@ -20,7 +20,7 @@ pub struct TeraRenderer {
 impl TeraRenderer {
     pub fn new(engine_paths: GlobalEnginePaths) -> Result<Self> {
         let root = engine_paths
-            .absolute_template_dir()
+            .abs_template_dir()
             .join(&RelPath::from_relative("**/*.tera"));
 
         let mut tera = Tera::new(root.display().to_string().as_str())

@@ -19,7 +19,7 @@ impl AssetPath {
     #[allow(clippy::needless_pass_by_value)]
     pub fn new(engine_paths: GlobalEnginePaths, uri: &AssetUri) -> Result<Self> {
         let target = RelPath::new(&uri.as_str()[1..])?;
-        let target = engine_paths.absolute_output_dir().join(&target);
+        let target = engine_paths.abs_output_dir().join(&target);
 
         Ok(Self {
             target,
