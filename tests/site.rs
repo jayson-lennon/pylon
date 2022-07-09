@@ -59,7 +59,7 @@ fn sample() {
     let engine = Engine::new(engine_paths).unwrap();
     engine.build_site().unwrap();
 
-    assert_content(tree.path().join("target/sample.html"), "<p>sample</p>\n");
+    assert_content(tree.path().join("target/sample.html"), "<p>sample</p>");
 }
 
 #[test]
@@ -274,7 +274,7 @@ fn renders_shortcodes() {
     let engine = Engine::new(engine_paths).unwrap();
     engine.build_site().unwrap();
 
-    let expected = "<p>line1\nshortcode: hello line2\nline3</p>\n";
+    let expected = "<p>line1 shortcode: hello line2 line3</p>";
     assert_content(tree.path().join("target/sample.html"), expected);
 }
 
@@ -689,4 +689,73 @@ fn does_lint() {
     let lints = step::run_lints(&engine, engine.library().iter().map(|(_, page)| page))
         .expect("linting failed");
     assert_eq!(lints.into_iter().count(), 2);
+}
+
+#[test]
+fn minifies_html() {
+    setup();
+    let sample_md = r#"+++
+    +++
+    sample"#;
+    let default_template = r#"<div>{{ content | safe }}    </div>    
+       <h1>test</h1>"#;
+
+    let tree = temptree! {
+        "rules.rhai": "",
+        src: {
+            "sample.md": sample_md,
+        },
+        templates: {
+            "default.tera": default_template,
+        },
+        target: {},
+        syntax_themes: {}
+    };
+
+    let engine_paths = engine_paths(&tree);
+    let engine = Engine::new(engine_paths).unwrap();
+    engine.build_site().unwrap();
+
+    assert_content(
+        tree.path().join("target/sample.html"),
+        "<div><p>sample</p></div><h1>test</h1>",
+    );
+}
+
+#[test]
+fn minifies_css() {
+    setup();
+    let sample_md = r#"+++
+    +++
+    sample"#;
+    let default_template = "";
+    let css = r#"
+.test {
+    color:           red;
+
+
+
+}
+"#;
+
+    let tree = temptree! {
+        "rules.rhai": "",
+        src: {
+            "sample.md": sample_md,
+        },
+        templates: {
+            "default.tera": default_template,
+        },
+        target: {},
+        syntax_themes: {},
+        target: {
+            "sample.css": css,
+        }
+    };
+
+    let engine_paths = engine_paths(&tree);
+    let engine = Engine::new(engine_paths).unwrap();
+    engine.build_site().unwrap();
+
+    assert_content(tree.path().join("target/sample.css"), ".test{color:red;}");
 }

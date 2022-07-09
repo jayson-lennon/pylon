@@ -239,10 +239,11 @@ impl Engine {
         step::mount_directories(self.rules().mounts())
             .wrap_err("Failed to process mounts during site build")?;
 
+        let html_files = step::get_all_output_files(self, pathmarker::HtmlFile)
+            .wrap_err("Failed to discover HTML files during site build")?;
+
         // build list of assets needed for the site (stuff linked in HTML pages)
-        let missing_assets = step::get_all_html_output_files(self)
-            .wrap_err("Failed to discover HTML files during site build")
-            .and_then(|files| step::build_required_asset_list(self, files.iter()))
+        let missing_assets = step::build_required_asset_list(self, html_files.iter())
             .wrap_err("Failed to discover HTML assets during site build")
             .map(|mut assets| {
                 // We don't care about links that exist offsite (for now)
@@ -258,6 +259,15 @@ impl Engine {
             .wrap_err("Failed to run pipelines during site build")?
             .pipe_borrow(step::find_unpipelined_assets)
             .pipe_borrow(step::report::missing_assets)?;
+
+        // HTML minification
+        step::minify_html_files(self, html_files.iter()).wrap_err("Failed to minify HTML files")?;
+
+        let css_files = step::get_all_output_files(self, pathmarker::CssFile)
+            .wrap_err("Failed to discover CSS files during site build")?;
+
+        // CSS minification
+        step::minify_css_files(self, css_files.iter()).wrap_err("Failed to minify CSS files")?;
 
         Ok(())
     }

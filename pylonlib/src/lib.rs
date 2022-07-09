@@ -13,6 +13,7 @@ pub mod core;
 pub mod devserver;
 pub mod discover;
 pub mod init;
+pub mod postprocess;
 pub mod render;
 pub mod site_context;
 pub mod util;

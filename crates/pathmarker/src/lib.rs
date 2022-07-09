@@ -1,18 +1,16 @@
 use serde::Serialize;
-use std::ffi::OsStr;
 use std::fmt;
+use std::{ffi::OsStr, path::Path};
 
-use typed_path::{PathMarker, TypedPath};
+use typed_path::PathMarker;
 
 pub type Result<T> = eyre::Result<T>;
 
-#[derive(Clone, Debug, Hash, Serialize, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, Serialize, PartialEq)]
 pub struct HtmlFile;
 impl PathMarker for HtmlFile {
-    fn confirm<T: PathMarker>(&self, path: &TypedPath<T>) -> Result<bool> {
-        if path.as_sys_path().is_file()
-            && path.as_sys_path().extension() == Some(OsStr::new("html"))
-        {
+    fn confirm(&self, path: &Path) -> Result<bool> {
+        if path.is_file() && path.extension() == Some(OsStr::new("html")) {
             Ok(true)
         } else {
             Ok(false)
@@ -26,12 +24,29 @@ impl fmt::Display for HtmlFile {
     }
 }
 
-#[derive(Clone, Debug, Hash, Serialize, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, Serialize, PartialEq)]
+pub struct CssFile;
+impl PathMarker for CssFile {
+    fn confirm(&self, path: &Path) -> Result<bool> {
+        if path.is_file() && path.extension() == Some(OsStr::new("css")) {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+}
+
+impl fmt::Display for CssFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CssFile")
+    }
+}
+
+#[derive(Copy, Clone, Debug, Hash, Serialize, PartialEq)]
 pub struct MdFile;
 impl PathMarker for MdFile {
-    fn confirm<T: PathMarker>(&self, path: &TypedPath<T>) -> Result<bool> {
-        if path.as_sys_path().is_file() && path.as_sys_path().extension() == Some(OsStr::new("md"))
-        {
+    fn confirm(&self, path: &Path) -> Result<bool> {
+        if path.is_file() && path.extension() == Some(OsStr::new("md")) {
             Ok(true)
         } else {
             Ok(false)
@@ -49,9 +64,7 @@ impl fmt::Display for MdFile {
 mod test {
 
     use temptree::temptree;
-    use typed_path::{AbsPath, SysPath};
-
-    use super::*;
+    use typed_path::{AbsPath, SysPath, TypedPath};
 
     #[allow(warnings, unused)]
     macro_rules! abs {

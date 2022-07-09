@@ -2,16 +2,20 @@ use crate::{Result, TypedPath};
 use serde::Serialize;
 use std::fmt;
 use std::hash::Hash;
+use std::path::Path;
 
-pub trait PathMarker: Clone + Serialize + PartialEq + Hash {
-    fn confirm<T: PathMarker>(&self, path: &TypedPath<T>) -> Result<bool>;
+pub trait PathMarker: Copy + Clone + Serialize + PartialEq + Hash {
+    fn confirm_typed<T: PathMarker>(&self, path: &TypedPath<T>) -> Result<bool> {
+        self.confirm(path.as_sys_path().to_absolute_path().as_path())
+    }
+    fn confirm(&self, path: &Path) -> Result<bool>;
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Serialize)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Serialize)]
 pub struct File;
 impl PathMarker for File {
-    fn confirm<T: PathMarker>(&self, path: &TypedPath<T>) -> Result<bool> {
-        if path.as_sys_path().is_file() {
+    fn confirm(&self, path: &Path) -> Result<bool> {
+        if path.is_file() {
             Ok(true)
         } else {
             Ok(false)
@@ -25,11 +29,11 @@ impl fmt::Display for File {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Serialize)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Serialize)]
 pub struct Dir;
 impl PathMarker for Dir {
-    fn confirm<T: PathMarker>(&self, path: &TypedPath<T>) -> Result<bool> {
-        if path.as_sys_path().is_dir() {
+    fn confirm(&self, path: &Path) -> Result<bool> {
+        if path.is_dir() {
             Ok(true)
         } else {
             Ok(false)
