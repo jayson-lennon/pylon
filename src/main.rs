@@ -214,7 +214,7 @@ fn engine_paths(args: &Args) -> Result<EnginePaths> {
                 &args.rule_script.display()
             )
         })?,
-        src_dir: RelPath::new(&args.content_dir).wrap_err_with(|| {
+        content_dir: RelPath::new(&args.content_dir).wrap_err_with(|| {
             format!(
                 "Failed to locate content dir at {}",
                 &args.content_dir.display()

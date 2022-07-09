@@ -73,15 +73,15 @@ impl BaseDir {
 pub struct Paths {
     root: AbsPath,
     output_dir: RelPath,
-    src_dir: RelPath,
+    content_dir: RelPath,
 }
 
 impl Paths {
-    pub fn new(root: &AbsPath, output_dir: &RelPath, src_dir: &RelPath) -> Self {
+    pub fn new(root: &AbsPath, output_dir: &RelPath, content_dir: &RelPath) -> Self {
         Self {
             root: root.clone(),
             output_dir: output_dir.clone(),
-            src_dir: src_dir.clone(),
+            content_dir: content_dir.clone(),
         }
     }
 
@@ -93,8 +93,8 @@ impl Paths {
         &self.output_dir
     }
 
-    pub fn src_dir(&self) -> &RelPath {
-        &self.src_dir
+    pub fn content_dir(&self) -> &RelPath {
+        &self.content_dir
     }
 }
 
@@ -158,7 +158,7 @@ impl Pipeline {
                     // convert to sys_path
                     .as_sys_path()
                     // change base to the source base directory
-                    .with_base(self.paths.src_dir())
+                    .with_base(self.paths.content_dir())
                     // remove file name
                     .pop()
                     // use absolute path so we can change directory
@@ -336,7 +336,7 @@ mod test {
         Paths {
             output_dir: RelPath::from_relative("target"),
             root: AbsPath::from_absolute(tree.path()),
-            src_dir: RelPath::from_relative("src"),
+            content_dir: RelPath::from_relative("src"),
         }
     }
 

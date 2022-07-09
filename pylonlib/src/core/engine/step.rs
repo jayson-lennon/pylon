@@ -212,14 +212,14 @@ pub fn build_library(engine_paths: GlobalEnginePaths, renderers: &Renderers) -> 
     debug!(target: USER_LOG, "discovering documents");
 
     let pages: Vec<_> =
-        crate::discover::get_all_paths(&engine_paths.absolute_src_dir(), &|path: &Path| -> bool {
+        crate::discover::get_all_paths(&engine_paths.abs_content_dir(), &|path: &Path| -> bool {
             path.extension() == Some(OsStr::new("md"))
         })
         .wrap_err("Failed to discover source pages while building page store")?
         .iter()
         .map(|abs_path| {
             let root = engine_paths.project_root();
-            let base = engine_paths.src_dir();
+            let base = engine_paths.content_dir();
             let target = abs_path
                 .strip_prefix(root.join(base))
                 .wrap_err("Failed to strip root+base from abs path while building page store")?;

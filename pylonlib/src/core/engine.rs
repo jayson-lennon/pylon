@@ -26,7 +26,7 @@ pub type GlobalEnginePaths = Arc<EnginePaths>;
 #[derive(Debug, Clone, Serialize)]
 pub struct EnginePaths {
     pub rule_script: RelPath,
-    pub src_dir: RelPath,
+    pub content_dir: RelPath,
     pub syntax_theme_dir: RelPath,
     pub output_dir: RelPath,
     pub template_dir: RelPath,
@@ -41,11 +41,11 @@ impl EnginePaths {
         self.project_root.join(self.rule_script())
     }
 
-    pub fn src_dir(&self) -> &RelPath {
-        &self.src_dir
+    pub fn content_dir(&self) -> &RelPath {
+        &self.content_dir
     }
-    pub fn absolute_src_dir(&self) -> AbsPath {
-        self.project_root.join(self.src_dir())
+    pub fn abs_content_dir(&self) -> AbsPath {
+        self.project_root.join(self.content_dir())
     }
 
     pub fn syntax_theme_dir(&self) -> &RelPath {

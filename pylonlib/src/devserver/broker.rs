@@ -356,14 +356,14 @@ mod handle_msg {
             };
 
             // reload any updated pages
-            if relative_path.starts_with(engine.paths().src_dir())
+            if relative_path.starts_with(engine.paths().content_dir())
                 && relative_path.extension() == Some(OsStr::new("md"))
             {
                 let checked_path = {
-                    let rel = relative_path.strip_prefix(engine.paths().src_dir())?;
+                    let rel = relative_path.strip_prefix(engine.paths().content_dir())?;
                     SysPath::new(
                         engine.paths().project_root(),
-                        engine.paths().src_dir(),
+                        engine.paths().content_dir(),
                         &rel,
                     )
                     .confirm(pathmarker::MdFile)

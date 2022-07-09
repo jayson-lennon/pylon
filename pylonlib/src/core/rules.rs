@@ -300,7 +300,7 @@ pub mod script {
                     let paths = pipeworks::Paths::new(
                         paths.project_root(),
                         paths.output_dir(),
-                        paths.src_dir(),
+                        paths.content_dir(),
                     );
                     pipeworks::Pipeline::with_ops(paths, &base_dir, &parsed_ops).map_err(|e| {
                         EvalAltResult::ErrorSystem("failed creating pipeline".into(), e.into())

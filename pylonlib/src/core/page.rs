@@ -477,12 +477,12 @@ pub mod test_page {
         let relative_target_path = file_path
             .strip_prefix(tree.path())
             .unwrap()
-            .strip_prefix(paths.src_dir())
+            .strip_prefix(paths.content_dir())
             .unwrap();
 
         let sys_path = SysPath::new(
             paths.project_root(),
-            paths.src_dir(),
+            paths.content_dir(),
             rel!(relative_target_path),
         );
 
@@ -507,7 +507,7 @@ pub mod test_page {
         }
         std::fs::write(&doc_path, doc).expect("failed to write doc");
 
-        let sys_path = SysPath::new(paths.project_root(), paths.src_dir(), rel!(file_name));
+        let sys_path = SysPath::new(paths.project_root(), paths.content_dir(), rel!(file_name));
         let checked_path = sys_path
             .confirm(pathmarker::MdFile)
             .expect("failed to confirm path");

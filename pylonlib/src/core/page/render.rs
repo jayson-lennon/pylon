@@ -328,7 +328,7 @@ mod ctx {
     impl<'f> From<&'f core::Page> for Page<'f> {
         fn from(page: &'f core::Page) -> Self {
             let content_dir = page.engine_paths();
-            let content_dir = content_dir.src_dir();
+            let content_dir = content_dir.content_dir();
             let search_key = {
                 let search_key = page
                     .path()

@@ -67,7 +67,7 @@ pub(crate) mod test {
     pub fn default_test_paths(tree: &TempDir) -> GlobalEnginePaths {
         Arc::new(EnginePaths {
             rule_script: RelPath::new("rules.rhai").unwrap(),
-            src_dir: RelPath::new("src").unwrap(),
+            content_dir: RelPath::new("src").unwrap(),
             syntax_theme_dir: RelPath::new("syntax_themes").unwrap(),
             output_dir: RelPath::new("target").unwrap(),
             template_dir: RelPath::new("templates").unwrap(),
