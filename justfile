@@ -11,7 +11,8 @@ test:
   cargo nextest run --all
 
 aur:
-  mkdir pkg
+  rm -rf pkg
+  mkdir -p pkg
   cargo aur
   mv PKGBUILD pkg
   mv pylon-*.gz pkg
