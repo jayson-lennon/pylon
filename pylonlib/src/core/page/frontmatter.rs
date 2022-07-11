@@ -17,7 +17,6 @@ pub struct FrontMatter {
 
     pub use_breadcrumbs: bool,
 
-    #[serde(default = "always_true")]
     pub published: bool,
 
     #[serde(default = "always_true")]
