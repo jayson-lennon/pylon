@@ -105,7 +105,9 @@ fn render(
                             events.push(Event::Start(Tag::Link(LinkType::Inline, href, title)));
                         }
                         // TODO: check to see if the anchor is actually on the page
-                        UrlType::LocalAnchor(_) => (),
+                        UrlType::LocalAnchor(_) => {
+                            events.push(Event::Start(Tag::Link(LinkType::Inline, href, title)));
+                        }
                         // relative links need to get converted to absolute links
                         UrlType::Relative(uri) => {
                             let uri = crate::util::based_uri_from_sys_path(&page.target(), uri)?;

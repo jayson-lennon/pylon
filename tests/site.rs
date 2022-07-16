@@ -16,6 +16,8 @@ pub fn engine_paths(tree: &TempDir) -> GlobalEnginePaths {
     })
 }
 
+// TODO: double quotes are being stripped when using this function,
+// but file renders have the proper quotes
 pub fn assert_content<P, S>(path: P, content: S)
 where
     P: AsRef<Path>,
@@ -785,10 +787,8 @@ fn local_anchors_render_without_errors() {
             template_name = "test.tera"
             published = true
             +++
-# anchor 1
-## anchor 2
-[test](#anchor-1)
-[test2](#anchor-2)"#;
+# anchor
+[test](#anchor)"#;
 
     let tree = temptree! {
       "rules.rhai": "",
@@ -805,9 +805,12 @@ fn local_anchors_render_without_errors() {
     let paths = engine_paths(&tree);
 
     let engine = Engine::new(paths).unwrap();
+    engine.build_site().unwrap();
 
-    step::render(&engine, engine.library().iter().map(|(_, page)| page))
-        .expect("failed to render pages");
+    assert_content(
+        tree.path().join("target/doc1.html"),
+        "content: <h1 id=anchor>anchor</h1><p><a href=#anchor>test</a></p>",
+    );
 }
 
 #[test]
