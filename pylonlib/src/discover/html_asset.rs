@@ -264,9 +264,10 @@ where
                             HtmlAsset::new(&asset_path, tag, &UrlType::Absolute, html_path);
                         assets.insert(html_asset);
                     }
-                    UrlType::Offsite => {
-                        // assets.insert(HtmlAsset::new(url, tag, &UrlType::Offsite, page_path));
-                    }
+                    // TODO: make sure the anchor exists in the page
+                    UrlType::LocalAnchor(_) => (),
+                    // TODO: add this to the link checker once it exists
+                    UrlType::Offsite => (),
                     // relative links need to get converted to absolute links
                     UrlType::Relative(target) => {
                         if url.contains('#') {

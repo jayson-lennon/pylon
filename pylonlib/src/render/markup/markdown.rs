@@ -85,6 +85,8 @@ fn render(
                     match discover::get_url_type(&href) {
                         // internal doc links get converted into target Uri
                         UrlType::InternalDoc(ref target) => {
+                            // ignore any anchors on internal doc links
+                            let target = target.split('#').next().unwrap();
                             let page = library.get(&target.into()).ok_or_else(|| {
                                 eyre!(
                                     "unable to find internal link '{}' on page '{}'",
@@ -102,6 +104,8 @@ fn render(
                         UrlType::Absolute | UrlType::Offsite => {
                             events.push(Event::Start(Tag::Link(LinkType::Inline, href, title)));
                         }
+                        // TODO: check to see if the anchor is actually on the page
+                        UrlType::LocalAnchor(_) => (),
                         // relative links need to get converted to absolute links
                         UrlType::Relative(uri) => {
                             let uri = crate::util::based_uri_from_sys_path(&page.target(), uri)?;

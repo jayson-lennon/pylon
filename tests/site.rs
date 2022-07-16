@@ -39,6 +39,7 @@ fn setup() {
 fn sample() {
     setup();
     let sample_md = r#"+++
+    published = true
     +++
     sample"#;
     let default_template = r#"{{ content | safe }}"#;
@@ -66,6 +67,7 @@ fn sample() {
 fn readme_copy() {
     setup();
     let sample_md = r#"+++
+    published = true
     +++"#;
     let default_template = r#"<link href="assets/sample.png">"#;
 
@@ -106,6 +108,7 @@ rules.add_pipeline(
 fn readme_sass_example() {
     setup();
     let sample_md = r#"+++
+    published = true
     +++"#;
     let default_template = r#"<link href="/style.css">"#;
 
@@ -147,6 +150,7 @@ rules.add_pipeline(
 fn readme_svg_example() {
     setup();
     let sample_md = r#"+++
+    published = true
     +++
     sample"#;
     let default_template = r#"<img src="/static/img/logo.svg"><img src="/static/img/popup.svg">"#;
@@ -235,7 +239,7 @@ sample two"#;
             "template_name": "default.tera",
             "keywords": [],
             "use_breadcrumbs": false,
-            "published": true,
+            "published": false,
             "searchable": true,
             "meta": {}
         })
@@ -248,6 +252,7 @@ sample two"#;
 fn renders_shortcodes() {
     setup();
     let sample_md = r#"+++
+    published = true
     +++
     line1
     {{ test_shortcode(arg="hello") }} line2
@@ -283,11 +288,13 @@ fn builds_site_no_lint_errors() {
     setup();
     let doc1 = r#"+++
             template_name = "empty.tera"
+            published = true
             +++
         "#;
 
     let doc2 = r#"+++
             template_name = "test.tera"
+            published = true
             [meta]
             author = "test"
             +++
@@ -346,11 +353,13 @@ fn aborts_site_build_with_deny_lint_error() {
 
     let doc1 = r#"+++
             template_name = "empty.tera"
+            published = true
             +++
         "#;
 
     let doc2 = r#"+++
             template_name = "test.tera"
+            published = true
             [meta]
             author = "test"
             +++
@@ -471,6 +480,7 @@ fn doesnt_reprocess_existing_assets() {
     setup();
     let doc = r#"+++
             template_name = "test.tera"
+            published = true
             +++"#;
 
     let tree = temptree! {
@@ -528,6 +538,7 @@ fn renders_properly_when_assets_are_available() {
     setup();
     let doc = r#"+++
             template_name = "test.tera"
+            published = true
             +++"#;
 
     let tree = temptree! {
@@ -560,6 +571,7 @@ fn aborts_render_when_assets_are_missing() {
     setup();
     let doc = r#"+++
             template_name = "test.tera"
+            published = true
             +++"#;
 
     let tree = temptree! {
@@ -586,11 +598,13 @@ fn does_render() {
     setup();
     let doc1 = r#"+++
             template_name = "test.tera"
+            published = true
             +++
 doc1"#;
 
     let doc2 = r#"+++
             template_name = "test.tera"
+            published = true
             +++
 doc2"#;
 
@@ -628,6 +642,7 @@ doc1"#;
 
     let doc2 = r#"+++
             template_name = "test.tera"
+            published = true
             +++
 doc2"#;
 
@@ -669,6 +684,7 @@ fn does_lint() {
 
     let doc = r#"+++
             template_name = "empty.tera"
+            published = true
             +++
         "#;
 
@@ -695,8 +711,9 @@ fn does_lint() {
 fn minifies_html() {
     setup();
     let sample_md = r#"+++
-    +++
-    sample"#;
+published = true
++++
+sample"#;
     let default_template = r#"<div>{{ content | safe }}    </div>    
        <h1>test</h1>"#;
 
@@ -726,8 +743,9 @@ fn minifies_html() {
 fn minifies_css() {
     setup();
     let sample_md = r#"+++
-    +++
-    sample"#;
+published = true
++++
+sample"#;
     let default_template = "";
     let css = r#"
 .test {
@@ -758,4 +776,103 @@ fn minifies_css() {
     engine.build_site().unwrap();
 
     assert_content(tree.path().join("target/sample.css"), ".test{color:red;}");
+}
+
+#[test]
+fn local_anchors_render_without_errors() {
+    setup();
+    let doc1 = r#"+++
+            template_name = "test.tera"
+            published = true
+            +++
+# anchor 1
+## anchor 2
+[test](#anchor-1)
+[test2](#anchor-2)"#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": "content: {{content}}"
+      },
+      target: {},
+      src: {
+          "doc1.md": doc1,
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    step::render(&engine, engine.library().iter().map(|(_, page)| page))
+        .expect("failed to render pages");
+}
+
+#[test]
+fn internal_doc_link_anchor_renders_without_errors() {
+    setup();
+    let doc1 = r#"+++
+            template_name = "test.tera"
+            published = true
+            +++
+# anchor 1"#;
+
+    let doc2 = r#"+++
+            template_name = "test.tera"
+            published = true
+            +++
+[doc1](@/doc1.md#anchor-1)"#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": "content: {{content}}"
+      },
+      target: {},
+      src: {
+          "doc1.md": doc1,
+          "doc2.md": doc2,
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    let rendered = step::render(&engine, engine.library().iter().map(|(_, page)| page))
+        .expect("failed to render pages");
+
+    assert_eq!(rendered.iter().count(), 2);
+}
+
+#[test]
+fn offsite_anchors_work() {
+    setup();
+    let doc1 = r#"+++
+            template_name = "test.tera"
+            published = true
+            +++
+[test](https://example.com/#anchor)"#;
+
+    let tree = temptree! {
+      "rules.rhai": "",
+      templates: {
+          "test.tera": "content: {{content}}"
+      },
+      target: {},
+      src: {
+          "doc1.md": doc1,
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+
+    step::render(&engine, engine.library().iter().map(|(_, page)| page))
+        .expect("failed to render pages");
 }
