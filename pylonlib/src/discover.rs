@@ -49,16 +49,20 @@ pub fn get_all_paths<P: AsRef<Path> + std::fmt::Debug>(
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize)]
 pub enum UrlType {
+    LocalAnchor(String),
     Offsite,
     Absolute,
     Relative(String),
     InternalDoc(String),
 }
 
-#[allow(clippy::match_same_arms)]
 pub fn get_url_type<S: AsRef<str>>(link: S) -> UrlType {
     use std::str::from_utf8;
     match link.as_ref().as_bytes() {
+        // local anchor
+        [b'#', ..] => {
+            UrlType::LocalAnchor(from_utf8(link.as_ref().as_bytes()).unwrap().to_string())
+        }
         // Internal doc: @/
         [b'@', b'/', target @ ..] => {
             // add the slashy back

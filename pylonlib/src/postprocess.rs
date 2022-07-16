@@ -128,7 +128,7 @@ impl Default for CssMinifier {
 
 impl Processor for CssMinifier {
     fn execute(&self, input: &[u8]) -> Result<String> {
-        let input = std::str::from_utf8(&input)?;
+        let input = std::str::from_utf8(input)?;
         let minified = minifier::css::minify(input).map_err(|e| eyre::eyre!(e))?;
         Ok(minified.to_string())
     }

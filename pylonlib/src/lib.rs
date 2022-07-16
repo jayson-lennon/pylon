@@ -5,6 +5,7 @@
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::implicit_hasher)]
 #![allow(clippy::match_bool)]
+#![allow(clippy::match_same_arms)]
 // TODO: delete these after writing docs
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::missing_errors_doc)]
