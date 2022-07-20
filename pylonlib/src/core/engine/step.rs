@@ -29,21 +29,20 @@ pub mod report {
 
     use crate::core::page::lint::LintResults;
     use crate::discover::html_asset::HtmlAsset;
-    use crate::Result;
+    use crate::{Result, USER_LOG};
 
     pub fn lints(lints: &LintResults) -> Result<()> {
         use crate::core::page::LintLevel;
 
         let mut abort = false;
         for lint in lints {
+            let file = lint.md_file.as_sys_path().display();
             match lint.level {
                 LintLevel::Warn => {
-                    println!("WARN: {}", lint.msg);
-                    warn!(%lint.msg);
+                    warn!(target: USER_LOG, lint=%lint.msg, doc=%file);
                 }
                 LintLevel::Deny => {
-                    println!("ERROR: {}", lint.msg);
-                    error!(%lint.msg);
+                    error!(target: USER_LOG, lint=%lint.msg, doc=%file);
                     abort = true;
                 }
             }
