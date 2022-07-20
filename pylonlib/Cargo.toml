@@ -21,7 +21,7 @@ pathmarker = { path = "../crates/pathmarker" }
 tempfile = "3.3"
 pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"] }
 pulldown-cmark-toc = "0.1"
-once_cell = "1.10"
+once_cell = "1.13"
 eyre = "0.6"
 color-eyre = "0.6"
 thiserror = "1.0"
@@ -34,7 +34,7 @@ slotmap = { version = "1.0", features = ["serde"] }
 itertools = "0.10"
 serde_json = "1.0"
 poem = { version = "1.3", features = ["static-files", "websocket"] }
-tokio = { version = "1.17", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1.20", features = ["rt-multi-thread", "macros", "time"] }
 futures-util = "0.3"
 async-trait = "0.1"
 percent-encoding = "2.1"
@@ -45,11 +45,11 @@ hotwatch = "0.4"
 async-lock = "2.5"
 crossbeam-channel = "0.5"
 globset = "0.4"
-rhai = { version = "1.5", features = ["sync", "metadata", "serde"] }
+rhai = { version = "1.8", features = ["sync", "metadata", "serde"] }
 parking_lot = "0.12"
 fs_extra = "1.2"
 scraper = "0.13"
-parcel_css = "1.0.0-alpha.25"
+parcel_css = "1.0.0-alpha.29"
 syntect = "5"
 derivative = "2.2"
 ansi-to-html = "0.1"
