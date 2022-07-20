@@ -82,13 +82,14 @@ pub fn find_unpipelined_assets<'a>(
         .collect::<HashSet<_>>()
 }
 
-pub fn run_lints<'a, P: Iterator<Item = &'a Page>>(
+pub fn run_lints<'a, P: IntoIterator<Item = &'a Page>>(
     engine: &Engine,
     pages: P,
 ) -> Result<LintResults> {
     info!(target: USER_LOG, "running lints");
 
     let lint_results: Vec<Vec<LintResult>> = pages
+        .into_iter()
         .map(|page| crate::core::page::lint(engine.rule_processor(), engine.rules().lints(), page))
         .try_collect()
         .wrap_err("Failed building LintResult collection")?;
@@ -98,13 +99,14 @@ pub fn run_lints<'a, P: Iterator<Item = &'a Page>>(
     Ok(lint_results.collect::<LintResults>())
 }
 
-pub fn render<'a, P: Iterator<Item = &'a Page>>(
+pub fn render<'a, P: IntoIterator<Item = &'a Page>>(
     engine: &Engine,
     pages: P,
 ) -> Result<RenderedPageCollection> {
     info!(target: USER_LOG, "rendering docs");
 
     let rendered: Vec<RenderedPage> = pages
+        .into_iter()
         .map(|page| crate::core::page::render(engine, page))
         .try_collect()
         .wrap_err("Failed building RenderedPage collection")?;
@@ -112,7 +114,7 @@ pub fn render<'a, P: Iterator<Item = &'a Page>>(
     Ok(RenderedPageCollection::from_vec(rendered))
 }
 
-pub fn mount_directories<'a, M: Iterator<Item = &'a Mount>>(mounts: M) -> Result<()> {
+pub fn mount_directories<'a, M: IntoIterator<Item = &'a Mount>>(mounts: M) -> Result<()> {
     use fs_extra::dir::CopyOptions;
 
     info!(target: USER_LOG, "mounting directories");
@@ -238,7 +240,7 @@ pub fn build_library(engine_paths: GlobalEnginePaths, renderers: &Renderers) -> 
 
 pub fn build_required_asset_list<'a, F>(engine: &Engine, files: F) -> Result<HtmlAssets>
 where
-    F: Iterator<Item = &'a ConfirmedPath<pathmarker::HtmlFile>>,
+    F: IntoIterator<Item = &'a ConfirmedPath<pathmarker::HtmlFile>>,
 {
     use tap::prelude::*;
 
@@ -294,7 +296,7 @@ pub fn get_all_output_files<M: PathMarker>(
 
 pub fn export_frontmatter<'a, P>(_engine: &Engine, pages: P, target_dir: &RelPath) -> Result<()>
 where
-    P: Iterator<Item = &'a Page>,
+    P: IntoIterator<Item = &'a Page>,
 {
     use crate::util::make_parent_dirs;
 
@@ -323,7 +325,7 @@ where
 
 pub fn minify_html_files<'a, F>(engine: &Engine, html_files: F) -> Result<()>
 where
-    F: Iterator<Item = &'a ConfirmedPath<pathmarker::HtmlFile>>,
+    F: IntoIterator<Item = &'a ConfirmedPath<pathmarker::HtmlFile>>,
 {
     let processor = engine.rules.post_processors().html_minifier();
 
@@ -349,7 +351,7 @@ where
 
 pub fn minify_css_files<'a, F>(engine: &Engine, css_files: F) -> Result<()>
 where
-    F: Iterator<Item = &'a ConfirmedPath<pathmarker::CssFile>>,
+    F: IntoIterator<Item = &'a ConfirmedPath<pathmarker::CssFile>>,
 {
     let processor = engine.rules.post_processors().css_minifier();
 

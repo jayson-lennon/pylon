@@ -217,20 +217,17 @@ impl Engine {
         use tap::prelude::*;
         info!(target: USER_LOG, "building site");
 
-        let pages = self
-            .library()
-            .iter()
-            .map(|(_, page)| page)
-            .filter(|page| page.frontmatter.published)
-            .collect::<Vec<_>>();
+        let pages = self.library().iter().map(|(_, page)| page);
 
         // lints
-        step::run_lints(self, pages.iter().copied())
+        step::run_lints(self, pages.clone())
             .wrap_err("Failed getting lints while building site")
             .and_then(|lints| step::report::lints(&lints))?;
 
+        let pages = pages.filter(|page| page.frontmatter.published);
+
         // rendering
-        step::render(self, pages.iter().copied())
+        step::render(self, pages)
             .wrap_err("Failed to render pages during site build")?
             .write_to_disk()
             .wrap_err("Failed to write rendered pages to disk during site build")?;

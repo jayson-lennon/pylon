@@ -343,6 +343,52 @@ fn builds_site_no_lint_errors() {
     assert!(target_doc2.exists());
     assert!(target_img.exists());
 }
+
+#[test]
+fn aborts_site_build_with_deny_lint_error_on_unpublished_page() {
+    setup();
+    let rules = r#"
+            rules.add_lint(DENY, "Missing author", "**", |doc| {
+                doc.meta("author") == "" || type_of(doc.meta("author")) == "()"
+            });
+            rules.add_pipeline(".", "**/*.png", ["_COPY_"]);
+        "#;
+
+    let doc1 = r#"+++
+            template_name = "empty.tera"
+            published = false
+            +++
+        "#;
+
+    let doc2 = r#"+++
+            template_name = "test.tera"
+            published = true
+            [meta]
+            author = "test"
+            +++
+        "#;
+
+    let tree = temptree! {
+      "rules.rhai": rules,
+      templates: {
+          "test.tera": r#"<img src="blank.png">"#,
+          "empty.tera": ""
+      },
+      target: {},
+      src: {
+          "doc1.md": doc1,
+          "doc2.md": doc2,
+          "blank.png": "",
+      },
+      syntax_themes: {}
+    };
+
+    let paths = engine_paths(&tree);
+
+    let engine = Engine::new(paths).unwrap();
+    assert!(engine.build_site().is_err());
+}
+
 #[test]
 fn aborts_site_build_with_deny_lint_error() {
     setup();
