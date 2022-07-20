@@ -195,16 +195,16 @@ pub mod script {
 
     #[rhai::export_module]
     pub mod rhai_module {
-        use crate::core::page::{ContextItem, FrontMatter, Page};
+        use crate::core::page::{ContextItem, Page};
 
         #[rhai_fn(name = "uri")]
         pub fn uri(page: &mut Page) -> String {
             page.uri().to_string()
         }
 
-        #[rhai_fn(get = "frontmatter")]
-        pub fn frontmatter(page: &mut Page) -> FrontMatter {
-            page.frontmatter.clone()
+        #[rhai_fn(get = "frontmatter", return_raw)]
+        pub fn frontmatter(page: &mut Page) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
+            crate::core::page::frontmatter::script::rhai_module::frontmatter(&mut page.frontmatter)
         }
 
         /// Returns all attached metadata.
@@ -279,7 +279,7 @@ pub mod script {
                 let mut page =
                     new_page_with_tree(&tree, &tree.path().join("src/test.md"), MINIMAL).unwrap();
                 let frontmatter = rhai_module::frontmatter(&mut page);
-                assert_eq!(frontmatter.template_name, Some("empty.tera".into()));
+                assert_eq!(frontmatter.unwrap().type_name(), "map");
             }
 
             #[test]

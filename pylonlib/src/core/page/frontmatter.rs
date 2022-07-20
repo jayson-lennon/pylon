@@ -51,6 +51,14 @@ pub mod script {
             to_dynamic(frontmatter.meta.clone())
         }
 
+        /// Returns all attached metadata.
+        #[rhai_fn(get = "frontmatter", return_raw)]
+        pub fn frontmatter(
+            frontmatter: &mut FrontMatter,
+        ) -> Result<rhai::Dynamic, Box<EvalAltResult>> {
+            to_dynamic(frontmatter.clone())
+        }
+
         /// Returns the value found at the provided key. Returns `()` if the key wasn't found.
         #[rhai_fn(name = "meta")]
         pub fn get_meta(frontmatter: &mut FrontMatter, key: &str) -> rhai::Dynamic {
@@ -99,6 +107,28 @@ pub mod script {
             assert!(dynamic.is_ok());
 
             assert_eq!(dynamic.unwrap().type_name(), "map");
+        }
+
+        #[test]
+        pub fn get_frontmatter() {
+            let mut frontmatter = FrontMatter::default();
+
+            let dynamic = rhai_module::frontmatter(&mut frontmatter);
+            assert!(dynamic.is_ok());
+
+            assert_eq!(dynamic.unwrap().type_name(), "map");
+        }
+
+        #[test]
+        fn get_existing_frontmatter_item() {
+            let mut frontmatter = FrontMatter {
+                ..FrontMatter::default()
+            };
+
+            let published = rhai_module::frontmatter(&mut frontmatter).unwrap();
+            let map = published.cast::<rhai::Map>();
+            // just make sure we have a frontmatter item so we have the correct map
+            assert!(map.get("published").is_some());
         }
 
         #[test]
