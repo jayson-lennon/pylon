@@ -74,6 +74,8 @@ impl ScriptEngine {
             engine.register_global_module(pkg.clone());
         }
 
+        engine.register_global_module(StandardPackage::new().as_shared_module());
+
         engine.set_max_expr_depths(64, 64);
         engine.set_max_call_levels(64);
         engine.set_max_operations(5000);
