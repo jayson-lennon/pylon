@@ -127,6 +127,10 @@ impl PylonPipeline {
     pub fn glob(&self) -> &str {
         self.target_glob.glob()
     }
+
+    pub fn set_ops(&mut self, ops: &[pipeworks::Operation]) {
+        self.pipeline.set_ops(ops);
+    }
 }
 
 #[derive(Debug, Clone)]

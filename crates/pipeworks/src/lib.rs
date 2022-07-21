@@ -126,6 +126,10 @@ impl Pipeline {
         self.ops.push(op);
     }
 
+    pub fn set_ops(&mut self, ops: &[Operation]) {
+        self.ops = ops.into();
+    }
+
     pub fn run(&self, asset_uri: &AssetUri) -> Result<()> {
         let mut scratch_files = vec![];
         let result = self.do_run(&mut scratch_files, asset_uri);

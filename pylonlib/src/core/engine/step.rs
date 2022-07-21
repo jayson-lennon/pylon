@@ -189,6 +189,7 @@ pub fn run_pipelines<'a>(
         // tracks which assets have no processing logic
         let mut asset_has_pipeline = false;
 
+        // first pass: try to process all pipelines that we have matching globs for
         for pipeline in engine.rules().pipelines() {
             if pipeline.is_match(asset.uri().as_str()) {
                 debug!(target: USER_LOG, pipeline=%pipeline.glob(), asset=%asset.path().uri().as_str(), "run pipeline");
@@ -201,10 +202,33 @@ pub fn run_pipelines<'a>(
             }
         }
 
+        // second pass: try to copy assets if they exist
+        if !asset_has_pipeline {
+            let paths = engine.paths();
+            let paths = pipeworks::Paths::new(
+                paths.project_root(),
+                paths.output_dir(),
+                paths.content_dir(),
+            );
+            let basedir = pipeworks::BaseDir::RelativeToDoc(RelPath::from_relative("."));
+            let pipeline =
+                pipeworks::Pipeline::with_ops(paths, &basedir, &[pipeworks::Operation::Copy])
+                    .wrap_err("Failed to build default copy pipeline")?;
+
+            // TODO: proper error handling -- this might fail to create directories
+            // while attempting to make a copy
+            if pipeline.run(asset.uri()).is_ok() {
+                asset_has_pipeline = true;
+            }
+        }
+
+        // asset still is unhandled after first and second pass, so we insert
+        // them for later handling
         if !asset_has_pipeline {
             unhandled_assets.insert(asset);
         }
     }
+
     Ok(unhandled_assets)
 }
 
