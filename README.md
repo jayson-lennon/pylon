@@ -234,47 +234,6 @@ To offer maximum customization, shell commands can be ran to generate files. Pyl
 | `$TARGET`  | Absolute path to the target file in the `output` directory, that is: `$TARGET` will be reachable by the URI indicated in an HTML tag.                                                                                              |
 | `$SCRATCH` | Absolute path to a temporary file that can be used as an intermediary when redirecting the output of multiple commands. Persists across the entire pipeline run, allowing multiple shell commands to access the same scratch file. |
 
-### Example: Copy all colocated files of a single type
-
-Colocation allows document-specific files to be stored alongside the Markdown document, making it easy to keep your files organized. To access colocated assets, we need to create a pipeline that uses a path relative to the Markdown file.
-
-This example uses the builtin `OP_COPY` command to copy files from the source directory to the output directory.
-
-Given this directory structure:
-
-```
-/content/
-|-- blog/
-    |-- page.md
-    |-- assets/
-        |-- sample.png
-```
-
-and a desired output directory of
-
-```
-/output/
-|-- blog/
-    |-- page.html     (containing <img src="assets/sample.png">)
-    |-- assets/
-        |-- sample.png
-```
-
-we can use this pipeline to copy the colocated files:
-
-```rhai
-rules.add_pipeline(
-  ".",          // use the Markdown directory as the working directory
-  "**/*.png",   // apply this pipeline to all .png files
-  [
-    OP_COPY     // run the OP_COPY builtin to copy the png file
-  ]
-);
-```
-
-This will result in `content/blog/assets/sample.png` being copied to `output/blog/assets/sample.png`.
-
-
 ### Example: Generate a CSS file using `Sass`
 
 Pipelines were designed to allow integration of any tool that can be ran from CLI, making it easy to use whichever tooling you need to generate your site.
@@ -431,7 +390,7 @@ Lints are defined with a closure that has access to the current document being p
 ```rhai
 rules.add_lint(
   MODE,       // either WARN or DENY
-  ""          // the message to be displayed if this lint is triggered
+  "",         // the message to be displayed if this lint is triggered
   "",         // a file glob for matching Markdown documents 
   |doc| {}    // a closure that returns `true` when the lint fails, and `false` if it passes
 );
