@@ -218,6 +218,7 @@ impl Engine {
         info!(target: USER_LOG, "building site");
 
         let pages = self.library().iter().map(|(_, page)| page);
+        dbg!(&pages);
 
         // lints
         step::run_lints(self, pages.clone())

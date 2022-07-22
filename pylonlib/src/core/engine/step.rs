@@ -184,36 +184,44 @@ pub fn run_pipelines<'a>(
     // first pass: try to run user-defined pipelines
     {
         for (target_asset, html_files) in html_assets {
-            for html in html_files {
-                // TODO: https://github.com/jayson-lennon/pylon/issues/144
-                if html.url_type() == &UrlType::Offsite
-                    || html.asset_target_uri().uri_fragment().ends_with('/')
-                    || html.asset_target_uri().uri_fragment().ends_with("html")
-                {
-                    continue;
-                }
+            // Continue to the next asset if it already exists. This happens when the asset
+            // was already copied from a mount, and there also exists a pipeline for it.
+            if target_asset.exists() {
+                continue;
+            }
 
-                let mut asset_processed = false;
+            // we only need to run the pipeline one time per target asset, so
+            // we just grab the first entry
+            let html = html_files.get(0).unwrap();
 
-                for pipeline in engine.rules().pipelines() {
-                    if pipeline.is_match(html.asset_target_uri().as_str()) {
-                        debug!(target: USER_LOG, pipeline=%pipeline.glob(), asset=%html.asset_target_path().uri().as_str(), "run pipeline");
-                        // asset has an associated pipeline, so we won't report an error
-                        asset_processed = true;
+            // TODO: https://github.com/jayson-lennon/pylon/issues/144
+            if html.url_type() == &UrlType::Offsite
+                || html.asset_target_uri().uri_fragment().ends_with('/')
+                || html.asset_target_uri().uri_fragment().ends_with("html")
+            {
+                continue;
+            }
 
-                        pipeline.run(html.asset_target_uri()).wrap_err_with(|| {
-                            format!(
-                                "Failed to run pipeline on asset '{}'",
-                                html.asset_target_uri()
-                            )
-                        })?;
-                    }
+            let mut asset_processed = false;
+
+            for pipeline in engine.rules().pipelines() {
+                if pipeline.is_match(html.asset_target_uri().as_str()) {
+                    debug!(target: USER_LOG, pipeline=%pipeline.glob(), asset=%html.asset_target_path().uri().as_str(), "run pipeline");
+                    // asset has an associated pipeline, so we won't report an error
+                    asset_processed = true;
+
+                    pipeline.run(html.asset_target_uri()).wrap_err_with(|| {
+                        format!(
+                            "Failed to run pipeline on asset '{}'",
+                            html.asset_target_uri()
+                        )
+                    })?;
                 }
-                // all assets that weren't processed need to be reported later.
-                if !asset_processed {
-                    let entry = missing_assets.entry(target_asset).or_default();
-                    entry.push(html);
-                }
+            }
+            // all assets that weren't processed need to be reported later.
+            if !asset_processed {
+                let entry = missing_assets.entry(target_asset).or_default();
+                entry.push(html);
             }
         }
     }
@@ -236,6 +244,12 @@ pub fn run_pipelines<'a>(
         };
 
         for (target_asset, html_files) in html_assets {
+            // Continue to the next asset if it already exists. This happens when a pipeline
+            // has already processed the asset.
+            if target_asset.exists() {
+                continue;
+            }
+
             for html in html_files {
                 // TODO: proper error handling -- this might fail to create directories
                 // while attempting to make a copy.
@@ -558,6 +572,11 @@ mod test {
         engine.build_site().unwrap();
 
         assert_exists(tree.path().join("target/inner/data.png"));
+
+        assert_exists(tree.path().join("target/a.html"));
+        assert_exists(tree.path().join("target/b.html"));
+        assert_exists(tree.path().join("target/c.html"));
+        assert_exists(tree.path().join("target/d.html"));
     }
 
     #[test]
