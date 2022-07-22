@@ -1,9 +1,13 @@
-use std::{collections::HashSet, ffi::OsStr, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    ffi::OsStr,
+    path::Path,
+};
 
 use eyre::WrapErr;
 use itertools::Itertools;
 use tracing::{debug, info, trace};
-use typed_path::{ConfirmedPath, PathMarker, RelPath, SysPath};
+use typed_path::{AbsPath, ConfirmedPath, PathMarker, RelPath, SysPath};
 
 use crate::{
     core::{
@@ -68,7 +72,7 @@ pub mod filter {
     use crate::discover::html_asset::HtmlAsset;
 
     pub fn not_on_disk(asset: &HtmlAsset) -> bool {
-        !asset.path().target().exists()
+        !asset.asset_target_path().target().exists()
     }
 }
 
@@ -78,7 +82,7 @@ pub fn find_unpipelined_assets<'a>(
     not_pipelined
         .iter()
         .copied()
-        .filter(|asset| !asset.path().target().exists())
+        .filter(|asset| !asset.asset_target_path().target().exists())
         .collect::<HashSet<_>>()
 }
 
@@ -175,35 +179,50 @@ pub fn run_pipelines<'a>(
 ) -> Result<HashSet<&'a HtmlAsset>> {
     info!(target: USER_LOG, "running pipelines");
 
-    let mut unhandled_assets = HashSet::new();
+    let mut missing_assets: HashMap<&AbsPath, Vec<&HtmlAsset>> = HashMap::new();
 
-    for asset in html_assets {
-        // TODO: https://github.com/jayson-lennon/pylon/issues/144
-        if asset.url_type() == &UrlType::Offsite
-            || asset.uri().uri_fragment().ends_with('/')
-            || asset.uri().uri_fragment().ends_with("html")
-        {
-            continue;
-        }
+    // first pass: try to run user-defined pipelines
+    {
+        for (target_asset, html_files) in html_assets {
+            for html in html_files {
+                // TODO: https://github.com/jayson-lennon/pylon/issues/144
+                if html.url_type() == &UrlType::Offsite
+                    || html.asset_target_uri().uri_fragment().ends_with('/')
+                    || html.asset_target_uri().uri_fragment().ends_with("html")
+                {
+                    continue;
+                }
 
-        // tracks which assets have no processing logic
-        let mut asset_has_pipeline = false;
+                let mut asset_processed = false;
 
-        // first pass: try to process all pipelines that we have matching globs for
-        for pipeline in engine.rules().pipelines() {
-            if pipeline.is_match(asset.uri().as_str()) {
-                debug!(target: USER_LOG, pipeline=%pipeline.glob(), asset=%asset.path().uri().as_str(), "run pipeline");
-                // asset has an associate pipeline, so we won't report an error
-                asset_has_pipeline = true;
+                for pipeline in engine.rules().pipelines() {
+                    if pipeline.is_match(html.asset_target_uri().as_str()) {
+                        debug!(target: USER_LOG, pipeline=%pipeline.glob(), asset=%html.asset_target_path().uri().as_str(), "run pipeline");
+                        // asset has an associated pipeline, so we won't report an error
+                        asset_processed = true;
 
-                pipeline.run(asset.uri()).wrap_err_with(|| {
-                    format!("Failed to run pipeline on asset '{}'", asset.uri())
-                })?;
+                        pipeline.run(html.asset_target_uri()).wrap_err_with(|| {
+                            format!(
+                                "Failed to run pipeline on asset '{}'",
+                                html.asset_target_uri()
+                            )
+                        })?;
+                    }
+                }
+                // all assets that weren't processed need to be reported later.
+                if !asset_processed {
+                    let entry = missing_assets.entry(target_asset).or_default();
+                    entry.push(html);
+                }
             }
         }
+    }
 
-        // second pass: try to copy assets if they exist
-        if !asset_has_pipeline {
+    // second pass: try to copy colocated assets
+    // This works by brute-force checking every page for the colocated asset. If any are found,
+    // then they are removed from the `missing_assets` collection.
+    {
+        let copy_pipeline = {
             let paths = engine.paths();
             let paths = pipeworks::Paths::new(
                 paths.project_root(),
@@ -211,25 +230,34 @@ pub fn run_pipelines<'a>(
                 paths.content_dir(),
             );
             let basedir = pipeworks::BaseDir::RelativeToDoc(RelPath::from_relative("."));
-            let pipeline =
-                pipeworks::Pipeline::with_ops(paths, &basedir, &[pipeworks::Operation::Copy])
-                    .wrap_err("Failed to build default copy pipeline")?;
 
-            // TODO: proper error handling -- this might fail to create directories
-            // while attempting to make a copy
-            if pipeline.run(asset.uri()).is_ok() {
-                asset_has_pipeline = true;
+            pipeworks::Pipeline::with_ops(paths, &basedir, &[pipeworks::Operation::Copy])
+                .wrap_err("Failed to build default copy pipeline")?
+        };
+
+        for (target_asset, html_files) in html_assets {
+            for html in html_files {
+                // TODO: proper error handling -- this might fail to create directories
+                // while attempting to make a copy.
+
+                // A successful pipeline means that we copied over the asset.
+                if copy_pipeline.run(html.asset_target_uri()).is_ok() {
+                    missing_assets.remove(&target_asset);
+                    // all pages link to this same asset, so we can bail once the asset exists
+                    break;
+                }
             }
-        }
-
-        // asset still is unhandled after first and second pass, so we insert
-        // them for later handling
-        if !asset_has_pipeline {
-            unhandled_assets.insert(asset);
         }
     }
 
-    Ok(unhandled_assets)
+    // Anything missing after running pipelines and colocation copies need to get reported
+    Ok(missing_assets
+        .into_iter()
+        // The target asset is included within each HtmlAsset structure, so we flatten
+        // here so the reporting mechanism can report on each individual page that references
+        // the asset.
+        .flat_map(|(_, assets)| assets)
+        .collect())
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -285,7 +313,6 @@ where
             })?
             .pipe(|assets| html_assets.extend(assets));
     }
-    html_assets.drop_offsite();
     Ok(html_assets)
 }
 
@@ -397,4 +424,136 @@ where
         ))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use crate::core::engine::Engine;
+    use std::path::Path;
+    use temptree::temptree;
+
+    fn setup() {
+        static HOOKED: once_cell::sync::OnceCell<()> = once_cell::sync::OnceCell::new();
+        HOOKED.get_or_init(|| {
+            let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
+            eyre_hook.install().unwrap();
+        });
+    }
+
+    pub fn assert_exists<P>(path: P)
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref();
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn pipeline_copies_colocated_assets() {
+        setup();
+        let sample_md = r#"+++
+    published = true
+    +++
+    sample"#;
+
+        let tree = temptree! {
+            "rules.rhai": "",
+            src: {
+                "sample.md": sample_md,
+                "data.png": "",
+            },
+            templates: {
+                "default.tera": r#"<img src="data.png">"#,
+            },
+            target: {},
+            syntax_themes: {}
+        };
+
+        let engine_paths = crate::test::default_test_paths(&tree);
+        let engine = Engine::new(engine_paths).unwrap();
+        engine.build_site().unwrap();
+
+        assert_exists(tree.path().join("target/data.png"));
+    }
+
+    #[test]
+    fn pipeline_copies_colocated_assets_from_another_doc() {
+        setup();
+        let md_relative = r#"+++
+    published = true
+    template_name = "relative.tera"
+    +++
+    sample"#;
+
+        let md_absolute = r#"+++
+    published = true
+    template_name = "absolute.tera"
+    +++
+    sample"#;
+
+        let tree = temptree! {
+            "rules.rhai": "",
+            src: {
+                inner: {
+                    "sample.md": md_relative,
+                    "data.png": "",
+                },
+                "a.md": md_absolute,
+                "b.md": md_absolute,
+                "c.md": md_absolute,
+                "d.md": md_absolute,
+            },
+            templates: {
+                "relative.tera": r#"<img src="data.png">"#,
+                "absolute.tera": r#"<img src="/inner/data.png">"#,
+            },
+            target: {},
+            syntax_themes: {}
+        };
+
+        let engine_paths = crate::test::default_test_paths(&tree);
+        let engine = Engine::new(engine_paths).unwrap();
+        engine.build_site().unwrap();
+
+        assert_exists(tree.path().join("target/inner/data.png"));
+    }
+
+    #[test]
+    fn pipeline_reports_errors_on_missing_asset() {
+        setup();
+        let md_relative = r#"+++
+    published = true
+    template_name = "relative.tera"
+    +++
+    sample"#;
+
+        let md_absolute = r#"+++
+    published = true
+    template_name = "absolute.tera"
+    +++
+    sample"#;
+
+        let tree = temptree! {
+            "rules.rhai": "",
+            src: {
+                inner: {
+                    "sample.md": md_relative,
+                },
+                "a.md": md_absolute,
+                "b.md": md_absolute,
+                "c.md": md_absolute,
+                "d.md": md_absolute,
+            },
+            templates: {
+                "relative.tera": r#"<img src="data.png">"#,
+                "absolute.tera": r#"<img src="/inner/data.png">"#,
+            },
+            target: {},
+            syntax_themes: {}
+        };
+
+        let engine_paths = crate::test::default_test_paths(&tree);
+        let engine = Engine::new(engine_paths).unwrap();
+        assert!(engine.build_site().is_err());
+    }
 }

@@ -1,9 +1,9 @@
 use derivative::Derivative;
 use eyre::{eyre, WrapErr};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use typed_path::ConfirmedPath;
+use typed_path::{AbsPath, ConfirmedPath};
 use typed_uri::{AssetUri, Uri};
 
 use serde::Serialize;
@@ -74,7 +74,7 @@ impl HtmlAsset {
         self.tag == tag.as_ref()
     }
 
-    pub fn uri(&self) -> &AssetUri {
+    pub fn asset_target_uri(&self) -> &AssetUri {
         self.target.uri()
     }
 
@@ -86,7 +86,7 @@ impl HtmlAsset {
         &self.url_type
     }
 
-    pub fn path(&self) -> &AssetPath {
+    pub fn asset_target_path(&self) -> &AssetPath {
         &self.target
     }
 }
@@ -107,20 +107,20 @@ impl Eq for HtmlAsset {}
 
 #[derive(Debug)]
 pub struct HtmlAssets {
-    inner: HashSet<HtmlAsset>,
+    inner: HashMap<AbsPath, Vec<HtmlAsset>>,
 }
 
 impl HtmlAssets {
     pub fn new() -> Self {
         Self {
-            inner: HashSet::new(),
+            inner: HashMap::new(),
         }
     }
-    pub fn from_hashset(assets: HashSet<HtmlAsset>) -> Self {
+    pub fn from_hashmap(assets: HashMap<AbsPath, Vec<HtmlAsset>>) -> Self {
         Self { inner: assets }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &HtmlAsset> {
+    pub fn iter(&self) -> impl Iterator<Item = (&AbsPath, &Vec<HtmlAsset>)> {
         self.into_iter()
     }
 
@@ -133,20 +133,34 @@ impl HtmlAssets {
     }
 
     pub fn extend(&mut self, other: Self) {
-        self.inner.extend(other.inner);
+        for (key, other_assets) in other {
+            let this_assets = self.inner.entry(key).or_default();
+            for asset in other_assets {
+                this_assets.push(asset);
+            }
+        }
     }
 
     pub fn insert(&mut self, asset: HtmlAsset) {
-        self.inner.insert(asset);
+        let key = asset.asset_target_path().target().clone();
+        let entry = self.inner.entry(key).or_default();
+        entry.push(asset);
     }
 
     pub fn drop_offsite(&mut self) {
-        let assets = self.inner.drain().collect::<HashSet<_>>();
-        for asset in assets {
-            if asset.url_type != UrlType::Offsite {
-                self.inner.insert(asset);
-            }
+        let mut new_assets = HashMap::new();
+        for (k, assets) in self.inner.drain() {
+            let filtered_assets = assets
+                .into_iter()
+                .filter(|asset| asset.url_type != UrlType::Offsite)
+                .collect::<Vec<_>>();
+            new_assets.insert(k, filtered_assets);
         }
+        self.inner = new_assets;
+    }
+
+    pub fn remove(&mut self, target: &AbsPath) {
+        self.inner.remove(target);
     }
 }
 
@@ -157,8 +171,8 @@ impl Default for HtmlAssets {
 }
 
 impl IntoIterator for HtmlAssets {
-    type Item = HtmlAsset;
-    type IntoIter = std::collections::hash_set::IntoIter<Self::Item>;
+    type Item = (AbsPath, Vec<HtmlAsset>);
+    type IntoIter = std::collections::hash_map::IntoIter<AbsPath, Vec<HtmlAsset>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.into_iter()
@@ -166,8 +180,8 @@ impl IntoIterator for HtmlAssets {
 }
 
 impl<'a> IntoIterator for &'a HtmlAssets {
-    type Item = &'a HtmlAsset;
-    type IntoIter = std::collections::hash_set::Iter<'a, HtmlAsset>;
+    type Item = (&'a AbsPath, &'a Vec<HtmlAsset>);
+    type IntoIter = std::collections::hash_map::Iter<'a, AbsPath, Vec<HtmlAsset>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter()
@@ -179,6 +193,18 @@ impl FromIterator<HtmlAsset> for HtmlAssets {
         let mut assets = HtmlAssets::new();
         for asset in iter {
             assets.insert(asset);
+        }
+        assets
+    }
+}
+
+impl FromIterator<Vec<HtmlAsset>> for HtmlAssets {
+    fn from_iter<I: IntoIterator<Item = Vec<HtmlAsset>>>(iter: I) -> Self {
+        let mut assets = HtmlAssets::new();
+        for collection in iter {
+            for asset in collection {
+                assets.insert(asset);
+            }
         }
         assets
     }
@@ -427,7 +453,7 @@ mod test {
 
         let asset = assets.iter().next().unwrap();
 
-        assert_eq!(asset.target.uri().as_str(), "/asset.png");
+        assert_eq!(asset.1[0].target.uri().as_str(), "/asset.png");
     }
 
     #[test]
@@ -453,7 +479,7 @@ mod test {
 
         let asset = assets.iter().next().unwrap();
 
-        assert_eq!(asset.target.uri().as_str(), "/asset.png");
+        assert_eq!(asset.1[0].target.uri().as_str(), "/asset.png");
     }
 
     #[test]
@@ -481,7 +507,7 @@ mod test {
 
         let asset = assets.iter().next().unwrap();
 
-        assert_eq!(asset.target.uri().as_str(), "/img/asset.png");
+        assert_eq!(asset.1[0].target.uri().as_str(), "/img/asset.png");
     }
 
     #[test]
@@ -509,7 +535,7 @@ mod test {
 
         let asset = assets.iter().next().unwrap();
 
-        assert_eq!(asset.target.uri().as_str(), "/img/asset.png");
+        assert_eq!(asset.1[0].target.uri().as_str(), "/img/asset.png");
     }
 
     #[test]

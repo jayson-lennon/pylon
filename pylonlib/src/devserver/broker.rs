@@ -249,7 +249,7 @@ mod handle_msg {
             Page,
         },
         devserver::broker::RenderBehavior,
-        discover::html_asset::{HtmlAssets, MissingAssetsError},
+        discover::html_asset::MissingAssetsError,
         Result, SysPath,
     };
 
@@ -259,35 +259,38 @@ mod handle_msg {
         step::mount_directories(engine.rules().mounts())
     }
 
-    pub fn process_pipelines(engine: &Engine, uri: &Uri) -> Result<()> {
-        let sys_path = uri
-            .to_sys_path(engine.paths().project_root(), engine.paths().output_dir())
-            .wrap_err_with(|| format!("Failed to generate SysPath from {}", uri))?;
+    pub fn process_pipelines(engine: &Engine, _: &Uri) -> Result<()> {
+        // let sys_path = uri
+        //     .to_sys_path(engine.paths().project_root(), engine.paths().output_dir())
+        //     .wrap_err_with(|| format!("Failed to generate SysPath from {}", uri))?;
 
-        let html_path = sys_path.confirm(pathmarker::HtmlFile)?;
+        // let html_path = sys_path.confirm(pathmarker::HtmlFile)?;
 
-        let missing_assets = step::build_required_asset_list(engine, std::iter::once(&html_path))
-            .map(|mut assets| {
-                assets.drop_offsite();
-                assets
-            })
-            .wrap_err_with(|| format!("Failed find assets in file '{}'", &html_path))?
-            .into_iter()
-            .filter(step::filter::not_on_disk)
-            .collect::<HtmlAssets>();
+        // let required_assets = step::build_required_asset_list(engine, std::iter::once(&html_path))
+        //     .map(|mut assets| {
+        //         assets.drop_offsite();
+        //         assets
+        //     })
+        //     .wrap_err_with(|| format!("Failed find assets in file '{}'", &html_path))?
+        //     .into_iter()
+        //     .filter(|(target, _)| !target.exists())
+        //     // we only need the asset to build an HtmlAssets
+        //     .map(|(_, asset)| asset)
+        //     .collect::<HtmlAssets>();
 
-        let missing_assets = step::run_pipelines(engine, &missing_assets)
-            .wrap_err("Failed to run pipelines in dev server")?
-            .into_iter()
-            .filter(|asset| step::filter::not_on_disk(*asset))
-            .collect::<HashSet<_>>();
+        // let missing_assets = step::run_pipelines(engine, &required_assets)
+        //     .wrap_err("Failed to run pipelines in dev server")?
+        //     .into_iter()
+        //     .filter(|asset| step::filter::not_on_disk(*asset))
+        //     .collect::<HashSet<_>>();
 
-        if !missing_assets.is_empty() {
-            return Err(eyre!(missing_assets
-                .iter()
-                .map(|asset| asset.uri().unconfirmed())
-                .collect::<MissingAssetsError>()));
-        }
+        // if !missing_assets.is_empty() {
+        //     return Err(eyre!(missing_assets
+        //         .iter()
+        //         .map(|asset| asset.uri().unconfirmed())
+        //         .collect::<MissingAssetsError>()));
+        // }
+        engine.build_site()?;
         Ok(())
     }
 
@@ -333,7 +336,7 @@ mod handle_msg {
                 if !missing_assets.is_empty() {
                     return Err(eyre!(missing_assets
                         .iter()
-                        .map(|asset| asset.uri().unconfirmed())
+                        .map(|asset| asset.asset_target_uri().unconfirmed())
                         .collect::<MissingAssetsError>()));
                 }
 

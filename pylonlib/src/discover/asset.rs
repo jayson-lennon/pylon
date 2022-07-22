@@ -71,6 +71,6 @@ mod test {
             .expect("failed to find assets");
 
         let asset = assets.iter().next().unwrap();
-        assert_eq!(asset.html_src_file(), &html_path);
+        assert_eq!(asset.1[0].html_src_file(), &html_path);
     }
 }
