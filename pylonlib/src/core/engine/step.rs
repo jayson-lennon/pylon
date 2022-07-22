@@ -519,6 +519,48 @@ mod test {
     }
 
     #[test]
+    fn pipeline_copies_colocated_assets_from_another_doc_with_relative_path() {
+        setup();
+        let md_relative = r#"+++
+    published = true
+    template_name = "relative.tera"
+    +++
+    sample"#;
+
+        let md_absolute = r#"+++
+    published = true
+    template_name = "absolute.tera"
+    +++
+    sample"#;
+
+        let tree = temptree! {
+            "rules.rhai": "",
+            src: {
+                inner: {
+                    "sample.md": md_relative,
+                    "data.png": "",
+                },
+                "a.md": md_absolute,
+                "b.md": md_absolute,
+                "c.md": md_absolute,
+                "d.md": md_absolute,
+            },
+            templates: {
+                "relative.tera": r#"<img src="data.png">"#,
+                "absolute.tera": r#"<img src="inner/data.png">"#,
+            },
+            target: {},
+            syntax_themes: {}
+        };
+
+        let engine_paths = crate::test::default_test_paths(&tree);
+        let engine = Engine::new(engine_paths).unwrap();
+        engine.build_site().unwrap();
+
+        assert_exists(tree.path().join("target/inner/data.png"));
+    }
+
+    #[test]
     fn pipeline_reports_errors_on_missing_asset() {
         setup();
         let md_relative = r#"+++
