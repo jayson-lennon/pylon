@@ -100,10 +100,10 @@ use_breadcrumbs = false
 #
 # whether this document will be generated in build
 #
-# When `false`, this document will be skipped during a site build. When
+# When `true`, this document will be rendered during a site build. When
 # running the development server, this value is ignored and the document
-# will always be generated in order to preview work.
-published = true
+# will always be generated (in order to preview work).
+published = false
 
 #
 # custom data to provide to the rendering context
