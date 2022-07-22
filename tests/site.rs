@@ -933,3 +933,35 @@ fn offsite_anchors_work() {
     step::render(&engine, engine.library().iter().map(|(_, page)| page))
         .expect("failed to render pages");
 }
+
+#[test]
+fn builds_site_index() {
+    setup();
+    let sample_md = r#"+++
+    published = true
+    +++
+    sample"#;
+    let default_template = r#"{{ content | safe }}"#;
+
+    let tree = temptree! {
+        "rules.rhai": "",
+        src: {
+            "index.md": sample_md,
+            inner: {
+                "index.md": sample_md,
+            }
+        },
+        templates: {
+            "default.tera": default_template,
+        },
+        target: {},
+        syntax_themes: {}
+    };
+
+    let engine_paths = engine_paths(&tree);
+    let engine = Engine::new(engine_paths).unwrap();
+    engine.build_site().unwrap();
+
+    assert_content(tree.path().join("target/index.html"), "<p>sample</p>");
+    assert_content(tree.path().join("target/inner/index.html"), "<p>sample</p>");
+}

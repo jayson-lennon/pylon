@@ -184,12 +184,6 @@ pub fn run_pipelines<'a>(
     // first pass: try to run user-defined pipelines
     {
         for (target_asset, html_files) in html_assets {
-            // Continue to the next asset if it already exists. This happens when the asset
-            // was already copied from a mount, and there also exists a pipeline for it.
-            if target_asset.exists() {
-                continue;
-            }
-
             // we only need to run the pipeline one time per target asset, so
             // we just grab the first entry
             let html = html_files.get(0).unwrap();
