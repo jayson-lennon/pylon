@@ -23,4 +23,7 @@ jobs:
   retryDelay: 30
   cpuRequirement: 250
   memoryRequirement: 256
+  caches:
+  - key: '@project_path@'
+    path: target
   timeout: 3600
