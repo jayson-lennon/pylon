@@ -2,6 +2,12 @@ version: 17
 jobs:
 - name: check
   steps:
+  - !CheckoutStep
+    name: checkout
+    cloneCredential: !DefaultCredential {}
+    withLfs: false
+    withSubmodules: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   - !CommandStep
     name: cargo check
     runInContainer: false
