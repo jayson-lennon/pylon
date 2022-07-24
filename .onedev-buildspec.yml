@@ -57,6 +57,10 @@ jobs:
     withLfs: false
     force: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  triggers:
+  - !ScheduleTrigger
+    cronExpression: 0 2 0 * * ?
+    projects: pylon
   retryCondition: never
   maxRetries: 3
   retryDelay: 30
