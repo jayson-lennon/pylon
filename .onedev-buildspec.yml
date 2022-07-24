@@ -46,3 +46,19 @@ jobs:
   cpuRequirement: 250
   memoryRequirement: 256
   timeout: 3600
+- name: GitHub Pull
+  steps:
+  - !PullRepository
+    name: GitHub pull
+    remoteUrl: https://github.com/jayson-lennon/pylon
+    passwordSecret: github-sync
+    refs: refs/heads/* refs/tags/*
+    withLfs: false
+    force: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  cpuRequirement: 250
+  memoryRequirement: 256
+  timeout: 3600
