@@ -1,6 +1,6 @@
 version: 17
 jobs:
-- name: check
+- name: Test
   steps:
   - !CheckoutStep
     name: checkout
@@ -9,11 +9,11 @@ jobs:
     withSubmodules: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   - !CommandStep
-    name: cargo check
+    name: run tests
     runInContainer: false
     interpreter: !DefaultInterpreter
       commands:
-      - cargo check
+      - just test
     useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   triggers:
@@ -27,6 +27,10 @@ jobs:
   - key: '@project_path@'
     path: target
   timeout: 3600
+  postBuildActions:
+  - !RunJobAction
+    condition: successful
+    jobName: Github Sync
 - name: Github Sync
   steps:
   - !PushRepository
