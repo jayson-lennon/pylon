@@ -30,8 +30,8 @@ jobs:
   postBuildActions:
   - !RunJobAction
     condition: successful
-    jobName: Github Sync
-- name: Github Sync
+    jobName: Github Push
+- name: Github Push
   steps:
   - !PushRepository
     name: Push to GitHub
@@ -49,7 +49,7 @@ jobs:
 - name: GitHub Pull
   steps:
   - !PullRepository
-    name: GitHub pull
+    name: Pull from GitHub
     remoteUrl: https://github.com/jayson-lennon/pylon
     passwordSecret: github-sync
     refs: refs/heads/* refs/tags/*
