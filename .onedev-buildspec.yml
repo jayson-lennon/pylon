@@ -17,7 +17,8 @@ jobs:
     useTTY: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   triggers:
-  - !BranchUpdateTrigger {}
+  - !BranchUpdateTrigger
+    paths: -.onedev-buildspec.yml
   retryCondition: never
   maxRetries: 3
   retryDelay: 30
