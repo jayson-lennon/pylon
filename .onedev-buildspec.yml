@@ -38,7 +38,7 @@ jobs:
     remoteUrl: https://github.com/jayson-lennon/pylon
     passwordSecret: github-sync
     withLfs: false
-    force: true
+    force: false
     condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
   retryCondition: never
   maxRetries: 3
